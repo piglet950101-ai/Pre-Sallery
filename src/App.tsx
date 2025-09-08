@@ -10,6 +10,7 @@ import Register from "./pages/Register";
 import EmployeeDashboard from "./pages/EmployeeDashboard";
 import RequestAdvance from "./pages/RequestAdvance";
 import CompanyDashboard from "./pages/CompanyDashboard";
+import CompanyConfiguration from "./pages/CompanyConfiguration";
 import OperatorDashboard from "./pages/OperatorDashboard";
 import FAQ from "./pages/FAQ";
 import About from "./pages/About";
@@ -34,6 +35,7 @@ const App = () => (
             <Route path="/employee" element={<EmployeeDashboard />} />
             <Route path="/employee/request-advance" element={<RequestAdvance />} />
             <Route path="/company" element={<CompanyDashboard />} />
+            <Route path="/company/configuration" element={<CompanyConfiguration />} />
             <Route path="/operator" element={<OperatorDashboard />} />
             <Route path="/faq" element={<FAQ />} />
             <Route path="/about" element={<About />} />

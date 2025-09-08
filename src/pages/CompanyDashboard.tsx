@@ -62,9 +62,11 @@ const CompanyDashboard = () => {
               </div>
             </div>
             <div className="flex items-center space-x-3">
-              <Button variant="outline" size="sm">
-                <Settings className="h-4 w-4 mr-2" />
-                {t('company.configuration')}
+              <Button variant="outline" size="sm" asChild>
+                <Link to="/company/configuration">
+                  <Settings className="h-4 w-4 mr-2" />
+                  {t('company.configuration')}
+                </Link>
               </Button>
               <Button variant="outline" asChild>
                 <Link to="/">{t('dashboard.logout')}</Link>
