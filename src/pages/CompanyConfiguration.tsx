@@ -62,8 +62,8 @@ const CompanyConfiguration = () => {
     // Simulate API call
     setTimeout(() => {
       toast({
-        title: "Configuración guardada",
-        description: "Los cambios han sido aplicados exitosamente",
+        title: t('config.settingsSaved'),
+        description: t('config.settingsSavedDesc'),
       });
       setIsLoading(false);
     }, 1500);
@@ -79,7 +79,7 @@ const CompanyConfiguration = () => {
               <Button variant="ghost" size="sm" asChild>
                 <Link to="/company" className="flex items-center space-x-2">
                   <ArrowLeft className="h-4 w-4" />
-                  <span>Volver al Panel</span>
+                  <span>{t('config.backToDashboard')}</span>
                 </Link>
               </Button>
               <div className="h-6 w-px bg-border" />
@@ -88,8 +88,8 @@ const CompanyConfiguration = () => {
                   <Settings className="h-5 w-5 text-white" />
                 </div>
                 <div>
-                  <h1 className="text-xl font-bold">Configuración</h1>
-                  <p className="text-sm text-muted-foreground">Gestiona la configuración de tu empresa</p>
+                  <h1 className="text-xl font-bold">{t('config.title')}</h1>
+                  <p className="text-sm text-muted-foreground">{t('config.subtitle')}</p>
                 </div>
               </div>
             </div>
@@ -97,12 +97,12 @@ const CompanyConfiguration = () => {
               {isLoading ? (
                 <div className="flex items-center space-x-2">
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  <span>Guardando...</span>
+                  <span>{t('config.saving')}</span>
                 </div>
               ) : (
                 <div className="flex items-center space-x-2">
                   <Save className="h-4 w-4" />
-                  <span>Guardar Cambios</span>
+                  <span>{t('config.saveChanges')}</span>
                 </div>
               )}
             </Button>
@@ -113,11 +113,11 @@ const CompanyConfiguration = () => {
       <div className="container mx-auto px-4 py-8">
         <Tabs defaultValue="company" className="space-y-6">
           <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="company">Empresa</TabsTrigger>
-            <TabsTrigger value="payment">Pagos</TabsTrigger>
-            <TabsTrigger value="notifications">Notificaciones</TabsTrigger>
-            <TabsTrigger value="security">Seguridad</TabsTrigger>
-            <TabsTrigger value="integrations">Integraciones</TabsTrigger>
+            <TabsTrigger value="company">{t('config.tabs.company')}</TabsTrigger>
+            <TabsTrigger value="payment">{t('config.tabs.payment')}</TabsTrigger>
+            <TabsTrigger value="notifications">{t('config.tabs.notifications')}</TabsTrigger>
+            <TabsTrigger value="security">{t('config.tabs.security')}</TabsTrigger>
+            <TabsTrigger value="integrations">{t('config.tabs.integrations')}</TabsTrigger>
           </TabsList>
 
           {/* Company Information */}
@@ -126,16 +126,16 @@ const CompanyConfiguration = () => {
               <CardHeader>
                 <CardTitle className="flex items-center space-x-2">
                   <Building2 className="h-5 w-5 text-primary" />
-                  <span>Información de la Empresa</span>
+                  <span>{t('config.company.title')}</span>
                 </CardTitle>
                 <CardDescription>
-                  Actualiza los datos básicos de tu empresa
+                  {t('config.company.subtitle')}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="grid md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <Label htmlFor="company-name">Razón Social</Label>
+                    <Label htmlFor="company-name">{t('config.company.businessName')}</Label>
                     <Input
                       id="company-name"
                       value={companyInfo.name}
@@ -143,7 +143,7 @@ const CompanyConfiguration = () => {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="rif">RIF</Label>
+                    <Label htmlFor="rif">{t('config.company.rif')}</Label>
                     <Input
                       id="rif"
                       value={companyInfo.rif}
@@ -151,7 +151,7 @@ const CompanyConfiguration = () => {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="email">Correo Electrónico</Label>
+                    <Label htmlFor="email">{t('config.company.email')}</Label>
                     <Input
                       id="email"
                       type="email"
@@ -160,7 +160,7 @@ const CompanyConfiguration = () => {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="phone">Teléfono</Label>
+                    <Label htmlFor="phone">{t('config.company.phone')}</Label>
                     <Input
                       id="phone"
                       value={companyInfo.phone}
@@ -172,10 +172,10 @@ const CompanyConfiguration = () => {
                 <Separator />
 
                 <div className="space-y-4">
-                  <h3 className="text-lg font-semibold">Dirección</h3>
+                  <h3 className="text-lg font-semibold">{t('config.company.addressTitle')}</h3>
                   <div className="grid md:grid-cols-1 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="address">Dirección</Label>
+                      <Label htmlFor="address">{t('config.company.address')}</Label>
                       <Input
                         id="address"
                         value={companyInfo.address}
@@ -185,7 +185,7 @@ const CompanyConfiguration = () => {
                   </div>
                   <div className="grid md:grid-cols-3 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="city">Ciudad</Label>
+                      <Label htmlFor="city">{t('config.company.city')}</Label>
                       <Input
                         id="city"
                         value={companyInfo.city}
@@ -193,7 +193,7 @@ const CompanyConfiguration = () => {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="state">Estado</Label>
+                      <Label htmlFor="state">{t('config.company.state')}</Label>
                       <Input
                         id="state"
                         value={companyInfo.state}
@@ -201,7 +201,7 @@ const CompanyConfiguration = () => {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="postal-code">Código Postal</Label>
+                      <Label htmlFor="postal-code">{t('config.company.postalCode')}</Label>
                       <Input
                         id="postal-code"
                         value={companyInfo.postalCode}
@@ -220,15 +220,15 @@ const CompanyConfiguration = () => {
               <CardHeader>
                 <CardTitle className="flex items-center space-x-2">
                   <CreditCard className="h-5 w-5 text-primary" />
-                  <span>Métodos de Pago</span>
+                  <span>{t('config.payment.title')}</span>
                 </CardTitle>
                 <CardDescription>
-                  Configura los métodos de pago para adelantos y facturación
+                  {t('config.payment.subtitle')}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="space-y-4">
-                  <h3 className="text-lg font-semibold">Métodos para Adelantos</h3>
+                  <h3 className="text-lg font-semibold">{t('config.payment.advanceMethodsTitle')}</h3>
                   
                   <div className="space-y-4">
                     <div className="flex items-center justify-between p-4 border rounded-lg">
@@ -237,13 +237,13 @@ const CompanyConfiguration = () => {
                           <DollarSign className="h-5 w-5 text-primary" />
                         </div>
                         <div>
-                          <div className="font-medium">PagoMóvil</div>
-                          <div className="text-sm text-muted-foreground">Pagos instantáneos</div>
+                          <div className="font-medium">{t('config.payment.pagoMovil')}</div>
+                          <div className="text-sm text-muted-foreground">{t('config.payment.instantPayments')}</div>
                         </div>
                       </div>
                       <div className="flex items-center space-x-3">
-                        <Badge className="bg-green-100 text-green-800">Activo</Badge>
-                        <Button variant="outline" size="sm">Configurar</Button>
+                        <Badge className="bg-green-100 text-green-800">{t('config.payment.active')}</Badge>
+                        <Button variant="outline" size="sm">{t('config.payment.configure')}</Button>
                       </div>
                     </div>
 
@@ -253,13 +253,13 @@ const CompanyConfiguration = () => {
                           <CreditCard className="h-5 w-5 text-primary" />
                         </div>
                         <div>
-                          <div className="font-medium">Transferencia Bancaria</div>
-                          <div className="text-sm text-muted-foreground">Banco Venezuela</div>
+                          <div className="font-medium">{t('config.payment.bankTransfer')}</div>
+                          <div className="text-sm text-muted-foreground">{t('config.payment.bankVenezuela')}</div>
                         </div>
                       </div>
                       <div className="flex items-center space-x-3">
-                        <Badge className="bg-green-100 text-green-800">Activo</Badge>
-                        <Button variant="outline" size="sm">Configurar</Button>
+                        <Badge className="bg-green-100 text-green-800">{t('config.payment.active')}</Badge>
+                        <Button variant="outline" size="sm">{t('config.payment.configure')}</Button>
                       </div>
                     </div>
                   </div>
@@ -268,14 +268,14 @@ const CompanyConfiguration = () => {
                 <Separator />
 
                 <div className="space-y-4">
-                  <h3 className="text-lg font-semibold">Configuración de Comisiones</h3>
+                  <h3 className="text-lg font-semibold">{t('config.payment.commissionsTitle')}</h3>
                   <div className="grid md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="fee-rate">Tasa de Comisión (%)</Label>
+                      <Label htmlFor="fee-rate">{t('config.payment.commissionRate')}</Label>
                       <Input id="fee-rate" type="number" defaultValue="5" min="0" max="10" step="0.1" />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="min-fee">Comisión Mínima (USD)</Label>
+                      <Label htmlFor="min-fee">{t('config.payment.minCommission')}</Label>
                       <Input id="min-fee" type="number" defaultValue="1" min="0.5" step="0.5" />
                     </div>
                   </div>
@@ -290,18 +290,18 @@ const CompanyConfiguration = () => {
               <CardHeader>
                 <CardTitle className="flex items-center space-x-2">
                   <Bell className="h-5 w-5 text-primary" />
-                  <span>Notificaciones</span>
+                  <span>{t('config.notifications.title')}</span>
                 </CardTitle>
                 <CardDescription>
-                  Personaliza cómo y cuándo recibir notificaciones
+                  {t('config.notifications.subtitle')}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="font-medium">Solicitudes de Adelanto por Email</div>
-                      <div className="text-sm text-muted-foreground">Recibe un email cuando hay nuevas solicitudes</div>
+                      <div className="font-medium">{t('config.notifications.advanceRequestsEmail')}</div>
+                      <div className="text-sm text-muted-foreground">{t('config.notifications.advanceRequestsEmailDesc')}</div>
                     </div>
                     <Switch
                       checked={notifications.emailAdvanceRequests}
@@ -311,8 +311,8 @@ const CompanyConfiguration = () => {
 
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="font-medium">Solicitudes de Adelanto por SMS</div>
-                      <div className="text-sm text-muted-foreground">Recibe SMS para solicitudes urgentes</div>
+                      <div className="font-medium">{t('config.notifications.advanceRequestsSms')}</div>
+                      <div className="text-sm text-muted-foreground">{t('config.notifications.advanceRequestsSmsDesc')}</div>
                     </div>
                     <Switch
                       checked={notifications.smsAdvanceRequests}
@@ -322,8 +322,8 @@ const CompanyConfiguration = () => {
 
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="font-medium">Reportes Semanales</div>
-                      <div className="text-sm text-muted-foreground">Resumen semanal de actividad</div>
+                      <div className="font-medium">{t('config.notifications.weeklyReports')}</div>
+                      <div className="text-sm text-muted-foreground">{t('config.notifications.weeklyReportsDesc')}</div>
                     </div>
                     <Switch
                       checked={notifications.emailWeeklyReports}
@@ -333,8 +333,8 @@ const CompanyConfiguration = () => {
 
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="font-medium">Notificaciones de Facturación</div>
-                      <div className="text-sm text-muted-foreground">Recordatorios de pagos y facturas</div>
+                      <div className="font-medium">{t('config.notifications.billingNotifications')}</div>
+                      <div className="text-sm text-muted-foreground">{t('config.notifications.billingNotificationsDesc')}</div>
                     </div>
                     <Switch
                       checked={notifications.emailBilling}
@@ -344,8 +344,8 @@ const CompanyConfiguration = () => {
 
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="font-medium">Notificaciones Push</div>
-                      <div className="text-sm text-muted-foreground">Notificaciones en tiempo real en el navegador</div>
+                      <div className="font-medium">{t('config.notifications.pushNotifications')}</div>
+                      <div className="text-sm text-muted-foreground">{t('config.notifications.pushNotificationsDesc')}</div>
                     </div>
                     <Switch
                       checked={notifications.pushNotifications}
@@ -363,18 +363,18 @@ const CompanyConfiguration = () => {
               <CardHeader>
                 <CardTitle className="flex items-center space-x-2">
                   <Shield className="h-5 w-5 text-primary" />
-                  <span>Seguridad</span>
+                  <span>{t('config.security.title')}</span>
                 </CardTitle>
                 <CardDescription>
-                  Configura las opciones de seguridad para tu cuenta
+                  {t('config.security.subtitle')}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="font-medium">Autenticación de Dos Factores</div>
-                      <div className="text-sm text-muted-foreground">Añade una capa extra de seguridad</div>
+                      <div className="font-medium">{t('config.security.twoFactorAuth')}</div>
+                      <div className="text-sm text-muted-foreground">{t('config.security.twoFactorAuthDesc')}</div>
                     </div>
                     <Switch
                       checked={security.twoFactorAuth}
@@ -384,8 +384,8 @@ const CompanyConfiguration = () => {
 
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="font-medium">Notificaciones de Inicio de Sesión</div>
-                      <div className="text-sm text-muted-foreground">Email cuando alguien accede a tu cuenta</div>
+                      <div className="font-medium">{t('config.security.loginNotifications')}</div>
+                      <div className="text-sm text-muted-foreground">{t('config.security.loginNotificationsDesc')}</div>
                     </div>
                     <Switch
                       checked={security.loginNotifications}
@@ -394,7 +394,7 @@ const CompanyConfiguration = () => {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="session-timeout">Tiempo de Sesión (minutos)</Label>
+                    <Label htmlFor="session-timeout">{t('config.security.sessionTimeout')}</Label>
                     <Input
                       id="session-timeout"
                       type="number"
@@ -406,7 +406,7 @@ const CompanyConfiguration = () => {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="approval-amount">Monto que Requiere Aprobación (USD)</Label>
+                    <Label htmlFor="approval-amount">{t('config.security.approvalAmount')}</Label>
                     <Input
                       id="approval-amount"
                       type="number"
@@ -429,10 +429,10 @@ const CompanyConfiguration = () => {
               <CardHeader>
                 <CardTitle className="flex items-center space-x-2">
                   <Plug className="h-5 w-5 text-primary" />
-                  <span>Integraciones</span>
+                  <span>{t('config.integrations.title')}</span>
                 </CardTitle>
                 <CardDescription>
-                  Conecta con sistemas externos y APIs
+                  {t('config.integrations.subtitle')}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
@@ -443,13 +443,13 @@ const CompanyConfiguration = () => {
                         <Users className="h-5 w-5 text-primary" />
                       </div>
                       <div>
-                        <div className="font-medium">Sistema de Nómina</div>
-                        <div className="text-sm text-muted-foreground">Sincroniza datos de empleados automáticamente</div>
+                        <div className="font-medium">{t('config.integrations.payrollSystem')}</div>
+                        <div className="text-sm text-muted-foreground">{t('config.integrations.payrollSystemDesc')}</div>
                       </div>
                     </div>
                     <div className="flex items-center space-x-3">
                       <Badge variant="outline">No Conectado</Badge>
-                      <Button variant="outline" size="sm">Conectar</Button>
+                      <Button variant="outline" size="sm">{t('config.integrations.connect')}</Button>
                     </div>
                   </div>
 
@@ -459,13 +459,13 @@ const CompanyConfiguration = () => {
                         <CheckCircle className="h-5 w-5 text-green-600" />
                       </div>
                       <div>
-                        <div className="font-medium">API de Pagos</div>
-                        <div className="text-sm text-muted-foreground">Procesa pagos automáticamente</div>
+                        <div className="font-medium">{t('config.integrations.bankingApi')}</div>
+                        <div className="text-sm text-muted-foreground">{t('config.integrations.bankingApiDesc')}</div>
                       </div>
                     </div>
                     <div className="flex items-center space-x-3">
-                      <Badge className="bg-green-100 text-green-800">Conectado</Badge>
-                      <Button variant="outline" size="sm">Configurar</Button>
+                      <Badge className="bg-green-100 text-green-800">{t('config.integrations.connected')}</Badge>
+                      <Button variant="outline" size="sm">{t('config.integrations.testConnection')}</Button>
                     </div>
                   </div>
 
@@ -475,8 +475,8 @@ const CompanyConfiguration = () => {
                         <AlertCircle className="h-5 w-5 text-primary" />
                       </div>
                       <div>
-                        <div className="font-medium">Webhooks</div>
-                        <div className="text-sm text-muted-foreground">Recibe notificaciones en tiempo real</div>
+                        <div className="font-medium">{t('config.integrations.hrSystem')}</div>
+                        <div className="text-sm text-muted-foreground">{t('config.integrations.hrSystemDesc')}</div>
                       </div>
                     </div>
                     <div className="flex items-center space-x-3">
