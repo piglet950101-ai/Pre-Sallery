@@ -8,6 +8,7 @@ import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import EmployeeDashboard from "./pages/EmployeeDashboard";
+import RequestAdvance from "./pages/RequestAdvance";
 import CompanyDashboard from "./pages/CompanyDashboard";
 import OperatorDashboard from "./pages/OperatorDashboard";
 import FAQ from "./pages/FAQ";
@@ -31,6 +32,7 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/employee" element={<EmployeeDashboard />} />
+            <Route path="/employee/request-advance" element={<RequestAdvance />} />
             <Route path="/company" element={<CompanyDashboard />} />
             <Route path="/operator" element={<OperatorDashboard />} />
             <Route path="/faq" element={<FAQ />} />

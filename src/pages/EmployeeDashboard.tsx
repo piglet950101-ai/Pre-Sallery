@@ -179,8 +179,10 @@ const EmployeeDashboard = () => {
                       </div>
                     </div>
 
-                    <Button className="w-full" variant="hero" size="lg">
-                      {t('employee.requestButton')}
+                    <Button className="w-full" variant="hero" size="lg" asChild>
+                      <Link to="/employee/request-advance">
+                        {t('employee.requestButton')}
+                      </Link>
                     </Button>
                   </div>
                 </div>
