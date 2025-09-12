@@ -63,13 +63,22 @@ export const AdvanceRequestForm = ({ employeeData }: AdvanceRequestFormProps) =>
       return;
     }
 
+    if (requestAmount < 20) {
+      toast({
+        title: "Monto mínimo",
+        description: "El adelanto mínimo es de $20 USD",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     
-    // Simulate API call
+    // Simulate API call to create advance request
     setTimeout(() => {
       toast({
         title: "Solicitud enviada",
-        description: "Tu adelanto está siendo procesado y será incluido en el próximo lote",
+        description: "Tu adelanto será procesado en el próximo lote (11:00 AM o 3:00 PM)",
       });
       setIsSubmitting(false);
       setRequestAmount(50);
@@ -239,9 +248,9 @@ export const AdvanceRequestForm = ({ employeeData }: AdvanceRequestFormProps) =>
             <div className="flex items-start space-x-3 p-3 bg-primary/10 rounded-lg">
               <CheckCircle className="h-5 w-5 text-primary mt-0.5" />
               <div className="text-sm">
-                <div className="font-medium text-primary">Procesamiento automático</div>
+                <div className="font-medium text-primary">Procesamiento en lotes</div>
                 <div className="text-muted-foreground">
-                  Tu solicitud será incluida en el próximo lote (11:00 AM o 3:00 PM) y recibirás el dinero el mismo día.
+                  Los adelantos se procesan manualmente en 2 lotes diarios: 11:00 AM y 3:00 PM. Recibirás el dinero el mismo día vía PagoMóvil o transferencia bancaria.
                 </div>
               </div>
             </div>

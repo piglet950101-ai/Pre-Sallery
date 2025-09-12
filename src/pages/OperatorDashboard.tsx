@@ -1,49 +1,66 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { 
-  Clock, 
-  DollarSign, 
-  Download, 
-  Upload,
-  AlertTriangle,
-  CheckCircle,
-  Users,
-  Banknote,
-  FileSpreadsheet,
-  Activity
-} from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Link } from "react-router-dom";
-import { useLanguage } from "@/contexts/LanguageContext";
-import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import { 
+  DollarSign, 
+  Clock, 
+  Users, 
+  CheckCircle, 
+  AlertCircle,
+  Upload,
+  Download,
+  Filter,
+  Search,
+  Calendar,
+  Banknote
+} from "lucide-react";
+import { useState } from "react";
+import { useToast } from "@/hooks/use-toast";
 
 const OperatorDashboard = () => {
-  const { t } = useLanguage();
-  // Mock data
-  const operatorData = {
-    nextBatchTime: "11:00 AM",
-    pendingTransfers: 23,
-    pendingAmount: 4580,
-    todayProcessed: 156,
-    todayAmount: 18940,
-    failedTransfers: 3,
-    reconciliationPending: 5
+  const { toast } = useToast();
+  const [selectedBatch, setSelectedBatch] = useState<string>("pending");
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  // Mock data for pending advances
+  const pendingAdvances = [
+    { id: 1, employee: "María González", company: "Empresa Ejemplo C.A.", amount: 200, fee: 10, netAmount: 190, requestTime: "10:30 AM", method: "PagoMóvil", phone: "0412-123-4567" },
+    { id: 2, employee: "Carlos Rodríguez", company: "Empresa Ejemplo C.A.", amount: 150, fee: 7.5, netAmount: 142.5, requestTime: "10:45 AM", method: "Transferencia", account: "0102-1234-5678-9012" },
+    { id: 3, employee: "Ana Martínez", company: "Empresa Ejemplo C.A.", amount: 300, fee: 15, netAmount: 285, requestTime: "11:00 AM", method: "PagoMóvil", phone: "0414-987-6543" },
+    { id: 4, employee: "Luis Pérez", company: "Empresa Ejemplo C.A.", amount: 180, fee: 9, netAmount: 171, requestTime: "11:15 AM", method: "Transferencia", account: "0134-5678-9012-3456" },
+  ];
+
+  const processedBatches = [
+    { id: "batch-001", date: "2024-01-15", time: "11:00 AM", count: 8, totalAmount: 1200, status: "completed" },
+    { id: "batch-002", date: "2024-01-15", time: "3:00 PM", count: 5, totalAmount: 750, status: "completed" },
+    { id: "batch-003", date: "2024-01-14", time: "11:00 AM", count: 12, totalAmount: 1800, status: "completed" },
+  ];
+
+  const totalPendingAmount = pendingAdvances.reduce((sum, advance) => sum + advance.amount, 0);
+  const totalPendingFees = pendingAdvances.reduce((sum, advance) => sum + advance.fee, 0);
+
+  const processBatch = async () => {
+    setIsProcessing(true);
+    
+    // Simulate batch processing
+    setTimeout(() => {
+      toast({
+        title: "Lote procesado",
+        description: `${pendingAdvances.length} adelantos procesados exitosamente`,
+      });
+      setIsProcessing(false);
+    }, 3000);
   };
 
-  const currentBatch = [
-    { id: 1, employee: "María González", company: "Empresa A", amount: 200, method: "PagoMóvil", phone: "0412-123-4567" },
-    { id: 2, employee: "Carlos Rodríguez", company: "Empresa B", amount: 150, method: "Banco", account: "****1234" },
-    { id: 3, employee: "Ana Martínez", company: "Empresa A", amount: 300, method: "PagoMóvil", phone: "0414-567-8901" },
-    { id: 4, employee: "Luis Pérez", company: "Empresa C", amount: 180, method: "Banco", account: "****5678" },
-  ];
-
-  const exceptions = [
-    { id: 1, employee: "Pedro Silva", amount: 250, error: "Teléfono no registrado en PagoMóvil", time: "10:30 AM" },
-    { id: 2, employee: "Carmen López", amount: 120, error: "Cuenta bancaria inválida", time: "09:45 AM" },
-    { id: 3, employee: "Roberto Chen", amount: 180, error: "Monto excede límite diario", time: "09:20 AM" },
-  ];
+  const uploadConfirmation = async () => {
+    toast({
+      title: "Confirmación subida",
+      description: "Los comprobantes de transferencia han sido registrados",
+    });
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -53,20 +70,20 @@ const OperatorDashboard = () => {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
               <div className="h-8 w-8 bg-gradient-primary rounded-lg flex items-center justify-center">
-                <Activity className="h-5 w-5 text-white" />
+                <DollarSign className="h-5 w-5 text-white" />
               </div>
               <div>
-                <h1 className="text-xl font-bold">{t('operator.operationsCenter')}</h1>
-                <p className="text-sm text-muted-foreground">{t('operator.operatorPanel')}</p>
+                <h1 className="text-xl font-bold">Panel de Operaciones</h1>
+                <p className="text-sm text-muted-foreground">Procesamiento manual de adelantos</p>
               </div>
             </div>
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2 bg-muted/50 px-3 py-2 rounded-lg">
-                <Clock className="h-4 w-4 text-primary" />
-                <span className="text-sm font-medium">{t('operator.nextBatch')} {operatorData.nextBatchTime}</span>
-              </div>
+            <div className="flex items-center space-x-3">
+              <Badge variant="outline" className="flex items-center space-x-1">
+                <Clock className="h-3 w-3" />
+                <span>Próximo lote: 3:00 PM</span>
+              </Badge>
               <Button variant="outline" asChild>
-                <Link to="/">{t('dashboard.logout')}</Link>
+                <a href="/">Cerrar Sesión</a>
               </Button>
             </div>
           </div>
@@ -74,136 +91,169 @@ const OperatorDashboard = () => {
       </header>
 
       <div className="container mx-auto px-4 py-8 space-y-8">
-        {/* Quick Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* Summary Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <Card className="border-none shadow-card">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">{t('operator.pendingTransfers')}</CardTitle>
+              <CardTitle className="text-sm font-medium">Adelantos Pendientes</CardTitle>
               <Clock className="h-4 w-4 text-orange-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-orange-600">{operatorData.pendingTransfers}</div>
+              <div className="text-2xl font-bold text-orange-500">{pendingAdvances.length}</div>
               <p className="text-xs text-muted-foreground">
-                ${operatorData.pendingAmount} {t('operator.totalAmount')}
+                ${totalPendingAmount} USD total
               </p>
             </CardContent>
           </Card>
 
           <Card className="border-none shadow-card">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">{t('operator.processedToday')}</CardTitle>
-              <CheckCircle className="h-4 w-4 text-green-500" />
+              <CardTitle className="text-sm font-medium">Comisiones</CardTitle>
+              <DollarSign className="h-4 w-4 text-green-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">{operatorData.todayProcessed}</div>
+              <div className="text-2xl font-bold text-green-500">${totalPendingFees}</div>
               <p className="text-xs text-muted-foreground">
-                ${operatorData.todayAmount} {t('operator.totalAmount')}
+                5% por transacción
               </p>
             </CardContent>
           </Card>
 
           <Card className="border-none shadow-card">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">{t('operator.exceptions')}</CardTitle>
-              <AlertTriangle className="h-4 w-4 text-destructive" />
+              <CardTitle className="text-sm font-medium">Lotes Hoy</CardTitle>
+              <Calendar className="h-4 w-4 text-blue-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-destructive">{operatorData.failedTransfers}</div>
+              <div className="text-2xl font-bold text-blue-500">2</div>
               <p className="text-xs text-muted-foreground">
-                {t('operator.manualAttention')}
+                11:00 AM y 3:00 PM
               </p>
             </CardContent>
           </Card>
 
           <Card className="border-none shadow-card">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">{t('operator.reconciliation')}</CardTitle>
-              <FileSpreadsheet className="h-4 w-4 text-primary" />
+              <CardTitle className="text-sm font-medium">Total Procesado</CardTitle>
+              <Banknote className="h-4 w-4 text-purple-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-primary">{operatorData.reconciliationPending}</div>
+              <div className="text-2xl font-bold text-purple-500">$3,750</div>
               <p className="text-xs text-muted-foreground">
-                {t('operator.unconfirmedBatches')}
+                Últimos 3 lotes
               </p>
             </CardContent>
           </Card>
         </div>
 
-        <Tabs defaultValue="batch" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="batch">{t('operator.currentBatch')}</TabsTrigger>
-            <TabsTrigger value="reconciliation">{t('operator.reconciliation')}</TabsTrigger>
-            <TabsTrigger value="exceptions">{t('operator.exceptions')}</TabsTrigger>
-            <TabsTrigger value="history">{t('operator.history')}</TabsTrigger>
+        <Tabs defaultValue="pending" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="pending">Adelantos Pendientes</TabsTrigger>
+            <TabsTrigger value="batches">Lotes Procesados</TabsTrigger>
+            <TabsTrigger value="confirmations">Confirmaciones</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="batch" className="space-y-6">
-            {/* Batch Progress */}
-            <Card className="border-none shadow-elegant border-primary/20 bg-primary/5">
-              <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Clock className="h-5 w-5 text-primary" />
-                <span>{t('operator.batchAt')} 11:00 AM</span>
-              </CardTitle>
-              <CardDescription>
-                {t('operator.preparing')}
-              </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm">{t('operator.progress')}</span>
-                  <span className="text-sm font-medium">{operatorData.pendingTransfers} {t('operator.transfersCount')}</span>
-                </div>
-                <Progress value={75} className="h-2" />
-                
-                <div className="flex space-x-4 pt-4">
-                  <Button variant="premium" className="flex-1">
-                    <Download className="h-4 w-4 mr-2" />
-                    {t('operator.generateCSV')}
-                  </Button>
-                  <Button variant="outline" className="flex-1">
-                    <Banknote className="h-4 w-4 mr-2" />
-                    {t('operator.generatePagoMovil')}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Current Batch Details */}
-            <Card className="border-none shadow-card">
+          <TabsContent value="pending" className="space-y-6">
+            <Card className="border-none shadow-elegant">
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle>{t('operator.queue')}</CardTitle>
+                    <CardTitle>Adelantos Pendientes</CardTitle>
                     <CardDescription>
-                      {t('operator.queueDescription')}
+                      Procesar el próximo lote de adelantos
                     </CardDescription>
                   </div>
-                  <Badge variant="secondary">{operatorData.pendingTransfers} {t('operator.pending')}</Badge>
+                  <div className="flex space-x-2">
+                    <Button variant="outline" size="sm">
+                      <Filter className="h-4 w-4 mr-2" />
+                      Filtrar
+                    </Button>
+                    <Button variant="outline" size="sm">
+                      <Download className="h-4 w-4 mr-2" />
+                      Exportar CSV
+                    </Button>
+                    <Button 
+                      variant="hero" 
+                      onClick={processBatch}
+                      disabled={isProcessing || pendingAdvances.length === 0}
+                    >
+                      {isProcessing ? "Procesando..." : "Procesar Lote"}
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {currentBatch.map((transfer) => (
-                    <div key={transfer.id} className="flex items-center justify-between p-4 border rounded-lg">
+                  {pendingAdvances.map((advance) => (
+                    <div key={advance.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
                       <div className="flex items-center space-x-4">
-                        <div className="h-10 w-10 bg-gradient-secondary rounded-full flex items-center justify-center">
-                          <Users className="h-5 w-5 text-white" />
+                        <div className="h-10 w-10 bg-gradient-primary rounded-full flex items-center justify-center">
+                          <span className="text-white text-sm font-medium">
+                            {advance.employee.split(' ').map(n => n[0]).join('')}
+                          </span>
                         </div>
                         <div>
-                          <div className="font-medium">{transfer.employee}</div>
-                          <div className="text-sm text-muted-foreground">{transfer.company}</div>
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-4">
-                        <div className="text-right">
-                          <div className="font-semibold">${transfer.amount}</div>
-                          <div className="text-sm text-muted-foreground">
-                            {transfer.method === 'PagoMóvil' ? transfer.phone : transfer.account}
+                          <div className="font-medium">{advance.employee}</div>
+                          <div className="text-sm text-muted-foreground">{advance.company}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {advance.method}: {advance.method === "PagoMóvil" ? advance.phone : advance.account}
                           </div>
                         </div>
-                        <Badge variant={transfer.method === 'PagoMóvil' ? 'default' : 'secondary'}>
-                          {transfer.method}
+                      </div>
+                      <div className="flex items-center space-x-6">
+                        <div className="text-right">
+                          <div className="font-semibold">${advance.amount}</div>
+                          <div className="text-sm text-muted-foreground">
+                            Comisión: ${advance.fee}
+                          </div>
+                          <div className="text-sm text-primary font-medium">
+                            Neto: ${advance.netAmount}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm text-muted-foreground">{advance.requestTime}</div>
+                          <Badge variant="secondary">Pendiente</Badge>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="batches" className="space-y-6">
+            <Card className="border-none shadow-elegant">
+              <CardHeader>
+                <CardTitle>Lotes Procesados</CardTitle>
+                <CardDescription>
+                  Historial de lotes procesados
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {processedBatches.map((batch) => (
+                    <div key={batch.id} className="flex items-center justify-between p-4 border rounded-lg">
+                      <div className="flex items-center space-x-4">
+                        <div className="h-10 w-10 bg-gradient-secondary rounded-full flex items-center justify-center">
+                          <CheckCircle className="h-5 w-5 text-white" />
+                        </div>
+                        <div>
+                          <div className="font-medium">Lote {batch.id}</div>
+                          <div className="text-sm text-muted-foreground">
+                            {batch.date} - {batch.time}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-6">
+                        <div className="text-right">
+                          <div className="font-semibold">{batch.count} adelantos</div>
+                          <div className="text-sm text-muted-foreground">
+                            Total: ${batch.totalAmount}
+                          </div>
+                        </div>
+                        <Badge className="bg-green-100 text-green-800">
+                          {batch.status}
                         </Badge>
                       </div>
                     </div>
@@ -213,176 +263,43 @@ const OperatorDashboard = () => {
             </Card>
           </TabsContent>
 
-          <TabsContent value="reconciliation" className="space-y-6">
+          <TabsContent value="confirmations" className="space-y-6">
             <Card className="border-none shadow-elegant">
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <FileSpreadsheet className="h-5 w-5" />
-                  <span>{t('operator.reconciliationTitle')}</span>
-                </CardTitle>
-                <CardDescription>
-                  {t('operator.reconciliationDescription')}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="grid md:grid-cols-2 gap-6">
-                  <div className="space-y-4">
-                    <h4 className="font-semibold">{t('operator.uploadBankConfirmations')}</h4>
-                    <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-8 text-center space-y-4">
-                      <Upload className="h-12 w-12 text-muted-foreground mx-auto" />
-                      <div>
-                        <div className="font-medium">{t('operator.dragCSV')}</div>
-                        <div className="text-sm text-muted-foreground">{t('operator.orClick')}</div>
-                      </div>
-                      <Button variant="outline">
-                        {t('operator.selectFileButton')}
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    <h4 className="font-semibold">{t('operator.pendingBatches')}</h4>
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between p-3 border rounded-lg">
-                        <div>
-                          <div className="font-medium">{t('operator.batchToday')}</div>
-                          <div className="text-sm text-muted-foreground">45 {t('operator.transfersCount')}</div>
-                        </div>
-                        <Badge variant="secondary">{t('operator.waiting')}</Badge>
-                      </div>
-                      
-                      <div className="flex items-center justify-between p-3 border rounded-lg">
-                        <div>
-                          <div className="font-medium">{t('operator.batchYesterday')}</div>
-                          <div className="text-sm text-muted-foreground">38 {t('operator.transfersCount')}</div>
-                        </div>
-                        <Badge className="bg-green-100 text-green-800">{t('operator.confirmed')}</Badge>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-muted/50 p-4 rounded-lg">
-                  <h5 className="font-medium mb-2">{t('operator.csvFormat')}</h5>
-                  <div className="text-sm text-muted-foreground space-y-1">
-                    <div>• {t('operator.csvColumns')}</div>
-                    <div>• {t('operator.csvStates')}</div>
-                    <div>• {t('operator.csvReference')}</div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="exceptions" className="space-y-6">
-            <Card className="border-none shadow-elegant border-destructive/20 bg-destructive/5">
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <AlertTriangle className="h-5 w-5 text-destructive" />
-                  <span>{t('operator.exceptionsHeader')}</span>
-                </CardTitle>
-                <CardDescription>
-                  {t('operator.exceptionsDescription')}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {exceptions.map((exception) => (
-                    <div key={exception.id} className="flex items-center justify-between p-4 border border-destructive/20 rounded-lg bg-background">
-                      <div className="flex items-center space-x-4">
-                        <div className="h-10 w-10 bg-destructive/10 rounded-full flex items-center justify-center">
-                          <AlertTriangle className="h-5 w-5 text-destructive" />
-                        </div>
-                        <div>
-                          <div className="font-medium">{exception.employee}</div>
-                          <div className="text-sm text-destructive">{exception.error}</div>
-                          <div className="text-xs text-muted-foreground">{exception.time}</div>
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-4">
-                        <div className="text-right">
-                          <div className="font-semibold">${exception.amount}</div>
-                        </div>
-                        <div className="flex space-x-2">
-                          <Button size="sm" variant="outline">
-                            {t('operator.editButton')}
-                          </Button>
-                          <Button size="sm" variant="premium">
-                            {t('operator.retryButton')}
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="history" className="space-y-6">
-            <Card className="border-none shadow-card">
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle>{t('operator.historyTitle')}</CardTitle>
+                    <CardTitle>Confirmar Transferencias</CardTitle>
                     <CardDescription>
-                      {t('operator.historyDescription')}
+                      Subir comprobantes de transferencias realizadas
                     </CardDescription>
                   </div>
-                  <Button variant="outline">
-                    <Download className="h-4 w-4 mr-2" />
-                    {t('operator.exportHistoryButton')}
+                  <Button variant="hero" onClick={uploadConfirmation}>
+                    <Upload className="h-4 w-4 mr-2" />
+                    Subir Comprobantes
                   </Button>
                 </div>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between p-4 border rounded-lg">
-                    <div className="flex items-center space-x-4">
-                      <div className="h-10 w-10 bg-green-100 rounded-full flex items-center justify-center">
-                        <CheckCircle className="h-5 w-5 text-green-600" />
-                      </div>
-                      <div>
-                        <div className="font-medium">{t('operator.batchTime11')}</div>
-                        <div className="text-sm text-muted-foreground">34 {t('operator.transfersProcessed')}</div>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-semibold">$6,890</div>
-                      <Badge className="bg-green-100 text-green-800">{t('operator.completed')}</Badge>
-                    </div>
+                  <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-8 text-center">
+                    <Upload className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">Subir Comprobantes</h3>
+                    <p className="text-muted-foreground mb-4">
+                      Sube los comprobantes de las transferencias realizadas para confirmar los pagos
+                    </p>
+                    <Button variant="outline">
+                      Seleccionar Archivos
+                    </Button>
                   </div>
-
-                  <div className="flex items-center justify-between p-4 border rounded-lg">
-                    <div className="flex items-center space-x-4">
-                      <div className="h-10 w-10 bg-green-100 rounded-full flex items-center justify-center">
-                        <CheckCircle className="h-5 w-5 text-green-600" />
-                      </div>
-                      <div>
-                        <div className="font-medium">{t('operator.batchTime15')}</div>
-                        <div className="text-sm text-muted-foreground">42 {t('operator.transfersProcessed')}</div>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-semibold">$8,540</div>
-                      <Badge className="bg-green-100 text-green-800">{t('operator.completed')}</Badge>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between p-4 border rounded-lg">
-                    <div className="flex items-center space-x-4">
-                      <div className="h-10 w-10 bg-orange-100 rounded-full flex items-center justify-center">
-                        <Clock className="h-5 w-5 text-orange-600" />
-                      </div>
-                      <div>
-                        <div className="font-medium">Lote 15:00 PM - Ayer</div>
-                        <div className="text-sm text-muted-foreground">38 transferencias, 2 excepciones</div>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-semibold">$7,220</div>
-                      <Badge variant="secondary">Procesando</Badge>
-                    </div>
+                  
+                  <div className="bg-muted/50 p-4 rounded-lg">
+                    <h4 className="font-semibold mb-2">Instrucciones:</h4>
+                    <ul className="text-sm text-muted-foreground space-y-1">
+                      <li>• Sube comprobantes de PagoMóvil o transferencias bancarias</li>
+                      <li>• Los archivos deben estar en formato PDF o imagen</li>
+                      <li>• Cada comprobante debe corresponder a un adelanto específico</li>
+                      <li>• El sistema marcará automáticamente los adelantos como completados</li>
+                    </ul>
                   </div>
                 </div>
               </CardContent>

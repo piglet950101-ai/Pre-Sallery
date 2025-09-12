@@ -22,6 +22,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
+import EmployeeVerification from "./pages/EmployeeVerification";
 
 const queryClient = new QueryClient();
 
@@ -41,6 +42,7 @@ const App = () => (
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/employee" element={<ProtectedRoute role="employee"><EmployeeDashboard /></ProtectedRoute>} />
               <Route path="/employee/request-advance" element={<ProtectedRoute role="employee"><RequestAdvance /></ProtectedRoute>} />
+              <Route path="/employee/verification" element={<ProtectedRoute role="employee"><EmployeeVerification /></ProtectedRoute>} />
               <Route path="/company" element={<ProtectedRoute role="company"><CompanyDashboard /></ProtectedRoute>} />
               <Route path="/company/configuration" element={<ProtectedRoute role="company"><CompanyConfiguration /></ProtectedRoute>} />
               <Route path="/operator" element={<ProtectedRoute role="operator"><OperatorDashboard /></ProtectedRoute>} />

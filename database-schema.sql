@@ -1,0 +1,225 @@
+-- Supabase Database Schema for Venezuelan Wage Advance Platform
+
+-- Companies table (already exists, but adding auth_user_id if missing)
+ALTER TABLE public.companies 
+ADD COLUMN IF NOT EXISTS auth_user_id uuid unique references auth.users(id) on delete cascade;
+
+-- Enable RLS on companies table
+ALTER TABLE public.companies ENABLE ROW LEVEL SECURITY;
+
+-- Companies RLS policy
+DROP POLICY IF EXISTS "Companies: user can manage own" ON public.companies;
+CREATE POLICY "Companies: user can manage own" ON public.companies
+  FOR ALL USING (auth.uid() = auth_user_id)
+  WITH CHECK (auth.uid() = auth_user_id);
+
+-- Employees table with comprehensive employee information
+CREATE TABLE IF NOT EXISTS public.employees (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  auth_user_id uuid unique references auth.users(id) on delete cascade,
+  company_id uuid NOT NULL references public.companies(id) on delete cascade,
+  
+  -- Personal Information
+  first_name text NOT NULL,
+  last_name text NOT NULL,
+  email text NOT NULL,
+  phone text,
+  cedula text,
+  birth_date date,
+  year_of_employment integer NOT NULL,
+  
+  -- Employment Information
+  position text NOT NULL,
+  department text,
+  employment_start_date date NOT NULL,
+  employment_type text NOT NULL CHECK (employment_type IN ('full-time', 'part-time', 'contract')),
+  weekly_hours integer NOT NULL CHECK (weekly_hours > 0 AND weekly_hours <= 80),
+  monthly_salary decimal(10,2) NOT NULL CHECK (monthly_salary > 0),
+  
+  -- Financial Information
+  living_expenses decimal(10,2) NOT NULL CHECK (living_expenses >= 0),
+  dependents integer NOT NULL CHECK (dependents >= 0),
+  emergency_contact text NOT NULL,
+  emergency_phone text NOT NULL,
+  
+  -- Address Information
+  address text NOT NULL,
+  city text NOT NULL,
+  state text NOT NULL,
+  postal_code text,
+  
+  -- Banking Information
+  bank_name text NOT NULL,
+  account_number text NOT NULL,
+  account_type text NOT NULL CHECK (account_type IN ('savings', 'checking')),
+  
+  -- Additional Information
+  notes text,
+  
+  -- Activation and Status
+  activation_code text NOT NULL,
+  is_active boolean DEFAULT false,
+  is_verified boolean DEFAULT false,
+  verification_date timestamptz,
+  
+  -- Timestamps
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+-- Enable RLS on employees table
+ALTER TABLE public.employees ENABLE ROW LEVEL SECURITY;
+
+-- Employees RLS policies
+DROP POLICY IF EXISTS "Employees: company can manage own" ON public.employees;
+CREATE POLICY "Employees: company can manage own" ON public.employees
+  FOR ALL USING (
+    company_id IN (
+      SELECT id FROM public.companies 
+      WHERE auth_user_id = auth.uid()
+    )
+  );
+
+DROP POLICY IF EXISTS "Employees: user can manage own" ON public.employees;
+CREATE POLICY "Employees: user can manage own" ON public.employees
+  FOR ALL USING (auth.uid() = auth_user_id)
+  WITH CHECK (auth.uid() = auth_user_id);
+
+-- Allow unauthenticated users to read employee data for activation
+DROP POLICY IF EXISTS "Employees: allow activation check" ON public.employees;
+CREATE POLICY "Employees: allow activation check" ON public.employees
+  FOR SELECT USING (true);
+
+-- Create indexes for better performance
+CREATE INDEX IF NOT EXISTS idx_employees_company_id ON public.employees(company_id);
+CREATE INDEX IF NOT EXISTS idx_employees_email ON public.employees(email);
+CREATE INDEX IF NOT EXISTS idx_employees_activation_code ON public.employees(activation_code);
+CREATE INDEX IF NOT EXISTS idx_employees_is_active ON public.employees(is_active);
+
+-- Create function to update updated_at timestamp
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+-- Create trigger to automatically update updated_at
+DROP TRIGGER IF EXISTS update_employees_updated_at ON public.employees;
+CREATE TRIGGER update_employees_updated_at
+    BEFORE UPDATE ON public.employees
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- Advance requests table
+CREATE TABLE IF NOT EXISTS public.advance_requests (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  employee_id uuid NOT NULL references public.employees(id) on delete cascade,
+  company_id uuid NOT NULL references public.companies(id) on delete cascade,
+  
+  -- Request details
+  requested_amount decimal(10,2) NOT NULL CHECK (requested_amount >= 20),
+  fee_amount decimal(10,2) NOT NULL CHECK (fee_amount >= 1),
+  net_amount decimal(10,2) NOT NULL,
+  
+  -- Earned wages calculation
+  earned_wages decimal(10,2) NOT NULL,
+  available_amount decimal(10,2) NOT NULL,
+  worked_days integer NOT NULL,
+  total_days integer NOT NULL,
+  
+  -- Payment method
+  payment_method text NOT NULL CHECK (payment_method IN ('pagomovil', 'bank_transfer')),
+  payment_details text NOT NULL, -- phone number or account number
+  
+  -- Status and processing
+  status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'processing', 'completed', 'failed')),
+  batch_id text,
+  processed_at timestamptz,
+  
+  -- Timestamps
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+-- Enable RLS on advance_requests table
+ALTER TABLE public.advance_requests ENABLE ROW LEVEL SECURITY;
+
+-- Advance requests RLS policies
+DROP POLICY IF EXISTS "Advance requests: employee can manage own" ON public.advance_requests;
+CREATE POLICY "Advance requests: employee can manage own" ON public.advance_requests
+  FOR ALL USING (
+    employee_id IN (
+      SELECT id FROM public.employees 
+      WHERE auth_user_id = auth.uid()
+    )
+  );
+
+DROP POLICY IF EXISTS "Advance requests: company can view own" ON public.advance_requests;
+CREATE POLICY "Advance requests: company can view own" ON public.advance_requests
+  FOR SELECT USING (
+    company_id IN (
+      SELECT id FROM public.companies 
+      WHERE auth_user_id = auth.uid()
+    )
+  );
+
+-- Create indexes for advance_requests
+CREATE INDEX IF NOT EXISTS idx_advance_requests_employee_id ON public.advance_requests(employee_id);
+CREATE INDEX IF NOT EXISTS idx_advance_requests_company_id ON public.advance_requests(company_id);
+CREATE INDEX IF NOT EXISTS idx_advance_requests_status ON public.advance_requests(status);
+CREATE INDEX IF NOT EXISTS idx_advance_requests_batch_id ON public.advance_requests(batch_id);
+
+-- Create trigger for advance_requests updated_at
+DROP TRIGGER IF EXISTS update_advance_requests_updated_at ON public.advance_requests;
+CREATE TRIGGER update_advance_requests_updated_at
+    BEFORE UPDATE ON public.advance_requests
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- Batch processing table for manual transfers
+CREATE TABLE IF NOT EXISTS public.processing_batches (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  batch_name text NOT NULL,
+  scheduled_time timestamptz NOT NULL,
+  processed_at timestamptz,
+  
+  -- Batch details
+  total_requests integer DEFAULT 0,
+  total_amount decimal(10,2) DEFAULT 0,
+  total_fees decimal(10,2) DEFAULT 0,
+  
+  -- Status
+  status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'completed', 'failed')),
+  
+  -- Confirmation
+  confirmation_files text[], -- URLs to uploaded confirmation files
+  confirmed_by uuid references auth.users(id),
+  confirmed_at timestamptz,
+  
+  -- Timestamps
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+-- Enable RLS on processing_batches
+ALTER TABLE public.processing_batches ENABLE ROW LEVEL SECURITY;
+
+-- Processing batches RLS policy (only operators can access)
+DROP POLICY IF EXISTS "Processing batches: operators only" ON public.processing_batches;
+CREATE POLICY "Processing batches: operators only" ON public.processing_batches
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM auth.users 
+      WHERE auth.users.id = auth.uid() 
+      AND (auth.users.app_metadata->>'role' = 'operator' OR auth.users.user_metadata->>'role' = 'operator')
+    )
+  );
+
+-- Create trigger for processing_batches updated_at
+DROP TRIGGER IF EXISTS update_processing_batches_updated_at ON public.processing_batches;
+CREATE TRIGGER update_processing_batches_updated_at
+    BEFORE UPDATE ON public.processing_batches
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
