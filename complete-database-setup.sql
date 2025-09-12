@@ -1,19 +1,29 @@
--- Supabase Database Schema for Venezuelan Wage Advance Platform
+-- Complete Database Setup for Venezuelan Wage Advance Platform
+-- Run this in your Supabase SQL Editor step by step
 
--- Companies table (already exists, but adding auth_user_id if missing)
-ALTER TABLE public.companies 
-ADD COLUMN IF NOT EXISTS auth_user_id uuid unique references auth.users(id) on delete cascade;
+-- Step 1: Create companies table first
+CREATE TABLE IF NOT EXISTS public.companies (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name text NOT NULL,
+  rif text UNIQUE NOT NULL,
+  address text,
+  phone text,
+  email text,
+  auth_user_id uuid unique references auth.users(id) on delete cascade,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
 
--- Enable RLS on companies table
+-- Step 2: Enable RLS on companies
 ALTER TABLE public.companies ENABLE ROW LEVEL SECURITY;
 
--- Companies RLS policy
+-- Step 3: Create companies RLS policy
 DROP POLICY IF EXISTS "Companies: user can manage own" ON public.companies;
 CREATE POLICY "Companies: user can manage own" ON public.companies
   FOR ALL USING (auth.uid() = auth_user_id)
   WITH CHECK (auth.uid() = auth_user_id);
 
--- Employees table with comprehensive employee information
+-- Step 4: Create employees table
 CREATE TABLE IF NOT EXISTS public.employees (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   auth_user_id uuid unique references auth.users(id) on delete cascade,
@@ -67,10 +77,10 @@ CREATE TABLE IF NOT EXISTS public.employees (
   updated_at timestamptz DEFAULT now()
 );
 
--- Enable RLS on employees table
+-- Step 5: Enable RLS on employees
 ALTER TABLE public.employees ENABLE ROW LEVEL SECURITY;
 
--- Employees RLS policies
+-- Step 6: Create employees RLS policies
 DROP POLICY IF EXISTS "Employees: company can manage own" ON public.employees;
 CREATE POLICY "Employees: company can manage own" ON public.employees
   FOR ALL USING (
@@ -96,30 +106,8 @@ CREATE POLICY "Employees: allow activation update" ON public.employees
   FOR UPDATE USING (true)
   WITH CHECK (true);
 
--- Create indexes for better performance
-CREATE INDEX IF NOT EXISTS idx_employees_company_id ON public.employees(company_id);
-CREATE INDEX IF NOT EXISTS idx_employees_email ON public.employees(email);
-CREATE INDEX IF NOT EXISTS idx_employees_activation_code ON public.employees(activation_code);
-CREATE INDEX IF NOT EXISTS idx_employees_is_active ON public.employees(is_active);
-
--- Create function to update updated_at timestamp
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = now();
-    RETURN NEW;
-END;
-$$ language 'plpgsql';
-
--- Create trigger to automatically update updated_at
-DROP TRIGGER IF EXISTS update_employees_updated_at ON public.employees;
-CREATE TRIGGER update_employees_updated_at
-    BEFORE UPDATE ON public.employees
-    FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
-
--- Advance requests table
-CREATE TABLE IF NOT EXISTS public.advance_requests (
+-- Step 7: Create advance_transactions table
+CREATE TABLE IF NOT EXISTS public.advance_transactions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   employee_id uuid NOT NULL references public.employees(id) on delete cascade,
   company_id uuid NOT NULL references public.companies(id) on delete cascade,
@@ -137,7 +125,7 @@ CREATE TABLE IF NOT EXISTS public.advance_requests (
   
   -- Payment method
   payment_method text NOT NULL CHECK (payment_method IN ('pagomovil', 'bank_transfer')),
-  payment_details text NOT NULL, -- phone number or account number
+  payment_details text NOT NULL,
   
   -- Status and processing
   status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'processing', 'completed', 'failed')),
@@ -149,12 +137,12 @@ CREATE TABLE IF NOT EXISTS public.advance_requests (
   updated_at timestamptz DEFAULT now()
 );
 
--- Enable RLS on advance_requests table
-ALTER TABLE public.advance_requests ENABLE ROW LEVEL SECURITY;
+-- Step 8: Enable RLS on advance_transactions
+ALTER TABLE public.advance_transactions ENABLE ROW LEVEL SECURITY;
 
--- Advance requests RLS policies
-DROP POLICY IF EXISTS "Advance requests: employee can manage own" ON public.advance_requests;
-CREATE POLICY "Advance requests: employee can manage own" ON public.advance_requests
+-- Step 9: Create advance_transactions RLS policies
+DROP POLICY IF EXISTS "Advance transactions: employee can manage own" ON public.advance_transactions;
+CREATE POLICY "Advance transactions: employee can manage own" ON public.advance_transactions
   FOR ALL USING (
     employee_id IN (
       SELECT id FROM public.employees 
@@ -162,8 +150,8 @@ CREATE POLICY "Advance requests: employee can manage own" ON public.advance_requ
     )
   );
 
-DROP POLICY IF EXISTS "Advance requests: company can view own" ON public.advance_requests;
-CREATE POLICY "Advance requests: company can view own" ON public.advance_requests
+DROP POLICY IF EXISTS "Advance transactions: company can view own" ON public.advance_transactions;
+CREATE POLICY "Advance transactions: company can view own" ON public.advance_transactions
   FOR SELECT USING (
     company_id IN (
       SELECT id FROM public.companies 
@@ -171,61 +159,35 @@ CREATE POLICY "Advance requests: company can view own" ON public.advance_request
     )
   );
 
--- Create indexes for advance_requests
-CREATE INDEX IF NOT EXISTS idx_advance_requests_employee_id ON public.advance_requests(employee_id);
-CREATE INDEX IF NOT EXISTS idx_advance_requests_company_id ON public.advance_requests(company_id);
-CREATE INDEX IF NOT EXISTS idx_advance_requests_status ON public.advance_requests(status);
-CREATE INDEX IF NOT EXISTS idx_advance_requests_batch_id ON public.advance_requests(batch_id);
+-- Step 10: Create indexes
+CREATE INDEX IF NOT EXISTS idx_employees_company_id ON public.employees(company_id);
+CREATE INDEX IF NOT EXISTS idx_employees_email ON public.employees(email);
+CREATE INDEX IF NOT EXISTS idx_employees_activation_code ON public.employees(activation_code);
+CREATE INDEX IF NOT EXISTS idx_employees_is_active ON public.employees(is_active);
 
--- Create trigger for advance_requests updated_at
-DROP TRIGGER IF EXISTS update_advance_requests_updated_at ON public.advance_requests;
-CREATE TRIGGER update_advance_requests_updated_at
-    BEFORE UPDATE ON public.advance_requests
+CREATE INDEX IF NOT EXISTS idx_advance_transactions_employee_id ON public.advance_transactions(employee_id);
+CREATE INDEX IF NOT EXISTS idx_advance_transactions_company_id ON public.advance_transactions(company_id);
+CREATE INDEX IF NOT EXISTS idx_advance_transactions_status ON public.advance_transactions(status);
+CREATE INDEX IF NOT EXISTS idx_advance_transactions_batch_id ON public.advance_transactions(batch_id);
+
+-- Step 11: Create function to update updated_at timestamp
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+-- Step 12: Create triggers
+DROP TRIGGER IF EXISTS update_employees_updated_at ON public.employees;
+CREATE TRIGGER update_employees_updated_at
+    BEFORE UPDATE ON public.employees
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
--- Batch processing table for manual transfers
-CREATE TABLE IF NOT EXISTS public.processing_batches (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  batch_name text NOT NULL,
-  scheduled_time timestamptz NOT NULL,
-  processed_at timestamptz,
-  
-  -- Batch details
-  total_requests integer DEFAULT 0,
-  total_amount decimal(10,2) DEFAULT 0,
-  total_fees decimal(10,2) DEFAULT 0,
-  
-  -- Status
-  status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'completed', 'failed')),
-  
-  -- Confirmation
-  confirmation_files text[], -- URLs to uploaded confirmation files
-  confirmed_by uuid references auth.users(id),
-  confirmed_at timestamptz,
-  
-  -- Timestamps
-  created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
-);
-
--- Enable RLS on processing_batches
-ALTER TABLE public.processing_batches ENABLE ROW LEVEL SECURITY;
-
--- Processing batches RLS policy (only operators can access)
-DROP POLICY IF EXISTS "Processing batches: operators only" ON public.processing_batches;
-CREATE POLICY "Processing batches: operators only" ON public.processing_batches
-  FOR ALL USING (
-    EXISTS (
-      SELECT 1 FROM auth.users 
-      WHERE auth.users.id = auth.uid() 
-      AND (auth.users.app_metadata->>'role' = 'operator' OR auth.users.user_metadata->>'role' = 'operator')
-    )
-  );
-
--- Create trigger for processing_batches updated_at
-DROP TRIGGER IF EXISTS update_processing_batches_updated_at ON public.processing_batches;
-CREATE TRIGGER update_processing_batches_updated_at
-    BEFORE UPDATE ON public.processing_batches
+DROP TRIGGER IF EXISTS update_advance_transactions_updated_at ON public.advance_transactions;
+CREATE TRIGGER update_advance_transactions_updated_at
+    BEFORE UPDATE ON public.advance_transactions
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();

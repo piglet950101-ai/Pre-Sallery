@@ -89,51 +89,28 @@ const Register = () => {
       console.log("Activation Code:", activationCode);
       console.log("Employee Email:", employeeEmail);
       
-      // First, let's check all employees to see what's in the database
-      // Try with RLS bypass for debugging
-      const { data: allEmployees, error: allEmployeesError } = await supabase
-        .from("employees")
-        .select("id, company_id, first_name, last_name, email, activation_code, is_active");
-      
-      console.log("All employees in database:", allEmployees);
-      console.log("Error fetching all employees:", allEmployeesError);
-      
-      if (allEmployeesError) {
-        console.error("Error fetching all employees:", allEmployeesError);
-        // Try a different approach - maybe RLS is blocking the query
-        throw new Error(`Error al conectar con la base de datos: ${allEmployeesError.message}`);
-      }
-      
-      if (!allEmployees || allEmployees.length === 0) {
-        throw new Error("No hay empleados registrados en el sistema. Contacta a tu empresa para obtener un código de activación.");
-      }
-      
-      // Now check if there are any employees with this activation code
-      const { data: activationCodeCheck, error: activationCodeError } = await supabase
+      // Check activation code and email directly
+      const { data: employeeData, error: employeeError } = await supabase
         .from("employees")
         .select("id, company_id, first_name, last_name, email, activation_code, is_active")
-        .eq("activation_code", activationCode);
+        .eq("activation_code", activationCode)
+        .eq("email", employeeEmail)
+        .single();
       
-      console.log("Activation code check result:", activationCodeCheck);
+      console.log("Employee lookup result:", employeeData);
+      console.log("Employee lookup error:", employeeError);
       
-      if (activationCodeError) {
-        console.error("Error checking activation code:", activationCodeError);
-        throw new Error("Error al verificar el código de activación");
+      if (employeeError) {
+        if (employeeError.code === 'PGRST116') {
+          // No rows found
+          throw new Error("Código de activación inválido o email no coincide. Verifica los datos proporcionados por tu empresa.");
+        }
+        console.error("Error checking employee:", employeeError);
+        throw new Error(`Error al verificar los datos: ${employeeError.message}`);
       }
-      
-      if (!activationCodeCheck || activationCodeCheck.length === 0) {
-        console.log("Available activation codes:", allEmployees.map(emp => emp.activation_code));
-        throw new Error("Código de activación inválido. Verifica el código proporcionado por tu empresa.");
-      }
-      
-      // Now check if the email matches
-      const employeeData = activationCodeCheck.find(emp => 
-        emp.email.toLowerCase() === employeeEmail.toLowerCase()
-      );
       
       if (!employeeData) {
-        console.log("Available emails for this activation code:", activationCodeCheck.map(emp => emp.email));
-        throw new Error("El email no coincide con el código de activación. Verifica que estés usando el email correcto.");
+        throw new Error("Código de activación inválido o email no coincide. Verifica los datos proporcionados por tu empresa.");
       }
       
       if (employeeData.is_active) {
@@ -158,6 +135,14 @@ const Register = () => {
       
       if (data.user) {
         // Update employee record with auth_user_id and activate account
+        console.log("Updating employee record:", {
+          id: employeeData.id,
+          auth_user_id: data.user.id,
+          is_active: true,
+          phone: employeePhone
+        });
+        
+        // Try to update the employee record
         const { error: updateError } = await supabase
           .from("employees")
           .update({
@@ -166,11 +151,38 @@ const Register = () => {
             phone: employeePhone,
             updated_at: new Date().toISOString()
           })
-          .eq("id", employeeData.id);
+          .eq("id", employeeData.id)
+          .select(); // Add select to get the updated record
         
         if (updateError) {
           console.error("Error updating employee record:", updateError);
-          // Don't throw here as the auth user was created successfully
+          console.error("Update error details:", {
+            code: updateError.code,
+            message: updateError.message,
+            details: updateError.details,
+            hint: updateError.hint
+          });
+          
+          // Try alternative approach - call a function
+          try {
+            const { error: functionError } = await supabase.functions.invoke('activate-employee', {
+              employee_id: employeeData.id,
+              auth_user_id: data.user.id,
+              phone: employeePhone
+            });
+            
+            if (functionError) {
+              console.error("Function error:", functionError);
+              throw new Error("No se pudo activar la cuenta del empleado. Contacta al soporte técnico.");
+            } else {
+              console.log("Employee activated via function");
+            }
+          } catch (funcErr) {
+            console.error("Function call failed:", funcErr);
+            throw new Error("No se pudo activar la cuenta del empleado. Contacta al soporte técnico.");
+          }
+        } else {
+          console.log("Employee record updated successfully - is_active set to true");
         }
       }
       
@@ -348,37 +360,7 @@ const Register = () => {
                         value={activationCode}
                         onChange={(e) => setActivationCode(e.target.value)}
                       />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={async () => {
-                          try {
-                            const { data: allEmployees, error } = await supabase
-                              .from("employees")
-                              .select("email, activation_code, first_name, last_name, is_active");
-                            
-                            if (error) {
-                              console.error("Error fetching employees:", error);
-                              toast({
-                                title: "Error",
-                                description: "No se pudieron cargar los empleados",
-                                variant: "destructive"
-                              });
-                            } else {
-                              console.log("Available employees:", allEmployees);
-                              toast({
-                                title: "Empleados disponibles",
-                                description: `Se encontraron ${allEmployees?.length || 0} empleados. Revisa la consola para ver los detalles.`,
-                              });
-                            }
-                          } catch (err) {
-                            console.error("Error:", err);
-                          }
-                        }}
-                      >
-                        Ver códigos
-                      </Button>
+                      
                     </div>
                   </div>
 

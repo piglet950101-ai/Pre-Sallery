@@ -2,36 +2,447 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
 import { AdvanceRequestForm } from "@/components/AdvanceRequestForm";
 import { 
   DollarSign, 
   Clock, 
   TrendingUp, 
-  Calendar,
+  Calendar as CalendarIcon,
   CreditCard,
   Download,
   AlertCircle,
-  CheckCircle
+  CheckCircle,
+  RefreshCw,
+  X,
+  Trash2,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Link } from "react-router-dom";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import { useState, useEffect } from "react";
+import { supabase } from "@/lib/supabase";
+import * as XLSX from 'xlsx';
+import { format, startOfDay, endOfDay } from 'date-fns';
+import { useToast } from "@/hooks/use-toast";
+
+interface Employee {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone?: string;
+  monthly_salary: number;
+  weekly_hours: number;
+  year_of_employment: number;
+  bank_name: string;
+  account_number: string;
+  account_type: string;
+  is_active: boolean;
+  is_verified: boolean;
+}
+
+interface AdvanceRequest {
+  id: string;
+  requested_amount: number;
+  fee_amount: number;
+  net_amount: number;
+  status: string;
+  payment_method: string;
+  payment_details: string;
+  batch_id?: string;
+  processed_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// const employeeData = {
+//   name: "María González",
+//   monthlySalary: 800,
+//   workedDays: 12,
+//   totalDays: 22,
+//   earnedAmount: 436.36,
+//   availableAmount: 349.09, // 80% of earned
+//   usedAmount: 150,
+//   pendingAdvances: 1
+// };
 
 const EmployeeDashboard = () => {
   const { t } = useLanguage();
-  // Mock data
-  const employeeData = {
-    name: "María González",
-    monthlySalary: 800,
-    workedDays: 12,
-    totalDays: 22,
-    earnedAmount: 436.36,
-    availableAmount: 349.09, // 80% of earned
-    usedAmount: 150,
-    pendingAdvances: 1
+  const { toast } = useToast();
+  const [employee, setEmployee] = useState<Employee | null>(null);
+  const [advanceRequests, setAdvanceRequests] = useState<AdvanceRequest[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [advanceToCancel, setAdvanceToCancel] = useState<AdvanceRequest | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [advanceToDelete, setAdvanceToDelete] = useState<AdvanceRequest | null>(null);
+  const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
+  const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
+  const [filteredAdvanceRequests, setFilteredAdvanceRequests] = useState<AdvanceRequest[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(5);
+
+  // Calculate derived data
+  const currentDate = new Date();
+  const currentMonth = currentDate.getMonth();
+  const currentYear = currentDate.getFullYear();
+  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+  const workedDays = Math.min(22, daysInMonth); // Assuming 22 working days per month
+  const totalDays = daysInMonth;
+  
+  const monthlySalary = employee?.monthly_salary || 0;
+  const earnedAmount = Math.round(((monthlySalary / totalDays) * workedDays) * 100) / 100;
+  const availableAmount = Math.round((earnedAmount * 0.8) * 100) / 100; // 80% of earned amount
+  const usedAmount = Math.round(advanceRequests
+    .filter(req => req.status === 'completed')
+    .reduce((sum, req) => sum + req.requested_amount, 0) * 100) / 100;
+  const pendingAdvances = advanceRequests.filter(req => 
+    req.status === 'pending' || req.status === 'processing'
+  ).length;
+
+  const progressPercentage = (workedDays / totalDays) * 100;
+
+  // Fetch employee data and advance requests
+  useEffect(() => {
+    const fetchEmployeeData = async () => {
+      try {
+        setIsLoading(true);
+        
+        // Get current user
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          throw new Error("Usuario no autenticado");
+        }
+
+        // Get employee data
+        const { data: employeeData, error: employeeError } = await supabase
+          .from("employees")
+          .select("*")
+          .eq("auth_user_id", user.id)
+          .single();
+
+        if (employeeError) {
+          throw new Error(`Error al cargar datos del empleado: ${employeeError.message}`);
+        }
+
+        setEmployee(employeeData);
+
+        // Get advance requests
+        const { data: requestsData, error: requestsError } = await supabase
+          .from("advance_transactions")
+          .select("*")
+          .eq("employee_id", employeeData.id)
+          .order("created_at", { ascending: false });
+
+        if (requestsError) {
+          console.error("Error loading advance requests:", requestsError);
+          // Don't throw here, just log the error
+        } else {
+          setAdvanceRequests(requestsData || []);
+        }
+
+      } catch (error: any) {
+        console.error("Error fetching employee data:", error);
+        toast({
+          title: "Error",
+          description: error?.message ?? "No se pudieron cargar los datos",
+          variant: "destructive"
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchEmployeeData();
+  }, [toast]);
+
+  const refreshData = async () => {
+    try {
+      setIsRefreshing(true);
+      
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Refresh employee data
+      const { data: employeeData, error: employeeError } = await supabase
+        .from("employees")
+        .select("*")
+        .eq("auth_user_id", user.id)
+        .single();
+
+      if (!employeeError && employeeData) {
+        setEmployee(employeeData);
+      }
+
+      // Refresh advance requests
+      const { data: requestsData, error: requestsError } = await supabase
+        .from("advance_transactions")
+        .select("*")
+        .eq("employee_id", employeeData?.id)
+        .order("created_at", { ascending: false });
+
+      if (!requestsError) {
+        setAdvanceRequests(requestsData || []);
+      }
+
+      toast({
+        title: "Datos actualizados",
+        description: "La información ha sido actualizada correctamente",
+      });
+    } catch (error: any) {
+      console.error("Error refreshing data:", error);
+      toast({
+        title: "Error",
+        description: "No se pudieron actualizar los datos",
+        variant: "destructive"
+      });
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
-  const progressPercentage = (employeeData.workedDays / employeeData.totalDays) * 100;
+  const handleCancelClick = (advance: AdvanceRequest) => {
+    setAdvanceToCancel(advance);
+    setShowCancelModal(true);
+  };
+
+  const confirmCancelAdvance = async () => {
+    if (!advanceToCancel) return;
+
+    try {
+      // Update the advance status to 'cancelled'
+      const { error: updateError } = await supabase
+        .from("advance_transactions")
+        .update({ 
+          status: 'cancelled',
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", advanceToCancel.id);
+
+      if (updateError) {
+        throw new Error(`Error al cancelar el adelanto: ${updateError.message}`);
+      }
+
+      toast({
+        title: "Adelanto cancelado",
+        description: "Tu solicitud de adelanto ha sido cancelada exitosamente",
+      });
+
+      // Close modal and refresh data
+      setShowCancelModal(false);
+      setAdvanceToCancel(null);
+      refreshData();
+    } catch (error: any) {
+      console.error("Error cancelling advance:", error);
+      toast({
+        title: "Error",
+        description: error?.message ?? "No se pudo cancelar el adelanto",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const cancelCancelAction = () => {
+    setShowCancelModal(false);
+    setAdvanceToCancel(null);
+  };
+
+  const handleDeleteClick = (advance: AdvanceRequest) => {
+    setAdvanceToDelete(advance);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDeleteAdvance = async () => {
+    if (!advanceToDelete) return;
+
+    try {
+      // Delete the advance transaction from Supabase
+      const { error: deleteError } = await supabase
+        .from("advance_transactions")
+        .delete()
+        .eq("id", advanceToDelete.id);
+
+      if (deleteError) {
+        throw new Error(`Error al eliminar el adelanto: ${deleteError.message}`);
+      }
+
+      toast({
+        title: "Adelanto eliminado",
+        description: "El adelanto ha sido eliminado permanentemente",
+      });
+
+      // Close modal and refresh data
+      setShowDeleteModal(false);
+      setAdvanceToDelete(null);
+      refreshData();
+    } catch (error: any) {
+      console.error("Error deleting advance:", error);
+      toast({
+        title: "Error",
+        description: error?.message ?? "No se pudo eliminar el adelanto",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const cancelDeleteAction = () => {
+    setShowDeleteModal(false);
+    setAdvanceToDelete(null);
+  };
+
+  // Filter advance requests by date range
+  useEffect(() => {
+    if (!dateFrom && !dateTo) {
+      setFilteredAdvanceRequests(advanceRequests);
+      return;
+    }
+
+    const filtered = advanceRequests.filter(request => {
+      const requestDate = new Date(request.created_at);
+      const requestDateOnly = startOfDay(requestDate);
+      
+      if (dateFrom && dateTo) {
+        const fromDate = startOfDay(dateFrom);
+        const toDate = endOfDay(dateTo);
+        return requestDateOnly >= fromDate && requestDateOnly <= toDate;
+      } else if (dateFrom) {
+        const fromDate = startOfDay(dateFrom);
+        return requestDateOnly >= fromDate;
+      } else if (dateTo) {
+        const toDate = endOfDay(dateTo);
+        return requestDateOnly <= toDate;
+      }
+      
+      return true;
+    });
+
+    setFilteredAdvanceRequests(filtered);
+  }, [advanceRequests, dateFrom, dateTo]);
+
+  // Export to Excel
+  const exportToExcel = () => {
+    if (filteredAdvanceRequests.length === 0) {
+      toast({
+        title: "No hay datos",
+        description: "No hay solicitudes de adelanto para exportar en el rango seleccionado",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const exportData = filteredAdvanceRequests.map(request => ({
+      'Fecha': format(new Date(request.created_at), 'dd/MM/yyyy HH:mm'),
+      'Monto Solicitado': `$${request.requested_amount.toFixed(2)}`,
+      'Comisión': `$${request.fee_amount.toFixed(2)}`,
+      'Monto Neto': `$${request.net_amount.toFixed(2)}`,
+      'Estado': request.status === 'completed' ? 'Completado' : 
+                request.status === 'pending' ? 'Pendiente' :
+                request.status === 'processing' ? 'Procesando' :
+                request.status === 'approved' ? 'Aprobado' :
+                request.status === 'cancelled' ? 'Cancelado' :
+                request.status === 'failed' ? 'Fallido' : request.status,
+      'Método de Pago': request.payment_method === 'pagomovil' ? 'PagoMóvil' : 'Transferencia Bancaria',
+      'Detalles de Pago': request.payment_details,
+      'Lote': request.batch_id || 'N/A',
+      'Fecha de Procesamiento': request.processed_at ? format(new Date(request.processed_at), 'dd/MM/yyyy HH:mm') : 'N/A'
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Historial de Adelantos');
+
+    const fileName = `historial_adelantos_${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
+    XLSX.writeFile(workbook, fileName);
+
+    toast({
+      title: "Exportación exitosa",
+      description: `Se ha exportado ${filteredAdvanceRequests.length} solicitudes a ${fileName}`,
+    });
+  };
+
+  // Clear date filters
+  const clearDateFilters = () => {
+    setDateFrom(undefined);
+    setDateTo(undefined);
+  };
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredAdvanceRequests.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedRequests = filteredAdvanceRequests.slice(startIndex, endIndex);
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [dateFrom, dateTo, filteredAdvanceRequests.length]);
+
+  // Pagination handlers
+  const goToPage = (page: number) => {
+    setCurrentPage(Math.max(1, Math.min(page, totalPages)));
+  };
+
+  const goToNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+
+  const goToPreviousPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    }
+  };
+
+  const handleItemsPerPageChange = (newItemsPerPage: number) => {
+    setItemsPerPage(newItemsPerPage);
+    setCurrentPage(1);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Cargando datos del empleado...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!employee) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <AlertCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
+          <h2 className="text-xl font-semibold mb-2">No se encontraron datos</h2>
+          <p className="text-muted-foreground mb-4">No se pudieron cargar los datos del empleado.</p>
+          <Button onClick={refreshData} disabled={isRefreshing}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+            Reintentar
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  const employeeName = `${employee.first_name} ${employee.last_name}`;
 
   return (
     <div className="min-h-screen bg-background">
@@ -44,13 +455,24 @@ const EmployeeDashboard = () => {
                 <DollarSign className="h-5 w-5 text-white" />
               </div>
               <div>
-                <h1 className="text-xl font-bold">{t('employee.welcome').replace('{name}', employeeData.name)}</h1>
+                <h1 className="text-xl font-bold">{t('employee.welcome').replace('{name}', employeeName)}</h1>
                 <p className="text-sm text-muted-foreground">{t('employee.panel')}</p>
               </div>
             </div>
+            <div className="flex items-center space-x-2">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={refreshData}
+                disabled={isRefreshing}
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+                Actualizar
+              </Button>
             <Button variant="outline" asChild>
               <Link to="/">{t('dashboard.logout')}</Link>
             </Button>
+            </div>
           </div>
         </div>
       </header>
@@ -63,9 +485,9 @@ const EmployeeDashboard = () => {
               <DollarSign className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-primary">${employeeData.availableAmount}</div>
+              <div className="text-2xl font-bold text-primary">${availableAmount.toFixed(2)}</div>
               <p className="text-xs text-muted-foreground">
-                {t('employee.ofEarned').replace('${amount}', employeeData.earnedAmount.toString())}
+                {t('employee.ofEarned').replace('${amount}', earnedAmount.toFixed(2))}
               </p>
             </CardContent>
           </Card>
@@ -76,9 +498,9 @@ const EmployeeDashboard = () => {
               <TrendingUp className="h-4 w-4 text-secondary" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">${employeeData.monthlySalary}</div>
+              <div className="text-2xl font-bold">${monthlySalary.toFixed(2)}</div>
               <p className="text-xs text-muted-foreground">
-                {t('employee.daysWorked').replace('{worked}', employeeData.workedDays.toString()).replace('{total}', employeeData.totalDays.toString())}
+                {t('employee.daysWorked').replace('{worked}', workedDays.toString()).replace('{total}', totalDays.toString())}
               </p>
             </CardContent>
           </Card>
@@ -89,7 +511,7 @@ const EmployeeDashboard = () => {
               <CreditCard className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">${employeeData.usedAmount}</div>
+              <div className="text-2xl font-bold">${usedAmount.toFixed(2)}</div>
               <p className="text-xs text-muted-foreground">
                 {t('employee.thisPeriod')}
               </p>
@@ -102,7 +524,7 @@ const EmployeeDashboard = () => {
               <Clock className="h-4 w-4 text-orange-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{employeeData.pendingAdvances}</div>
+              <div className="text-2xl font-bold">{pendingAdvances}</div>
               <p className="text-xs text-muted-foreground">
                 {t('employee.advanceInProcess')}
               </p>
@@ -130,7 +552,7 @@ const EmployeeDashboard = () => {
                   <div>
                     <div className="flex justify-between text-sm mb-2">
                       <span>{t('employee.daysWorkedMonth')}</span>
-                      <span>{employeeData.workedDays} / {employeeData.totalDays} {t('employee.days')}</span>
+                      <span>{workedDays} / {totalDays} {t('employee.days')}</span>
                     </div>
                     <Progress value={progressPercentage} className="h-2" />
                   </div>
@@ -138,108 +560,355 @@ const EmployeeDashboard = () => {
                   <div>
                     <div className="flex justify-between text-sm mb-2">
                       <span>{t('employee.availableAmount')}</span>
-                      <span>${employeeData.availableAmount} USD</span>
+                      <span>${availableAmount.toFixed(2)} USD</span>
                     </div>
                     <Progress value={80} className="h-2" />
                   </div>
                 </div>
 
                 {/* Request Form */}
-                <div className="bg-gradient-hero p-6 rounded-lg space-y-4">
-                  <h3 className="font-semibold">{t('employee.newAdvance')}</h3>
-                  
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm">{t('employee.requestedAmount')}</span>
-                      <div className="flex items-center space-x-2">
-                        <Button variant="outline" size="sm">$50</Button>
-                        <Button variant="outline" size="sm">$100</Button>
-                        <Button variant="outline" size="sm">$200</Button>
-                        <Button variant="premium" size="sm">{t('employee.maximum')}</Button>
-                      </div>
-                    </div>
-
-                    <div className="border rounded-lg p-4 bg-background">
-                      <div className="text-3xl font-bold text-center text-primary">$200.00</div>
-                      <div className="text-center text-sm text-muted-foreground">{t('employee.amountToRequest')}</div>
-                    </div>
-
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span>{t('employee.grossAmount')}</span>
-                        <span>$200.00</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>{t('employee.commission')}</span>
-                        <span className="text-destructive">-$10.00</span>
-                      </div>
-                      <div className="border-t pt-2 flex justify-between font-semibold">
-                        <span>{t('employee.youWillReceive')}</span>
-                        <span className="text-primary">$190.00</span>
-                      </div>
-                    </div>
-
-                    <Button className="w-full" variant="hero" size="lg" asChild>
-                      <Link to="/employee/request-advance">
-                        {t('employee.requestButton')}
-                      </Link>
-                    </Button>
-                  </div>
-                </div>
+                <AdvanceRequestForm 
+                  employeeData={{
+                    name: employeeName,
+                    monthlySalary,
+                    earnedAmount,
+                    availableAmount,
+                    usedAmount,
+                    workedDays,
+                    totalDays
+                  }}
+                  onAdvanceSubmitted={refreshData}
+                  existingAdvanceRequests={advanceRequests}
+                />
               </CardContent>
             </Card>
 
             <Card className="border-none shadow-card">
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
+                  <span className="flex items-center space-x-2">
+                    <Clock className="h-5 w-5 text-primary" />
                   <span>{t('employee.advanceHistory')}</span>
-                  <Button variant="outline" size="sm">
-                    <Download className="h-4 w-4 mr-2" />
-                    {t('employee.export')}
-                  </Button>
+                    <Badge variant="secondary" className="ml-2">
+                      {filteredAdvanceRequests.length} solicitudes
+                    </Badge>
+                  </span>
+                  <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-2">
+                      <Label className="text-sm text-muted-foreground">Mostrar:</Label>
+                      <Select value={itemsPerPage.toString()} onValueChange={(value) => handleItemsPerPageChange(Number(value))}>
+                        <SelectTrigger className="w-[80px] h-8">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="5">5</SelectItem>
+                          <SelectItem value="10">10</SelectItem>
+                          <SelectItem value="20">20</SelectItem>
+                          <SelectItem value="50">50</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button variant="outline" size="sm" onClick={exportToExcel}>
+                      <Download className="h-4 w-4 mr-2" />
+                      Exportar XLS
+                    </Button>
+                  </div>
                 </CardTitle>
+                
+                {/* Date Filters */}
+                <div className="flex items-center space-x-4 mt-4">
+                  <div className="flex items-center space-x-2">
+                    <Label className="text-sm font-medium">Desde:</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-[140px] justify-start text-left font-normal"
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {dateFrom ? format(dateFrom, "dd/MM/yyyy") : "Seleccionar"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={dateFrom}
+                          onSelect={(date) => setDateFrom(date)}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <Label className="text-sm font-medium">Hasta:</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-[140px] justify-start text-left font-normal"
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {dateTo ? format(dateTo, "dd/MM/yyyy") : "Seleccionar"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={dateTo}
+                          onSelect={(date) => setDateTo(date)}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  
+                  {(dateFrom || dateTo) && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={clearDateFilters}
+                      className="text-muted-foreground"
+                    >
+                      <X className="h-4 w-4 mr-1" />
+                      Limpiar
+                    </Button>
+                  )}
+                </div>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                <div className="space-y-2">
+                  {filteredAdvanceRequests.length === 0 ? (
+                    <div className="text-center py-6">
+                      <Clock className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
+                      <p className="text-muted-foreground text-sm">
+                        {advanceRequests.length === 0 
+                          ? "No hay solicitudes de adelanto" 
+                          : "No hay solicitudes en el rango seleccionado"
+                        }
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {advanceRequests.length === 0 
+                          ? "Tus solicitudes aparecerán aquí" 
+                          : "Ajusta el rango de fechas para ver más resultados"
+                        }
+                      </p>
+                    </div>
+                  ) : (
+                    paginatedRequests.map((request) => {
+                      const requestDate = new Date(request.created_at);
+                      const isToday = requestDate.toDateString() === new Date().toDateString();
+                      const isCompleted = request.status === 'completed';
+                      const isPending = request.status === 'pending' || request.status === 'processing';
+                      const isApproved = request.status === 'approved';
+                      
+                      const getStatusBadge = () => {
+                        switch (request.status) {
+                          case 'completed':
+                            return <Badge className="bg-green-100 text-green-800">Completado</Badge>;
+                          case 'approved':
+                            return <Badge className="bg-blue-100 text-blue-800">Aprobado</Badge>;
+                          case 'processing':
+                            return <Badge className="bg-orange-100 text-orange-800">Procesando</Badge>;
+                          case 'pending':
+                            return <Badge variant="secondary">Pendiente</Badge>;
+                          case 'cancelled':
+                            return <Badge variant="outline" className="text-muted-foreground">Cancelado</Badge>;
+                          case 'failed':
+                            return <Badge variant="destructive">Fallido</Badge>;
+                          default:
+                            return <Badge variant="outline">{request.status}</Badge>;
+                        }
+                      };
+
+                      const getStatusIcon = () => {
+                        if (isCompleted) {
+                          return <DollarSign className="h-4 w-4 text-green-600" />;
+                        } else if (isApproved) {
+                          return <CheckCircle className="h-4 w-4 text-blue-600" />;
+                        } else if (isPending) {
+                          return <Clock className="h-4 w-4 text-orange-600" />;
+                        } else if (request.status === 'cancelled') {
+                          return <X className="h-4 w-4 text-muted-foreground" />;
+                        } else {
+                          return <AlertCircle className="h-4 w-4 text-red-600" />;
+                        }
+                      };
+
+                      const getStatusBg = () => {
+                        if (isCompleted) {
+                          return "bg-green-100";
+                        } else if (isApproved) {
+                          return "bg-blue-100";
+                        } else if (isPending) {
+                          return "bg-orange-100";
+                        } else if (request.status === 'cancelled') {
+                          return "bg-gray-100";
+                        } else {
+                          return "bg-red-100";
+                        }
+                      };
+
+                      const getPaymentMethodText = () => {
+                        return request.payment_method === 'pagomovil' ? 'PagoMóvil' : 'Transferencia Bancaria';
+                      };
+
+                      return (
+                        <div key={request.id} className="p-3 border rounded-lg hover:bg-muted/50 transition-colors relative">
+                          <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center space-x-3">
-                      <div className="h-8 w-8 bg-orange-100 rounded-full flex items-center justify-center">
-                        <Clock className="h-4 w-4 text-orange-600" />
+                              <div className={`h-7 w-7 ${getStatusBg()} rounded-full flex items-center justify-center`}>
+                                {getStatusIcon()}
                       </div>
                       <div>
-                        <div className="font-medium">$150.00</div>
-                        <div className="text-sm text-muted-foreground">{t('employee.today')}, 10:30 AM</div>
+                                <div className="font-semibold text-base">${request.requested_amount.toFixed(2)}</div>
+                                <div className="text-xs text-muted-foreground">
+                                  {isToday 
+                                    ? `${t('employee.today')}, ${requestDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`
+                                    : requestDate.toLocaleDateString('es-ES', { 
+                                        day: 'numeric', 
+                                        month: 'short', 
+                                        hour: '2-digit', 
+                                        minute: '2-digit' 
+                                      })
+                                  }
+                                </div>
                       </div>
                     </div>
-                    <Badge variant="secondary">{t('employee.inProcess')}</Badge>
+                            <div className="flex items-center space-x-2">
+                              {getStatusBadge()}
+                              {request.status === 'pending' && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleCancelClick(request)}
+                                  className="text-destructive hover:text-destructive hover:bg-destructive/10 h-7 px-2 text-xs"
+                                >
+                                  <X className="h-3 w-3 mr-1" />
+                                  Cancelar
+                                </Button>
+                              )}
+                            </div>
                   </div>
 
-                  <div className="flex items-center justify-between p-4 border rounded-lg">
-                    <div className="flex items-center space-x-3">
-                      <div className="h-8 w-8 bg-green-100 rounded-full flex items-center justify-center">
-                        <DollarSign className="h-4 w-4 text-green-600" />
+                          {/* Compact Details Row */}
+                          <div className="flex items-center justify-between text-xs text-muted-foreground">
+                            <div className="flex items-center space-x-4">
+                              <span>
+                                <span className="text-destructive">-${request.fee_amount.toFixed(2)}</span> comisión
+                              </span>
+                              <span>
+                                <span className="text-primary font-medium">${request.net_amount.toFixed(2)}</span> neto
+                              </span>
+                              <span>{getPaymentMethodText()}</span>
                       </div>
-                      <div>
-                        <div className="font-medium">$200.00</div>
-                        <div className="text-sm text-muted-foreground">{t('employee.ago')} 3 {t('employee.daysCount')}</div>
+                            <div className="flex items-center space-x-2">
+                              <span className="text-xs">
+                                {request.payment_method === 'pagomovil' 
+                                  ? request.payment_details 
+                                  : `****${request.payment_details.slice(-4)}`
+                                }
+                              </span>
+                              {/* Delete Button - Compact */}
+                              {(request.status === 'completed' || request.status === 'cancelled') && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleDeleteClick(request)}
+                                  className="text-destructive hover:text-destructive hover:bg-destructive/10 h-6 px-2 text-xs"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              )}
                       </div>
                     </div>
-                    <Badge className="bg-green-100 text-green-800">{t('employee.completed')}</Badge>
-                  </div>
 
-                  <div className="flex items-center justify-between p-4 border rounded-lg">
-                    <div className="flex items-center space-x-3">
-                      <div className="h-8 w-8 bg-green-100 rounded-full flex items-center justify-center">
-                        <DollarSign className="h-4 w-4 text-green-600" />
-                      </div>
-                      <div>
-                        <div className="font-medium">$100.00</div>
-                        <div className="text-sm text-muted-foreground">{t('employee.ago')} 1 {t('employee.week')}</div>
-                      </div>
-                    </div>
-                    <Badge className="bg-green-100 text-green-800">{t('employee.completed')}</Badge>
+                          {/* Additional Info - Compact */}
+                          {(request.batch_id || request.processed_at) && (
+                            <div className="flex items-center justify-between text-xs text-muted-foreground mt-1 pt-1 border-t border-muted/30">
+                              {request.batch_id && (
+                                <span>Lote: {request.batch_id}</span>
+                              )}
+                              {request.processed_at && (
+                                <span>
+                                  Procesado: {new Date(request.processed_at).toLocaleDateString('es-ES', {
+                                    day: 'numeric',
+                                    month: 'short',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  })}
+                                </span>
+                              )}
                   </div>
+                          )}
+
+                      </div>
+                      );
+                    })
+                  )}
                 </div>
+
+                {/* Pagination Controls */}
+                {filteredAdvanceRequests.length > 0 && totalPages > 1 && (
+                  <div className="flex items-center justify-between mt-4 pt-4 border-t border-muted/30">
+                    <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                      <span>
+                        Mostrando {startIndex + 1} - {Math.min(endIndex, filteredAdvanceRequests.length)} de {filteredAdvanceRequests.length} solicitudes
+                      </span>
+                    </div>
+                    
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={goToPreviousPage}
+                        disabled={currentPage === 1}
+                        className="h-8 w-8 p-0"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                      
+                      <div className="flex items-center space-x-1">
+                        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                          let pageNum;
+                          if (totalPages <= 5) {
+                            pageNum = i + 1;
+                          } else if (currentPage <= 3) {
+                            pageNum = i + 1;
+                          } else if (currentPage >= totalPages - 2) {
+                            pageNum = totalPages - 4 + i;
+                          } else {
+                            pageNum = currentPage - 2 + i;
+                          }
+                          
+                          return (
+                            <Button
+                              key={pageNum}
+                              variant={currentPage === pageNum ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => goToPage(pageNum)}
+                              className="h-8 w-8 p-0"
+                            >
+                              {pageNum}
+                            </Button>
+                          );
+                        })}
+                      </div>
+                      
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={goToNextPage}
+                        disabled={currentPage === totalPages}
+                        className="h-8 w-8 p-0"
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -253,19 +922,26 @@ const EmployeeDashboard = () => {
               <CardContent className="space-y-4">
                 <div className="flex items-center justify-between p-3 border rounded-lg">
                   <div>
-                    <div className="font-medium">PagoMóvil</div>
-                    <div className="text-sm text-muted-foreground">0412-123-4567</div>
+                    <div className="font-medium">{employee.bank_name}</div>
+                    <div className="text-sm text-muted-foreground">
+                      {employee.account_type === 'savings' ? 'Cuenta de Ahorros' : 'Cuenta Corriente'}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      ****-****-{employee.account_number.slice(-4)}
+                    </div>
                   </div>
                   <Badge>{t('employee.main')}</Badge>
                 </div>
                 
+                {employee.phone && (
                 <div className="flex items-center justify-between p-3 border rounded-lg">
                   <div>
-                    <div className="font-medium">Banco Venezuela</div>
-                    <div className="text-sm text-muted-foreground">****-****-**-1234</div>
+                      <div className="font-medium">PagoMóvil</div>
+                      <div className="text-sm text-muted-foreground">{employee.phone}</div>
                   </div>
                   <Badge variant="outline">{t('employee.backup')}</Badge>
                 </div>
+                )}
 
                 <p className="text-xs text-muted-foreground">
                   {t('employee.paymentNote')}
@@ -277,16 +953,24 @@ const EmployeeDashboard = () => {
             <Card className="border-none shadow-card">
               <CardHeader>
                 <CardTitle className="text-lg flex items-center space-x-2">
-                  <Calendar className="h-5 w-5" />
+                  <CalendarIcon className="h-5 w-5" />
                   <span>{t('employee.nextPayroll')}</span>
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="text-center space-y-2">
-                  <div className="text-2xl font-bold">15 {t('employee.daysCount')}</div>
-                  <div className="text-sm text-muted-foreground">31 de enero, 2024</div>
+                  <div className="text-2xl font-bold">
+                    {new Date(currentYear, currentMonth + 1, 0).getDate()} {t('employee.daysCount')}
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    {new Date(currentYear, currentMonth + 1, 0).toLocaleDateString('es-ES', { 
+                      day: 'numeric', 
+                      month: 'long', 
+                      year: 'numeric' 
+                    })}
+                  </div>
                   <div className="text-sm">
-                    {t('employee.willDeduct')} <span className="font-semibold text-destructive">$150</span> {t('employee.advances')}
+                    {t('employee.willDeduct')} <span className="font-semibold text-destructive">${usedAmount.toFixed(2)}</span> {t('employee.advances')}
                   </div>
                 </div>
               </CardContent>
@@ -312,6 +996,84 @@ const EmployeeDashboard = () => {
           </div>
         </div>
       </div>
+
+      {/* Cancel Confirmation Modal */}
+      <Dialog open={showCancelModal} onOpenChange={setShowCancelModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-destructive" />
+              Cancelar Adelanto
+            </DialogTitle>
+            <DialogDescription>
+              ¿Estás seguro de que quieres cancelar este adelanto de{" "}
+              <span className="font-semibold">
+                ${advanceToCancel?.requested_amount.toFixed(2)}
+              </span>?
+              <br />
+              <br />
+              Esta acción no se puede deshacer.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={cancelCancelAction}
+              className="flex-1 sm:flex-none"
+            >
+              No, mantener
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmCancelAdvance}
+              className="flex-1 sm:flex-none"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Sí, cancelar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Modal */}
+      <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-destructive" />
+              Eliminar Adelanto
+            </DialogTitle>
+            <DialogDescription>
+              ¿Estás seguro de que quieres eliminar permanentemente este adelanto de{" "}
+              <span className="font-semibold">
+                ${advanceToDelete?.requested_amount.toFixed(2)}
+              </span>?
+              <br />
+              <br />
+              <span className="text-destructive font-medium">
+                Esta acción no se puede deshacer y eliminará permanentemente el registro.
+              </span>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={cancelDeleteAction}
+              className="flex-1 sm:flex-none"
+            >
+              No, mantener
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmDeleteAdvance}
+              className="flex-1 sm:flex-none"
+            >
+              <X className="h-4 w-4 mr-2" />
+              Sí, eliminar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

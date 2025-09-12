@@ -168,6 +168,17 @@ const CompanyDashboard = () => {
                       });
                     }
                   }
+                  
+                  // Show notification for verification status changes
+                  if (payload.old.is_verified !== payload.new.is_verified) {
+                    const employeeName = `${payload.new.first_name} ${payload.new.last_name}`;
+                    if (payload.new.is_verified) {
+                      toast({
+                        title: "Empleado Verificado",
+                        description: `${employeeName} ha sido verificado exitosamente`,
+                      });
+                    }
+                  }
                 } else if (payload.eventType === 'INSERT') {
                   // Add new employee to the list
                   setEmployees(prevEmployees => [payload.new as Employee, ...prevEmployees]);

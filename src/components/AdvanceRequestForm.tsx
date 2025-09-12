@@ -6,15 +6,19 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { 
   DollarSign, 
   Clock, 
   Calculator, 
   AlertCircle,
   CheckCircle,
-  ArrowRight
+  ArrowRight,
+  Shield,
+  X
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/lib/supabase";
 
 interface EmployeeData {
   name: string;
@@ -28,16 +32,24 @@ interface EmployeeData {
 
 interface AdvanceRequestFormProps {
   employeeData: EmployeeData;
+  onAdvanceSubmitted?: () => void;
+  existingAdvanceRequests?: any[];
 }
 
-export const AdvanceRequestForm = ({ employeeData }: AdvanceRequestFormProps) => {
+export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingAdvanceRequests = [] }: AdvanceRequestFormProps) => {
   const [requestAmount, setRequestAmount] = useState<number>(50);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
   const { toast } = useToast();
 
   const feeRate = 0.05; // 5%
   const minFee = 1; // $1 minimum
   const maxAvailable = employeeData.availableAmount;
+
+  // Check if there's already a pending or processing advance
+  const hasPendingAdvance = existingAdvanceRequests.some(
+    request => request.status === 'pending' || request.status === 'processing' || request.status === 'approved'
+  );
 
   const calculateFee = (amount: number) => Math.max(amount * feeRate, minFee);
   const netAmount = requestAmount - calculateFee(requestAmount);
@@ -53,7 +65,7 @@ export const AdvanceRequestForm = ({ employeeData }: AdvanceRequestFormProps) =>
     setRequestAmount(Math.min(amount, maxAvailable));
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     if (requestAmount > maxAvailable) {
       toast({
         title: "Monto excede el límite",
@@ -72,17 +84,80 @@ export const AdvanceRequestForm = ({ employeeData }: AdvanceRequestFormProps) =>
       return;
     }
 
-    setIsSubmitting(true);
-    
-    // Simulate API call to create advance request
-    setTimeout(() => {
+    setShowConfirmModal(true);
+  };
+
+  const handleConfirmSubmit = async () => {
+    try {
+      setIsSubmitting(true);
+      setShowConfirmModal(false);
+      
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error("Usuario no autenticado");
+      }
+
+      // Get employee data
+      const { data: employee, error: employeeError } = await supabase
+        .from("employees")
+        .select("id, company_id, phone, bank_name, account_number")
+        .eq("auth_user_id", user.id)
+        .single();
+
+      if (employeeError || !employee) {
+        throw new Error("No se encontró la información del empleado");
+      }
+
+      // Calculate amounts
+      const feeAmount = calculateFee(requestAmount);
+      const netAmount = requestAmount - feeAmount;
+
+      // Create advance request
+      const { error: requestError } = await supabase
+        .from("advance_transactions")
+        .insert({
+          employee_id: employee.id,
+          company_id: employee.company_id,
+          requested_amount: requestAmount,
+          fee_amount: feeAmount,
+          net_amount: netAmount,
+          earned_wages: employeeData.earnedAmount,
+          available_amount: employeeData.availableAmount,
+          worked_days: employeeData.workedDays,
+          total_days: employeeData.totalDays,
+          payment_method: employee.phone ? 'pagomovil' : 'bank_transfer',
+          payment_details: employee.phone || employee.account_number,
+          status: 'pending'
+        });
+
+      if (requestError) {
+        throw new Error(`Error al crear la solicitud: ${requestError.message}`);
+      }
+
       toast({
         title: "Solicitud enviada",
         description: "Tu adelanto será procesado en el próximo lote (11:00 AM o 3:00 PM)",
       });
-      setIsSubmitting(false);
+
+      // Reset form
       setRequestAmount(50);
-    }, 2000);
+      
+      // Refresh advance history
+      if (onAdvanceSubmitted) {
+        onAdvanceSubmitted();
+      }
+
+    } catch (error: any) {
+      console.error("Error creating advance request:", error);
+      toast({
+        title: "Error",
+        description: error?.message ?? "No se pudo enviar la solicitud",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const progressPercentage = (employeeData.workedDays / employeeData.totalDays) * 100;
@@ -141,6 +216,20 @@ export const AdvanceRequestForm = ({ employeeData }: AdvanceRequestFormProps) =>
               Procesamiento automático
             </Badge>
           </div>
+
+          {/* Pending Advance Warning */}
+          {hasPendingAdvance && (
+            <div className="flex items-start space-x-3 p-4 bg-orange-100 border border-orange-200 rounded-lg">
+              <AlertCircle className="h-5 w-5 text-orange-600 mt-0.5 flex-shrink-0" />
+              <div className="text-sm">
+                <div className="font-medium text-orange-800">Solicitud en Progreso</div>
+                <div className="text-orange-700">
+                  Ya tienes una solicitud de adelanto pendiente o en procesamiento. 
+                  No puedes solicitar un nuevo adelanto hasta que se complete la solicitud actual.
+                </div>
+              </div>
+            </div>
+          )}
           
           <div className="space-y-4">
             {/* Quick Amount Buttons */}
@@ -153,7 +242,8 @@ export const AdvanceRequestForm = ({ employeeData }: AdvanceRequestFormProps) =>
                     variant={requestAmount === amount ? "premium" : "outline"}
                     size="sm"
                     onClick={() => handleQuickAmount(amount)}
-                    className="transition-all duration-200 hover:scale-105"
+                    disabled={hasPendingAdvance}
+                    className="transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
                     style={{ animationDelay: `${0.1 * index}s` }}
                   >
                     {amount === Math.floor(maxAvailable) ? 'Máximo' : `$${amount}`}
@@ -179,6 +269,7 @@ export const AdvanceRequestForm = ({ employeeData }: AdvanceRequestFormProps) =>
                   min="1"
                   max={maxAvailable}
                   step="0.01"
+                  disabled={hasPendingAdvance}
                 />
               </div>
               {requestAmount > maxAvailable && (
@@ -229,7 +320,7 @@ export const AdvanceRequestForm = ({ employeeData }: AdvanceRequestFormProps) =>
               className="w-full h-12 text-base font-semibold" 
               variant="hero" 
               onClick={handleSubmit}
-              disabled={isSubmitting || requestAmount <= 0 || requestAmount > maxAvailable}
+              disabled={isSubmitting || requestAmount <= 0 || requestAmount > maxAvailable || hasPendingAdvance}
             >
               {isSubmitting ? (
                 <div className="flex items-center space-x-2">
@@ -257,6 +348,93 @@ export const AdvanceRequestForm = ({ employeeData }: AdvanceRequestFormProps) =>
           </div>
         </div>
       </CardContent>
+
+      {/* Confirmation Modal */}
+      <Dialog open={showConfirmModal} onOpenChange={setShowConfirmModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center space-x-2">
+              <Shield className="h-5 w-5 text-primary" />
+              <span>Confirmar Solicitud de Adelanto</span>
+            </DialogTitle>
+            <DialogDescription>
+              Por favor, revisa los detalles de tu solicitud antes de confirmar.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {/* Employee Info */}
+            <div className="bg-muted/50 p-4 rounded-lg">
+              <div className="text-sm font-medium text-muted-foreground mb-2">Empleado</div>
+              <div className="text-lg font-semibold">{employeeData.name}</div>
+            </div>
+
+            {/* Request Details */}
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Monto solicitado:</span>
+                <span className="text-lg font-semibold">${requestAmount.toFixed(2)}</span>
+              </div>
+              
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Comisión (5%):</span>
+                <span className="text-sm text-destructive">-${calculateFee(requestAmount).toFixed(2)}</span>
+              </div>
+              
+              <Separator />
+              
+              <div className="flex justify-between items-center">
+                <span className="text-base font-semibold">Recibirás:</span>
+                <span className="text-xl font-bold text-primary">${netAmount.toFixed(2)}</span>
+              </div>
+            </div>
+
+            {/* Processing Info */}
+            <div className="bg-primary/10 p-4 rounded-lg">
+              <div className="flex items-start space-x-3">
+                <Clock className="h-5 w-5 text-primary mt-0.5" />
+                <div className="text-sm">
+                  <div className="font-medium text-primary">Procesamiento</div>
+                  <div className="text-muted-foreground">
+                    Tu adelanto será procesado en el próximo lote (11:00 AM o 3:00 PM) y recibirás el dinero el mismo día.
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex space-x-3 pt-4">
+              <Button 
+                variant="outline" 
+                onClick={() => setShowConfirmModal(false)}
+                className="flex-1"
+                disabled={isSubmitting}
+              >
+                <X className="h-4 w-4 mr-2" />
+                Cancelar
+              </Button>
+              <Button 
+                onClick={handleConfirmSubmit}
+                disabled={isSubmitting}
+                className="flex-1"
+                variant="hero"
+              >
+                {isSubmitting ? (
+                  <div className="flex items-center space-x-2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <span>Procesando...</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center space-x-2">
+                    <CheckCircle className="h-4 w-4" />
+                    <span>Confirmar Solicitud</span>
+                  </div>
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 };
