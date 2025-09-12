@@ -5,19 +5,78 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { DollarSign, Building, User, CheckCircle } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import { useState } from "react";
+import { supabase } from "@/lib/supabase";
+import { useToast } from "@/hooks/use-toast";
+import { ensureCompanyRecord } from "@/lib/profile";
 
 const Register = () => {
   const { t } = useLanguage();
-  
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const [companyEmail, setCompanyEmail] = useState("");
+  const [companyPassword, setCompanyPassword] = useState("");
+  const [companyName, setCompanyName] = useState("");
+  const [companyRif, setCompanyRif] = useState("");
+  const [companyAddress, setCompanyAddress] = useState("");
+  const [companyPhone, setCompanyPhone] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+
+  const signUpCompany = async () => {
+    try {
+      setIsLoading(true);
+      const { data, error } = await supabase.auth.signUp({
+
+        email: companyEmail,
+        password: companyPassword,
+        options: {
+          emailRedirectTo: `${window.location.origin}/login`,
+          data: {
+            role: 'company',
+            company_name: companyName,     // required (NOT NULL)
+            company_rif: companyRif,       // required (UNIQUE, NOT NULL)
+            company_address: companyAddress,
+            company_phone: companyPhone,
+          }
+        }
+        // options: {
+        // },
+      });
+      if (error) throw error;
+      if (data.user) {
+        // attempt to create company row immediately if session present
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (sessionData.session) {
+          await ensureCompanyRecord(data.user.id, {
+            name: companyName,
+            rif: companyRif,
+            address: companyAddress,
+            phone: companyPhone,
+            email: companyEmail,
+          });
+        }
+      }
+      toast({ title: t('register.successTitle') ?? 'Cuenta creada. Revisa tu email.' });
+      navigate('/login');
+    } catch (err: any) {
+      toast({
+        title: t('register.errorTitle') ?? 'Error al registrar',
+        description: err?.message ?? 'Inténtalo de nuevo',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-hero flex items-center justify-center p-4">
       <div className="absolute top-4 right-4">
         <LanguageSwitcher />
       </div>
-      
+
       <div className="w-full max-w-2xl space-y-6">
         {/* Logo */}
         <div className="text-center space-y-2">
@@ -58,6 +117,8 @@ const Register = () => {
                       id="company-name"
                       placeholder="Empresa C.A."
                       className="h-12"
+                      value={companyName}
+                      onChange={(e) => setCompanyName(e.target.value)}
                     />
                   </div>
                   <div className="space-y-2">
@@ -66,6 +127,8 @@ const Register = () => {
                       id="company-rif"
                       placeholder="J-12345678-9"
                       className="h-12"
+                      value={companyRif}
+                      onChange={(e) => setCompanyRif(e.target.value)}
                     />
                   </div>
                 </div>
@@ -76,6 +139,8 @@ const Register = () => {
                     id="company-address"
                     placeholder="Dirección completa de la empresa"
                     className="min-h-[80px]"
+                    value={companyAddress}
+                    onChange={(e) => setCompanyAddress(e.target.value)}
                   />
                 </div>
 
@@ -87,6 +152,8 @@ const Register = () => {
                       type="email"
                       placeholder="admin@empresa.com"
                       className="h-12"
+                      value={companyEmail}
+                      onChange={(e) => setCompanyEmail(e.target.value)}
                     />
                   </div>
                   <div className="space-y-2">
@@ -95,6 +162,8 @@ const Register = () => {
                       id="company-phone"
                       placeholder="+58 212 123-4567"
                       className="h-12"
+                      value={companyPhone}
+                      onChange={(e) => setCompanyPhone(e.target.value)}
                     />
                   </div>
                 </div>
@@ -105,6 +174,8 @@ const Register = () => {
                     id="company-password"
                     type="password"
                     className="h-12"
+                    value={companyPassword}
+                    onChange={(e) => setCompanyPassword(e.target.value)}
                   />
                 </div>
 
@@ -126,8 +197,13 @@ const Register = () => {
                   </div>
                 </div>
 
-                <Button className="w-full h-12" variant="hero" asChild>
-                  <Link to="/company">Crear Cuenta Empresarial</Link>
+                <Button
+                  className="w-full h-12"
+                  variant="hero"
+                  disabled={isLoading}
+                  onClick={signUpCompany}
+                >
+                  Crear Cuenta Empresarial
                 </Button>
               </TabsContent>
 
@@ -136,7 +212,7 @@ const Register = () => {
                   <User className="h-8 w-8 text-secondary mx-auto mb-2" />
                   <h4 className="font-semibold text-secondary-foreground">Registro por invitación</h4>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Los empleados son registrados por su empresa. Si trabajas para una empresa que usa AvancePay, 
+                    Los empleados son registrados por su empresa. Si trabajas para una empresa que usa AvancePay,
                     recibirás un enlace de activación por SMS o email.
                   </p>
                 </div>

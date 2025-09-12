@@ -4,12 +4,65 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DollarSign, Building, User } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import { useState } from "react";
+import { supabase } from "@/lib/supabase";
+import { useToast } from "@/hooks/use-toast";
+import { ensureCompanyRecord, ensureEmployeeRecord } from "@/lib/profile";
 
 const Login = () => {
   const { t } = useLanguage();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const [employeeEmail, setEmployeeEmail] = useState("");
+  const [employeePassword, setEmployeePassword] = useState("");
+  const [companyEmail, setCompanyEmail] = useState("");
+  const [companyPassword, setCompanyPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+
+  const signIn = async (email: string, password: string, fallbackRedirect: string, roleToSet?: string) => {
+    try {
+      setIsLoading(true);
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+
+      // Only set metadata if a session exists (email may require confirmation)
+      if (roleToSet && data.session) {
+        await supabase.auth.updateUser({ data: { role: roleToSet } });
+        // best-effort company record ensure
+        const userId = data.session.user.id;
+        if (roleToSet === "company") {
+          await ensureCompanyRecord(userId, { email });
+        }
+        if (roleToSet === "employee") {
+          await ensureEmployeeRecord(userId, { email });
+        }
+      }
+
+      if (!data.session) {
+        toast({
+          title: t('login.checkEmailTitle') ?? 'Revisa tu correo',
+          description: t('login.checkEmailDesc') ?? 'Confirma tu email para completar el inicio de sesión.',
+        });
+        return;
+      }
+
+      // Resolve redirect by role if available
+      const role = (data.session.user.app_metadata as any)?.role ?? (data.session.user.user_metadata as any)?.role;
+      const pathByRole = role === 'company' ? '/company' : role === 'employee' ? '/employee' : role === 'operator' ? '/operator' : fallbackRedirect;
+      navigate(pathByRole);
+      toast({ title: t('login.successTitle') ?? 'Inicio de sesión exitoso' });
+    } catch (err: any) {
+      toast({
+        title: t('login.errorTitle') ?? 'Error al iniciar sesión',
+        description: err?.message ?? 'Revisa tus credenciales',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
   
   return (
     <div className="min-h-screen bg-gradient-hero flex items-center justify-center p-4">
@@ -57,6 +110,8 @@ const Login = () => {
                     type="email"
                     placeholder="empleado@ejemplo.com"
                     className="h-12"
+                    value={employeeEmail}
+                    onChange={(e) => setEmployeeEmail(e.target.value)}
                   />
                 </div>
                 <div className="space-y-2">
@@ -65,10 +120,17 @@ const Login = () => {
                     id="employee-password"
                     type="password"
                     className="h-12"
+                    value={employeePassword}
+                    onChange={(e) => setEmployeePassword(e.target.value)}
                   />
                 </div>
-                <Button className="w-full h-12" variant="premium" asChild>
-                  <Link to="/employee">{t('login.submit')}</Link>
+                <Button
+                  className="w-full h-12"
+                  variant="premium"
+                  disabled={isLoading}
+                  onClick={() => signIn(employeeEmail, employeePassword, "/employee", "employee")}
+                >
+                  {t('login.submit')}
                 </Button>
               </TabsContent>
 
@@ -80,6 +142,8 @@ const Login = () => {
                     type="email"
                     placeholder="admin@empresa.com"
                     className="h-12"
+                    value={companyEmail}
+                    onChange={(e) => setCompanyEmail(e.target.value)}
                   />
                 </div>
                 <div className="space-y-2">
@@ -88,17 +152,24 @@ const Login = () => {
                     id="company-password"
                     type="password"
                     className="h-12"
+                    value={companyPassword}
+                    onChange={(e) => setCompanyPassword(e.target.value)}
                   />
                 </div>
-                <Button className="w-full h-12" variant="hero" asChild>
-                  <Link to="/company">{t('login.submit')}</Link>
+                <Button
+                  className="w-full h-12"
+                  variant="hero"
+                  disabled={isLoading}
+                  onClick={() => signIn(companyEmail, companyPassword, "/company", "company")}
+                >
+                  {t('login.submit')}
                 </Button>
               </TabsContent>
             </Tabs>
 
             <div className="text-center space-y-2">
-              <Button variant="link" className="text-sm">
-                ¿Olvidaste tu contraseña?
+              <Button variant="link" className="text-sm" asChild>
+                <Link to="/forgot-password">¿Olvidaste tu contraseña?</Link>
               </Button>
             </div>
           </CardContent>

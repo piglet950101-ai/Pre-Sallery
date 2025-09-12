@@ -18,6 +18,10 @@ import Contact from "./pages/Contact";
 import Terms from "./pages/Terms";
 import Privacy from "./pages/Privacy";
 import NotFound from "./pages/NotFound";
+import { AuthProvider } from "@/contexts/AuthContext";
+import ProtectedRoute from "./components/ProtectedRoute";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 
 const queryClient = new QueryClient();
 
@@ -28,24 +32,28 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Landing />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/employee" element={<EmployeeDashboard />} />
-            <Route path="/employee/request-advance" element={<RequestAdvance />} />
-            <Route path="/company" element={<CompanyDashboard />} />
-            <Route path="/company/configuration" element={<CompanyConfiguration />} />
-            <Route path="/operator" element={<OperatorDashboard />} />
-            <Route path="/faq" element={<FAQ />} />
-            <Route path="/about" element={<About />} />
-            <Route path="/contact" element={<Contact />} />
-            <Route path="/terms" element={<Terms />} />
-            <Route path="/privacy" element={<Privacy />} />
-            <Route path="/demo" element={<Landing />} />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+          <AuthProvider>
+            <Routes>
+              <Route path="/" element={<Landing />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
+              <Route path="/employee" element={<ProtectedRoute role="employee"><EmployeeDashboard /></ProtectedRoute>} />
+              <Route path="/employee/request-advance" element={<ProtectedRoute role="employee"><RequestAdvance /></ProtectedRoute>} />
+              <Route path="/company" element={<ProtectedRoute role="company"><CompanyDashboard /></ProtectedRoute>} />
+              <Route path="/company/configuration" element={<ProtectedRoute role="company"><CompanyConfiguration /></ProtectedRoute>} />
+              <Route path="/operator" element={<ProtectedRoute role="operator"><OperatorDashboard /></ProtectedRoute>} />
+              <Route path="/faq" element={<FAQ />} />
+              <Route path="/about" element={<About />} />
+              <Route path="/contact" element={<Contact />} />
+              <Route path="/terms" element={<Terms />} />
+              <Route path="/privacy" element={<Privacy />} />
+              <Route path="/demo" element={<Landing />} />
+              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </AuthProvider>
         </BrowserRouter>
       </TooltipProvider>
     </LanguageProvider>
