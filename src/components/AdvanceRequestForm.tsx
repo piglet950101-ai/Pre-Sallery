@@ -47,8 +47,14 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
   const maxAvailable = employeeData.availableAmount;
 
   // Check if there's already a pending or processing advance
+  // Allow new requests if the previous advance was rejected (failed) or completed
   const hasPendingAdvance = existingAdvanceRequests.some(
     request => request.status === 'pending' || request.status === 'processing' || request.status === 'approved'
+  );
+
+  // Check if there's a recent rejected advance to show helpful message
+  const hasRejectedAdvance = existingAdvanceRequests.some(
+    request => request.status === 'failed'
   );
 
   const calculateFee = (amount: number) => Math.max(amount * feeRate, minFee);
@@ -226,6 +232,19 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
                 <div className="text-orange-700">
                   Ya tienes una solicitud de adelanto pendiente o en procesamiento. 
                   No puedes solicitar un nuevo adelanto hasta que se complete la solicitud actual.
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Rejected Advance Info */}
+          {hasRejectedAdvance && !hasPendingAdvance && (
+            <div className="flex items-start space-x-3 p-4 bg-blue-100 border border-blue-200 rounded-lg">
+              <CheckCircle className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+              <div className="text-sm">
+                <div className="font-medium text-blue-800">Listo para Nueva Solicitud</div>
+                <div className="text-blue-700">
+                  Tu solicitud anterior fue rechazada. Puedes solicitar un nuevo adelanto ahora.
                 </div>
               </div>
             </div>

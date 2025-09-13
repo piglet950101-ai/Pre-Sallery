@@ -15,7 +15,6 @@ import {
   CheckCircle,
   RefreshCw,
   X,
-  Trash2,
   ChevronLeft,
   ChevronRight
 } from "lucide-react";
@@ -89,8 +88,6 @@ const EmployeeDashboard = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [advanceToCancel, setAdvanceToCancel] = useState<AdvanceRequest | null>(null);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [advanceToDelete, setAdvanceToDelete] = useState<AdvanceRequest | null>(null);
   const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
   const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
   const [filteredAdvanceRequests, setFilteredAdvanceRequests] = useState<AdvanceRequest[]>([]);
@@ -263,48 +260,6 @@ const EmployeeDashboard = () => {
     setAdvanceToCancel(null);
   };
 
-  const handleDeleteClick = (advance: AdvanceRequest) => {
-    setAdvanceToDelete(advance);
-    setShowDeleteModal(true);
-  };
-
-  const confirmDeleteAdvance = async () => {
-    if (!advanceToDelete) return;
-
-    try {
-      // Delete the advance transaction from Supabase
-      const { error: deleteError } = await supabase
-        .from("advance_transactions")
-        .delete()
-        .eq("id", advanceToDelete.id);
-
-      if (deleteError) {
-        throw new Error(`Error al eliminar el adelanto: ${deleteError.message}`);
-      }
-
-      toast({
-        title: "Adelanto eliminado",
-        description: "El adelanto ha sido eliminado permanentemente",
-      });
-
-      // Close modal and refresh data
-      setShowDeleteModal(false);
-      setAdvanceToDelete(null);
-      refreshData();
-    } catch (error: any) {
-      console.error("Error deleting advance:", error);
-      toast({
-        title: "Error",
-        description: error?.message ?? "No se pudo eliminar el adelanto",
-        variant: "destructive"
-      });
-    }
-  };
-
-  const cancelDeleteAction = () => {
-    setShowDeleteModal(false);
-    setAdvanceToDelete(null);
-  };
 
   // Filter advance requests by date range
   useEffect(() => {
@@ -811,17 +766,6 @@ const EmployeeDashboard = () => {
                                   : `****${request.payment_details.slice(-4)}`
                                 }
                               </span>
-                              {/* Delete Button - Compact */}
-                              {(request.status === 'completed' || request.status === 'cancelled') && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => handleDeleteClick(request)}
-                                  className="text-destructive hover:text-destructive hover:bg-destructive/10 h-6 px-2 text-xs"
-                                >
-                                  <Trash2 className="h-3 w-3" />
-                                </Button>
-                              )}
                       </div>
                     </div>
 
@@ -1028,52 +972,13 @@ const EmployeeDashboard = () => {
               onClick={confirmCancelAdvance}
               className="flex-1 sm:flex-none"
             >
-              <Trash2 className="h-4 w-4 mr-2" />
+              <X className="h-4 w-4 mr-2" />
               Sí, cancelar
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Modal */}
-      <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <AlertCircle className="h-5 w-5 text-destructive" />
-              Eliminar Adelanto
-            </DialogTitle>
-            <DialogDescription>
-              ¿Estás seguro de que quieres eliminar permanentemente este adelanto de{" "}
-              <span className="font-semibold">
-                ${advanceToDelete?.requested_amount.toFixed(2)}
-              </span>?
-              <br />
-              <br />
-              <span className="text-destructive font-medium">
-                Esta acción no se puede deshacer y eliminará permanentemente el registro.
-              </span>
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="flex gap-2 sm:gap-0">
-            <Button
-              variant="outline"
-              onClick={cancelDeleteAction}
-              className="flex-1 sm:flex-none"
-            >
-              No, mantener
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={confirmDeleteAdvance}
-              className="flex-1 sm:flex-none"
-            >
-              <X className="h-4 w-4 mr-2" />
-              Sí, eliminar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };

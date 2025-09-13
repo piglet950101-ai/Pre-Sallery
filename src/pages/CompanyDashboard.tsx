@@ -687,17 +687,32 @@ const CompanyDashboard = () => {
     if (!advanceToAction) return;
 
     try {
-      const { error } = await supabase
+      console.log("Approving advance:", advanceToAction.id);
+      
+      const { data, error } = await supabase
         .from("advance_transactions")
         .update({ 
           status: 'approved',
           updated_at: new Date().toISOString()
         })
-        .eq("id", advanceToAction.id);
+        .eq("id", advanceToAction.id)
+        .select();
+
+      console.log("Approve result:", { data, error });
 
       if (error) {
+        console.error("Supabase error details:", error);
         throw new Error(`Error al aprobar el adelanto: ${error.message}`);
       }
+
+      // Update local state immediately
+      setAdvances(prevAdvances => 
+        prevAdvances.map(advance => 
+          advance.id === advanceToAction.id 
+            ? { ...advance, status: 'approved', updated_at: new Date().toISOString() }
+            : advance
+        )
+      );
 
       toast({
         title: "Adelanto aprobado",
@@ -721,17 +736,32 @@ const CompanyDashboard = () => {
     if (!advanceToAction) return;
 
     try {
-      const { error } = await supabase
+      console.log("Rejecting advance:", advanceToAction.id);
+      
+      const { data, error } = await supabase
         .from("advance_transactions")
         .update({ 
           status: 'failed',
           updated_at: new Date().toISOString()
         })
-        .eq("id", advanceToAction.id);
+        .eq("id", advanceToAction.id)
+        .select();
+
+      console.log("Reject result:", { data, error });
 
       if (error) {
+        console.error("Supabase error details:", error);
         throw new Error(`Error al rechazar el adelanto: ${error.message}`);
       }
+
+      // Update local state immediately
+      setAdvances(prevAdvances => 
+        prevAdvances.map(advance => 
+          advance.id === advanceToAction.id 
+            ? { ...advance, status: 'failed', updated_at: new Date().toISOString() }
+            : advance
+        )
+      );
 
       toast({
         title: "Adelanto rechazado",
@@ -1054,9 +1084,11 @@ const CompanyDashboard = () => {
                               <div className="font-semibold">${advance.requested_amount.toFixed(2)}</div>
                           <div className="text-sm text-muted-foreground">{t('company.request')}</div>
                         </div>
+                        <div className="flex items-center space-x-2">
+                          {/* Action buttons on the left */}
                         <div className="flex space-x-2">
-                          {advance.status === 'pending' && (
-                            <>
+                            {/* Show reject button for pending and approved advances */}
+                            {(advance.status === 'pending' || advance.status === 'approved') && (
                               <Button 
                                 size="sm" 
                                 variant="outline"
@@ -1065,6 +1097,10 @@ const CompanyDashboard = () => {
                               >
                                 {t('company.reject')}
                               </Button>
+                            )}
+                            
+                            {/* Show approve button for pending and failed advances */}
+                            {(advance.status === 'pending' || advance.status === 'failed') && (
                               <Button 
                                 size="sm" 
                                 variant="premium"
@@ -1072,26 +1108,36 @@ const CompanyDashboard = () => {
                               >
                                 {t('company.approve')}
                               </Button>
-                            </>
+                            )}
+                          </div>
+                          
+                          {/* Status badge on the right */}
+                          <div className="ml-auto">
+                          {advance.status === 'pending' && (
+                              <Badge variant="outline" className="text-orange-600 border-orange-200 bg-orange-50">Pendiente</Badge>
                           )}
                           {advance.status === 'approved' && (
-                            <Badge className="bg-blue-100 text-blue-800">{t('company.approved')}</Badge>
+                            // <Badge className="text-blue-800"></Badge>
+                            <span className="text-green-900 font-bold border-l-2 border-green-900  w-[100px] inline-block text-center"> {t('company.approved')}</span>
+                          
                           )}
                           {advance.status === 'completed' && (
                             <Badge className="bg-green-100 text-green-800">{t('employee.completed')}</Badge>
                           )}
-                              {advance.status === 'processing' && (
-                                <Badge className="bg-orange-100 text-orange-800">Procesando</Badge>
-                              )}
-                              {advance.status === 'cancelled' && (
-                                <Badge variant="outline" className="text-muted-foreground">Cancelado</Badge>
-                              )}
-                              {advance.status === 'failed' && (
-                                <Badge variant="destructive">Fallido</Badge>
-                              )}
+                            {advance.status === 'processing' && (
+                              <Badge className="bg-orange-100 text-orange-800">Procesando</Badge>
+                            )}
+                            {advance.status === 'cancelled' && (
+                              <Badge variant="outline" className="text-muted-foreground">Cancelado</Badge>
+                            )}
+                            {advance.status === 'failed' && (
+                              // <Badge variant="destructive">Fallido</Badge>
+                              <span className="text-red-900 w-[100px] border-l-2 border-green-900 inline-block text-center"> Fallido</span>
+                          )}
                         </div>
                       </div>
                     </div>
+                </div>
                       );
                     })
                   )}
