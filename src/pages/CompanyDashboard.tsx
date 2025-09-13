@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { EmployeeInfoForm } from "@/components/EmployeeInfoForm";
 import { 
   Users, 
@@ -17,15 +17,25 @@ import {
   Search,
   Filter,
   Mail,
-  RefreshCw
+  RefreshCw,
+  Calendar as CalendarIcon,
+  ChevronLeft,
+  ChevronRight,
+  X,
+  CheckCircle
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Link } from "react-router-dom";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
+import * as XLSX from 'xlsx';
+import { format, startOfDay, endOfDay } from 'date-fns';
 
 interface Employee {
   id: string;
@@ -71,23 +81,69 @@ const CompanyDashboard = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [isLoadingEmployees, setIsLoadingEmployees] = useState(true);
-  // Mock data (will be replaced with real data later)
+  const [advances, setAdvances] = useState<any[]>([]);
+  const [isLoadingAdvances, setIsLoadingAdvances] = useState(true);
+  const [company, setCompany] = useState<any>(null);
+  const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
+  const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
+  const [filteredAdvances, setFilteredAdvances] = useState<any[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [showApproveModal, setShowApproveModal] = useState(false);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [advanceToAction, setAdvanceToAction] = useState<any>(null);
+
+  // Filter out cancelled advances
+  const activeAdvances = advances.filter(advance => advance.status !== 'cancelled');
+
+  // Company data (will be calculated from real data, excluding cancelled advances)
   const companyData = {
-    name: "Empresa Ejemplo C.A.",
-    rif: "J-12345678-9",
+    name: company?.name || "Cargando...",
+    rif: company?.rif || "Cargando...",
     activeEmployees: employees.filter(emp => emp.is_active).length,
-    totalAdvances: 45860,
-    pendingAdvances: 8,
-    monthlyFees: 156,
-    weeklyBilling: 12430
+    totalAdvances: activeAdvances.reduce((sum, advance) => sum + advance.requested_amount, 0),
+    pendingAdvances: activeAdvances.filter(advance => advance.status === 'pending').length,
+    monthlyFees: activeAdvances
+      .filter(advance => {
+        const advanceDate = new Date(advance.created_at);
+        const now = new Date();
+        return advanceDate.getMonth() === now.getMonth() && 
+               advanceDate.getFullYear() === now.getFullYear();
+      })
+      .reduce((sum, advance) => sum + advance.fee_amount, 0),
+    weeklyBilling: activeAdvances
+      .filter(advance => {
+        const advanceDate = new Date(advance.created_at);
+        const weekAgo = new Date();
+        weekAgo.setDate(weekAgo.getDate() - 7);
+        return advanceDate >= weekAgo;
+      })
+      .reduce((sum, advance) => sum + advance.requested_amount, 0),
+    // Calculate monthly advances (current month)
+    monthlyAdvances: activeAdvances
+      .filter(advance => {
+        const advanceDate = new Date(advance.created_at);
+        const now = new Date();
+        return advanceDate.getMonth() === now.getMonth() && 
+               advanceDate.getFullYear() === now.getFullYear();
+      })
+      .reduce((sum, advance) => sum + advance.requested_amount, 0),
+    // Calculate last month advances for comparison
+    lastMonthAdvances: activeAdvances
+      .filter(advance => {
+        const advanceDate = new Date(advance.created_at);
+        const now = new Date();
+        const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1);
+        return advanceDate.getMonth() === lastMonth.getMonth() && 
+               advanceDate.getFullYear() === lastMonth.getFullYear();
+      })
+      .reduce((sum, advance) => sum + advance.requested_amount, 0)
   };
 
-  const recentAdvances = [
-    { id: 1, employee: "María González", amount: 200, status: "approved", date: "Hoy, 10:30 AM" },
-    { id: 2, employee: "Carlos Rodríguez", amount: 150, status: "pending", date: "Hoy, 09:15 AM" },
-    { id: 3, employee: "Ana Martínez", amount: 300, status: "completed", date: "Ayer, 14:20 PM" },
-    { id: 4, employee: "Luis Pérez", amount: 180, status: "completed", date: "Ayer, 11:45 AM" },
-  ];
+  // Calculate percentage change for monthly advances
+  const monthlyChangePercent = companyData.lastMonthAdvances > 0 
+    ? ((companyData.monthlyAdvances - companyData.lastMonthAdvances) / companyData.lastMonthAdvances) * 100
+    : 0;
 
   // Fetch employees from Supabase and set up real-time subscription
   useEffect(() => {
@@ -104,10 +160,10 @@ const CompanyDashboard = () => {
           throw new Error("Usuario no autenticado");
         }
         
-        // Get company ID from companies table
+        // Get company data from companies table
         const { data: companyData, error: companyError } = await supabase
           .from("companies")
-          .select("id")
+          .select("*")
           .eq("auth_user_id", user.id)
           .single();
         
@@ -116,6 +172,7 @@ const CompanyDashboard = () => {
         }
         
         companyId = companyData.id;
+        setCompany(companyData);
         
         // Fetch employees for this company
         const { data: employeesData, error: employeesError } = await supabase
@@ -129,6 +186,28 @@ const CompanyDashboard = () => {
         }
         
         setEmployees(employeesData || []);
+        
+        // Fetch advances for this company
+        const { data: advancesData, error: advancesError } = await supabase
+          .from("advance_transactions")
+          .select(`
+            *,
+            employees!inner(
+              first_name,
+              last_name,
+              email
+            )
+          `)
+          .eq("company_id", companyId)
+          .order("created_at", { ascending: false });
+        
+        if (advancesError) {
+          console.error("Error fetching advances:", advancesError);
+        } else {
+          setAdvances(advancesData || []);
+        }
+        
+        setIsLoadingAdvances(false);
         
         // Set up real-time subscription for employee updates
         if (companyId) {
@@ -197,6 +276,40 @@ const CompanyDashboard = () => {
               }
             )
             .subscribe();
+            
+          // Set up real-time subscription for advance updates
+          const advancesChannel = supabase
+            .channel(`advance-updates-${companyId}`)
+            .on(
+              'postgres_changes',
+              {
+                event: '*',
+                schema: 'public',
+                table: 'advance_transactions',
+                filter: `company_id=eq.${companyId}`
+              },
+              (payload) => {
+                console.log('Advance update received:', payload);
+                
+                if (payload.eventType === 'INSERT') {
+                  // Add new advance to the list
+                  setAdvances(prevAdvances => [payload.new, ...prevAdvances]);
+                } else if (payload.eventType === 'UPDATE') {
+                  // Update the specific advance in the list
+                  setAdvances(prevAdvances => 
+                    prevAdvances.map(advance => 
+                      advance.id === payload.new.id ? { ...advance, ...payload.new } : advance
+                    )
+                  );
+                } else if (payload.eventType === 'DELETE') {
+                  // Remove advance from the list
+                  setAdvances(prevAdvances => 
+                    prevAdvances.filter(advance => advance.id !== payload.old.id)
+                  );
+                }
+              }
+            )
+            .subscribe();
         }
       } catch (error: any) {
         console.error("Error fetching employees:", error);
@@ -212,7 +325,7 @@ const CompanyDashboard = () => {
     
     fetchEmployees();
     
-    // Cleanup subscription on unmount
+    // Cleanup subscriptions on unmount
     return () => {
       if (channel) {
         supabase.removeChannel(channel);
@@ -490,6 +603,206 @@ const CompanyDashboard = () => {
     }
   };
 
+  // Filter advances by date range and exclude cancelled
+  useEffect(() => {
+    let filtered = activeAdvances;
+    
+    if (dateFrom || dateTo) {
+      filtered = activeAdvances.filter(advance => {
+        const advanceDate = new Date(advance.created_at);
+        const advanceDateOnly = startOfDay(advanceDate);
+        
+        if (dateFrom && dateTo) {
+          const fromDate = startOfDay(dateFrom);
+          const toDate = endOfDay(dateTo);
+          return advanceDateOnly >= fromDate && advanceDateOnly <= toDate;
+        } else if (dateFrom) {
+          const fromDate = startOfDay(dateFrom);
+          return advanceDateOnly >= fromDate;
+        } else if (dateTo) {
+          const toDate = endOfDay(dateTo);
+          return advanceDateOnly <= toDate;
+        }
+        
+        return true;
+      });
+    }
+    
+    setFilteredAdvances(filtered);
+  }, [activeAdvances, dateFrom, dateTo]);
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredAdvances.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedAdvances = filteredAdvances.slice(startIndex, endIndex);
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [dateFrom, dateTo, filteredAdvances.length]);
+
+  // Pagination handlers
+  const goToPage = (page: number) => {
+    setCurrentPage(Math.max(1, Math.min(page, totalPages)));
+  };
+
+  const goToNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+
+  const goToPreviousPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    }
+  };
+
+  const handleItemsPerPageChange = (newItemsPerPage: number) => {
+    setItemsPerPage(newItemsPerPage);
+    setCurrentPage(1);
+  };
+
+  // Clear date filters
+  const clearDateFilters = () => {
+    setDateFrom(undefined);
+    setDateTo(undefined);
+  };
+
+  // Handle approve click
+  const handleApproveClick = (advance: any) => {
+    setAdvanceToAction(advance);
+    setShowApproveModal(true);
+  };
+
+  // Handle reject click
+  const handleRejectClick = (advance: any) => {
+    setAdvanceToAction(advance);
+    setShowRejectModal(true);
+  };
+
+  // Confirm approve advance
+  const confirmApproveAdvance = async () => {
+    if (!advanceToAction) return;
+
+    try {
+      const { error } = await supabase
+        .from("advance_transactions")
+        .update({ 
+          status: 'approved',
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", advanceToAction.id);
+
+      if (error) {
+        throw new Error(`Error al aprobar el adelanto: ${error.message}`);
+      }
+
+      toast({
+        title: "Adelanto aprobado",
+        description: "El adelanto ha sido aprobado exitosamente",
+      });
+
+      setShowApproveModal(false);
+      setAdvanceToAction(null);
+    } catch (error: any) {
+      console.error("Error approving advance:", error);
+      toast({
+        title: "Error",
+        description: error?.message ?? "No se pudo aprobar el adelanto",
+        variant: "destructive"
+      });
+    }
+  };
+
+  // Confirm reject advance
+  const confirmRejectAdvance = async () => {
+    if (!advanceToAction) return;
+
+    try {
+      const { error } = await supabase
+        .from("advance_transactions")
+        .update({ 
+          status: 'failed',
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", advanceToAction.id);
+
+      if (error) {
+        throw new Error(`Error al rechazar el adelanto: ${error.message}`);
+      }
+
+      toast({
+        title: "Adelanto rechazado",
+        description: "El adelanto ha sido rechazado",
+      });
+
+      setShowRejectModal(false);
+      setAdvanceToAction(null);
+    } catch (error: any) {
+      console.error("Error rejecting advance:", error);
+      toast({
+        title: "Error",
+        description: error?.message ?? "No se pudo rechazar el adelanto",
+        variant: "destructive"
+      });
+    }
+  };
+
+  // Cancel actions
+  const cancelApproveAction = () => {
+    setShowApproveModal(false);
+    setAdvanceToAction(null);
+  };
+
+  const cancelRejectAction = () => {
+    setShowRejectModal(false);
+    setAdvanceToAction(null);
+  };
+
+  // Export to Excel
+  const exportToExcel = () => {
+    if (filteredAdvances.length === 0) {
+      toast({
+        title: "No hay datos",
+        description: "No hay adelantos para exportar en el rango seleccionado",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const exportData = filteredAdvances.map(advance => ({
+      'Fecha': format(new Date(advance.created_at), 'dd/MM/yyyy HH:mm'),
+      'Empleado': `${advance.employees.first_name} ${advance.employees.last_name}`,
+      'Email': advance.employees.email,
+      'Monto Solicitado': `$${advance.requested_amount.toFixed(2)}`,
+      'Comisión': `$${advance.fee_amount.toFixed(2)}`,
+      'Monto Neto': `$${advance.net_amount.toFixed(2)}`,
+      'Estado': advance.status === 'completed' ? 'Completado' : 
+                advance.status === 'pending' ? 'Pendiente' :
+                advance.status === 'processing' ? 'Procesando' :
+                advance.status === 'approved' ? 'Aprobado' :
+                advance.status === 'failed' ? 'Fallido' : advance.status,
+      'Método de Pago': advance.payment_method === 'pagomovil' ? 'PagoMóvil' : 'Transferencia Bancaria',
+      'Detalles de Pago': advance.payment_details,
+      'Lote': advance.batch_id || 'N/A',
+      'Fecha de Procesamiento': advance.processed_at ? format(new Date(advance.processed_at), 'dd/MM/yyyy HH:mm') : 'N/A'
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Adelantos de Empleados');
+
+    const fileName = `adelantos_empleados_${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
+    XLSX.writeFile(workbook, fileName);
+
+    toast({
+      title: "Exportación exitosa",
+      description: `Se ha exportado ${filteredAdvances.length} adelantos a ${fileName}`,
+    });
+  };
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -528,9 +841,11 @@ const CompanyDashboard = () => {
               <Users className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-primary">{companyData.activeEmployees}</div>
+              <div className="text-2xl font-bold text-primary">
+                {isLoadingEmployees ? '...' : companyData.activeEmployees}
+              </div>
               <p className="text-xs text-muted-foreground">
-                ${companyData.monthlyFees} {t('company.monthlyFees')}
+                ${isLoadingAdvances ? '...' : companyData.monthlyFees.toFixed(2)} {t('company.monthlyFees')}
               </p>
             </CardContent>
           </Card>
@@ -541,22 +856,26 @@ const CompanyDashboard = () => {
               <DollarSign className="h-4 w-4 text-secondary" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">${companyData.totalAdvances}</div>
+              <div className="text-2xl font-bold">
+                ${isLoadingAdvances ? '...' : companyData.monthlyAdvances.toFixed(2)}
+              </div>
               <p className="text-xs text-muted-foreground">
-                +12% {t('company.vsLastMonth')}
+                {isLoadingAdvances ? '...' : `${monthlyChangePercent > 0 ? '+' : ''}${monthlyChangePercent.toFixed(1)}%`} {t('company.vsLastMonth')}
               </p>
             </CardContent>
           </Card>
 
           <Card className="border-none shadow-card">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">{t('common.pending')}</CardTitle>
+              <CardTitle className="text-sm font-medium">{t('company.pendingApproval')}</CardTitle>
               <Clock className="h-4 w-4 text-orange-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{companyData.pendingAdvances}</div>
+              <div className="text-2xl font-bold">
+                {isLoadingAdvances ? '...' : companyData.pendingAdvances}
+              </div>
               <p className="text-xs text-muted-foreground">
-                {t('company.pendingApproval')}
+                {isLoadingAdvances ? '...' : (companyData.pendingAdvances === 1 ? 'Adelanto esperando aprobación' : 'Adelantos esperando aprobación')}
               </p>
             </CardContent>
           </Card>
@@ -567,9 +886,11 @@ const CompanyDashboard = () => {
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">${companyData.weeklyBilling}</div>
+              <div className="text-2xl font-bold">
+                ${isLoadingAdvances ? '...' : companyData.weeklyBilling.toFixed(2)}
+              </div>
               <p className="text-xs text-muted-foreground">
-                {t('company.nextBill')} 15 Jan
+                {t('company.nextBill')} {new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
               </p>
             </CardContent>
           </Card>
@@ -587,49 +908,170 @@ const CompanyDashboard = () => {
             <Card className="border-none shadow-elegant">
               <CardHeader>
                 <div className="flex items-center justify-between">
-                  <div>
+                  <div className="flex items-center space-x-2">
                     <CardTitle>{t('company.recentAdvances')}</CardTitle>
-                    <CardDescription>
-                      {t('company.manageAdvances')}
-                    </CardDescription>
+                    <Badge variant="secondary" className="ml-2">
+                      {filteredAdvances.length} adelantos
+                    </Badge>
                   </div>
-                  <div className="flex space-x-2">
-                    <Button variant="outline" size="sm">
-                      <Filter className="h-4 w-4 mr-2" />
-                      {t('company.filter')}
-                    </Button>
-                    <Button variant="outline" size="sm">
+                  <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-2">
+                      <Label className="text-sm text-muted-foreground">Mostrar:</Label>
+                      <Select value={itemsPerPage.toString()} onValueChange={(value) => handleItemsPerPageChange(Number(value))}>
+                        <SelectTrigger className="w-[80px] h-8">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="5">5</SelectItem>
+                          <SelectItem value="10">10</SelectItem>
+                          <SelectItem value="20">20</SelectItem>
+                          <SelectItem value="50">50</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button variant="outline" size="sm" onClick={exportToExcel}>
                       <Download className="h-4 w-4 mr-2" />
-                      {t('employee.export')}
+                      Exportar XLS
                     </Button>
                   </div>
+                </div>
+                
+                {/* Date Filters */}
+                <div className="flex items-center space-x-4 mt-4">
+                  <div className="flex items-center space-x-2">
+                    <Label className="text-sm font-medium">Desde:</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-[140px] justify-start text-left font-normal"
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {dateFrom ? format(dateFrom, "dd/MM/yyyy") : "Seleccionar"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={dateFrom}
+                          onSelect={(date) => setDateFrom(date)}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <Label className="text-sm font-medium">Hasta:</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-[140px] justify-start text-left font-normal"
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {dateTo ? format(dateTo, "dd/MM/yyyy") : "Seleccionar"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={dateTo}
+                          onSelect={(date) => setDateTo(date)}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  
+                  {(dateFrom || dateTo) && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={clearDateFilters}
+                      className="text-muted-foreground"
+                    >
+                      <X className="h-4 w-4 mr-1" />
+                      Limpiar
+                    </Button>
+                  )}
                 </div>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {recentAdvances.map((advance) => (
+                  {isLoadingAdvances ? (
+                    <div className="text-center py-8">
+                      <RefreshCw className="h-8 w-8 text-muted-foreground mx-auto mb-3 animate-spin" />
+                      <p className="text-muted-foreground">Cargando adelantos...</p>
+                    </div>
+                  ) : filteredAdvances.length === 0 ? (
+                    <div className="text-center py-8">
+                      <DollarSign className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
+                      <p className="text-muted-foreground">
+                        {activeAdvances.length === 0 
+                          ? "No hay solicitudes de adelanto" 
+                          : "No hay adelantos en el rango seleccionado"
+                        }
+                      </p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {activeAdvances.length === 0 
+                          ? "Las solicitudes de tus empleados aparecerán aquí" 
+                          : "Ajusta el rango de fechas para ver más resultados"
+                        }
+                      </p>
+                    </div>
+                  ) : (
+                    paginatedAdvances.map((advance) => {
+                      const employeeName = `${advance.employees.first_name} ${advance.employees.last_name}`;
+                      const advanceDate = new Date(advance.created_at);
+                      const isToday = advanceDate.toDateString() === new Date().toDateString();
+                      const formattedDate = isToday 
+                        ? `Hoy, ${advanceDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`
+                        : advanceDate.toLocaleDateString('es-ES', { 
+                            day: 'numeric', 
+                            month: 'long', 
+                            hour: '2-digit', 
+                            minute: '2-digit' 
+                          });
+                      
+                      return (
                     <div key={advance.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
                       <div className="flex items-center space-x-4">
                         <div className="h-10 w-10 bg-gradient-primary rounded-full flex items-center justify-center">
                           <span className="text-white text-sm font-medium">
-                            {advance.employee.split(' ').map(n => n[0]).join('')}
+                                {employeeName.split(' ').map(n => n[0]).join('')}
                           </span>
                         </div>
                         <div>
-                          <div className="font-medium">{advance.employee}</div>
-                          <div className="text-sm text-muted-foreground">{advance.date}</div>
+                              <div className="font-medium">{employeeName}</div>
+                              <div className="text-sm text-muted-foreground">{formattedDate}</div>
                         </div>
                       </div>
                       <div className="flex items-center space-x-4">
                         <div>
-                          <div className="font-semibold">${advance.amount}</div>
+                              <div className="font-semibold">${advance.requested_amount.toFixed(2)}</div>
                           <div className="text-sm text-muted-foreground">{t('company.request')}</div>
                         </div>
                         <div className="flex space-x-2">
                           {advance.status === 'pending' && (
                             <>
-                              <Button size="sm" variant="outline">{t('company.reject')}</Button>
-                              <Button size="sm" variant="premium">{t('company.approve')}</Button>
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                onClick={() => handleRejectClick(advance)}
+                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                              >
+                                {t('company.reject')}
+                              </Button>
+                              <Button 
+                                size="sm" 
+                                variant="premium"
+                                onClick={() => handleApproveClick(advance)}
+                              >
+                                {t('company.approve')}
+                              </Button>
                             </>
                           )}
                           {advance.status === 'approved' && (
@@ -638,11 +1080,82 @@ const CompanyDashboard = () => {
                           {advance.status === 'completed' && (
                             <Badge className="bg-green-100 text-green-800">{t('employee.completed')}</Badge>
                           )}
+                              {advance.status === 'processing' && (
+                                <Badge className="bg-orange-100 text-orange-800">Procesando</Badge>
+                              )}
+                              {advance.status === 'cancelled' && (
+                                <Badge variant="outline" className="text-muted-foreground">Cancelado</Badge>
+                              )}
+                              {advance.status === 'failed' && (
+                                <Badge variant="destructive">Fallido</Badge>
+                              )}
                         </div>
                       </div>
                     </div>
-                  ))}
+                      );
+                    })
+                  )}
                 </div>
+
+                {/* Pagination Controls */}
+                {filteredAdvances.length > 0 && totalPages > 1 && (
+                  <div className="flex items-center justify-between mt-4 pt-4 border-t border-muted/30">
+                    <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                      <span>
+                        Mostrando {startIndex + 1} - {Math.min(endIndex, filteredAdvances.length)} de {filteredAdvances.length} adelantos
+                      </span>
+                    </div>
+                    
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={goToPreviousPage}
+                        disabled={currentPage === 1}
+                        className="h-8 w-8 p-0"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                      
+                      <div className="flex items-center space-x-1">
+                        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                          let pageNum;
+                          if (totalPages <= 5) {
+                            pageNum = i + 1;
+                          } else if (currentPage <= 3) {
+                            pageNum = i + 1;
+                          } else if (currentPage >= totalPages - 2) {
+                            pageNum = totalPages - 4 + i;
+                          } else {
+                            pageNum = currentPage - 2 + i;
+                          }
+                          
+                          return (
+                            <Button
+                              key={pageNum}
+                              variant={currentPage === pageNum ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => goToPage(pageNum)}
+                              className="h-8 w-8 p-0"
+                            >
+                              {pageNum}
+                            </Button>
+                          );
+                        })}
+                      </div>
+                      
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={goToNextPage}
+                        disabled={currentPage === totalPages}
+                        className="h-8 w-8 p-0"
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -935,6 +1448,91 @@ const CompanyDashboard = () => {
               }
             } : {})}
           />
+        </DialogContent>
+      </Dialog>
+
+      {/* Approve Confirmation Modal */}
+      <Dialog open={showApproveModal} onOpenChange={setShowApproveModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-green-600" />
+              Aprobar Adelanto
+            </DialogTitle>
+            <DialogDescription>
+              ¿Estás seguro de que quieres aprobar este adelanto de{" "}
+              <span className="font-semibold">
+                ${advanceToAction?.requested_amount.toFixed(2)}
+              </span>{" "}
+              para{" "}
+              <span className="font-semibold">
+                {advanceToAction?.employees ? `${advanceToAction.employees.first_name} ${advanceToAction.employees.last_name}` : 'el empleado'}
+              </span>?
+              <br />
+              <br />
+              Esta acción cambiará el estado del adelanto a "Aprobado".
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={cancelApproveAction}
+              className="flex-1 sm:flex-none"
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={confirmApproveAdvance}
+              className="flex-1 sm:flex-none bg-green-600 hover:bg-green-700"
+            >
+              <CheckCircle className="h-4 w-4 mr-2" />
+              Sí, aprobar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reject Confirmation Modal */}
+      <Dialog open={showRejectModal} onOpenChange={setShowRejectModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <X className="h-5 w-5 text-destructive" />
+              Rechazar Adelanto
+            </DialogTitle>
+            <DialogDescription>
+              ¿Estás seguro de que quieres rechazar este adelanto de{" "}
+              <span className="font-semibold">
+                ${advanceToAction?.requested_amount.toFixed(2)}
+              </span>{" "}
+              para{" "}
+              <span className="font-semibold">
+                {advanceToAction?.employees ? `${advanceToAction.employees.first_name} ${advanceToAction.employees.last_name}` : 'el empleado'}
+              </span>?
+              <br />
+              <br />
+              <span className="text-destructive font-medium">
+                Esta acción cambiará el estado del adelanto a "Fallido" y no se puede deshacer.
+              </span>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={cancelRejectAction}
+              className="flex-1 sm:flex-none"
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmRejectAdvance}
+              className="flex-1 sm:flex-none"
+            >
+              <X className="h-4 w-4 mr-2" />
+              Sí, rechazar
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

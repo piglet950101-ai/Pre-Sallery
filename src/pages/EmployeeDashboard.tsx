@@ -609,9 +609,9 @@ const EmployeeDashboard = () => {
                       </Select>
                     </div>
                     <Button variant="outline" size="sm" onClick={exportToExcel}>
-                      <Download className="h-4 w-4 mr-2" />
+                    <Download className="h-4 w-4 mr-2" />
                       Exportar XLS
-                    </Button>
+                  </Button>
                   </div>
                 </CardTitle>
                 
@@ -848,7 +848,7 @@ const EmployeeDashboard = () => {
                       );
                     })
                   )}
-                </div>
+                  </div>
 
                 {/* Pagination Controls */}
                 {filteredAdvanceRequests.length > 0 && totalPages > 1 && (
@@ -857,7 +857,7 @@ const EmployeeDashboard = () => {
                       <span>
                         Mostrando {startIndex + 1} - {Math.min(endIndex, filteredAdvanceRequests.length)} de {filteredAdvanceRequests.length} solicitudes
                       </span>
-                    </div>
+                      </div>
                     
                     <div className="flex items-center space-x-2">
                       <Button
@@ -906,8 +906,8 @@ const EmployeeDashboard = () => {
                       >
                         <ChevronRight className="h-4 w-4" />
                       </Button>
-                    </div>
                   </div>
+                </div>
                 )}
               </CardContent>
             </Card>
