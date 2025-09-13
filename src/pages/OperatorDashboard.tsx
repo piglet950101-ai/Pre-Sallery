@@ -21,10 +21,13 @@ import {
   CheckSquare,
   Square,
   Check,
-  Eye,
   X,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Trash2,
+  FileText,
+  Image,
+  File
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -50,6 +53,21 @@ const OperatorDashboard = () => {
   const [pendingPage, setPendingPage] = useState(1);
   const [batchesPage, setBatchesPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(5); // Dynamic items per page
+  
+  // Confirmations state
+  const [confirmations, setConfirmations] = useState<any[]>([]);
+  const [isLoadingConfirmations, setIsLoadingConfirmations] = useState(false);
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [uploadingFiles, setUploadingFiles] = useState(false);
+  
+  // Confirmations management state
+  const [confirmationsPage, setConfirmationsPage] = useState(1);
+  const [confirmationsSearch, setConfirmationsSearch] = useState("");
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [confirmationToDelete, setConfirmationToDelete] = useState<any>(null);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [previewFile, setPreviewFile] = useState<any>(null);
 
   // Calculate totals from real data
   const totalPendingAmount = pendingAdvances.reduce((sum, advance) => sum + (advance.requested_amount || 0), 0);
@@ -98,6 +116,19 @@ const OperatorDashboard = () => {
     batchesPage * itemsPerPage
   );
 
+  // Confirmations search and pagination
+  const filteredConfirmations = confirmations.filter(confirmation => 
+    confirmation.file_name?.toLowerCase().includes(confirmationsSearch.toLowerCase()) ||
+    confirmation.processing_batches?.batch_name?.toLowerCase().includes(confirmationsSearch.toLowerCase()) ||
+    confirmation.status?.toLowerCase().includes(confirmationsSearch.toLowerCase())
+  );
+  
+  const totalConfirmationsPages = Math.ceil(filteredConfirmations.length / itemsPerPage);
+  const paginatedConfirmations = filteredConfirmations.slice(
+    (confirmationsPage - 1) * itemsPerPage,
+    confirmationsPage * itemsPerPage
+  );
+
   // Pagination handlers
   const handlePendingPageChange = (page: number) => {
     setPendingPage(page);
@@ -105,6 +136,10 @@ const OperatorDashboard = () => {
 
   const handleBatchesPageChange = (page: number) => {
     setBatchesPage(page);
+  };
+
+  const handleConfirmationsPageChange = (page: number) => {
+    setConfirmationsPage(page);
   };
 
   const handleItemsPerPageChange = (newItemsPerPage: string) => {
@@ -364,6 +399,7 @@ const OperatorDashboard = () => {
   useEffect(() => {
     fetchPendingAdvances();
     fetchProcessedBatches();
+    fetchConfirmations();
   }, []);
 
   const processBatch = async () => {
@@ -460,11 +496,295 @@ const OperatorDashboard = () => {
     }
   };
 
+  // Fetch confirmations
+  const fetchConfirmations = async () => {
+    try {
+      setIsLoadingConfirmations(true);
+      console.log("🔍 Fetching confirmations...");
+      
+      // Try to fetch from transfer_confirmations table
+      const { data, error } = await supabase
+        .from("transfer_confirmations")
+        .select(`
+          *,
+          processing_batches (
+            batch_name,
+            created_at
+          )
+        `)
+        .order("created_at", { ascending: false });
+
+      console.log("📊 Confirmations fetch result:", { data, error });
+
+      if (error) {
+        // If table doesn't exist, show empty state instead of error
+        if (error.message.includes("Could not find the table")) {
+          console.log("❌ Transfer confirmations table not found, showing empty state");
+          setConfirmations([]);
+          return;
+        }
+        console.error("❌ Database error:", error);
+        throw new Error(`Error al cargar confirmaciones: ${error.message}`);
+      }
+
+      console.log("✅ Confirmations loaded:", data?.length || 0, "items");
+      setConfirmations(data || []);
+    } catch (error: any) {
+      console.error("❌ Error fetching confirmations:", error);
+      // Don't show error toast for missing table, just log it
+      if (!error.message.includes("Could not find the table")) {
+        toast({
+          title: "Error",
+          description: error?.message ?? "No se pudieron cargar las confirmaciones",
+          variant: "destructive"
+        });
+      }
+      setConfirmations([]);
+    } finally {
+      setIsLoadingConfirmations(false);
+    }
+  };
+
+  // Handle file selection
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    setSelectedFiles(files);
+  };
+
+  // Upload confirmations
   const uploadConfirmation = async () => {
+    if (selectedFiles.length === 0) {
+      toast({
+        title: "No hay archivos",
+        description: "Selecciona al menos un archivo para subir",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setUploadingFiles(true);
+    
+    try {
+      const uploadedFiles = [];
+      
+      // Upload each file to Supabase Storage
+      for (const file of selectedFiles) {
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`;
+        const filePath = `confirmations/${fileName}`;
+        
+        console.log("📤 Uploading file to Supabase Storage:", filePath);
+        
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('transfer-confirmations')
+          .upload(filePath, file, {
+            cacheControl: '3600',
+            upsert: false
+          });
+
+        if (uploadError) {
+          console.error("❌ Upload error:", uploadError);
+          throw new Error(`Error al subir ${file.name}: ${uploadError.message}`);
+        }
+
+        console.log("✅ File uploaded successfully:", uploadData);
+        
+        // Get public URL for the uploaded file
+        const { data: urlData } = supabase.storage
+          .from('transfer-confirmations')
+          .getPublicUrl(filePath);
+
+        uploadedFiles.push({
+          file_name: file.name,
+          file_path: filePath,
+          file_url: urlData.publicUrl,
+          file_size: file.size,
+          file_type: file.type,
+          uploaded_by: user?.id,
+          status: 'uploaded'
+        });
+      }
+      
+      // Insert confirmations into database
+      try {
+        console.log("💾 Inserting confirmations:", uploadedFiles);
+
+        const { data: insertData, error: insertError } = await supabase
+          .from("transfer_confirmations")
+          .insert(uploadedFiles)
+          .select();
+
+        if (insertError) {
+          console.log("❌ Could not insert into transfer_confirmations table:", insertError.message);
+          throw new Error(`Error al guardar en base de datos: ${insertError.message}`);
+        } else {
+          console.log("✅ Confirmations inserted successfully:", insertData);
+        }
+      } catch (dbError: any) {
+        console.log("❌ Database error during upload:", dbError);
+        throw new Error(`Error al guardar en base de datos: ${dbError.message}`);
+      }
+      
     toast({
       title: "Confirmación subida",
-      description: "Los comprobantes de transferencia han sido registrados",
-    });
+        description: `${selectedFiles.length} comprobante(s) subido(s) exitosamente`,
+      });
+
+      setSelectedFiles([]);
+      setShowUploadModal(false);
+      await fetchConfirmations();
+    } catch (error: any) {
+      console.error("Error uploading confirmations:", error);
+      toast({
+        title: "Error",
+        description: error?.message ?? "No se pudieron subir los comprobantes",
+        variant: "destructive"
+      });
+    } finally {
+      setUploadingFiles(false);
+    }
+  };
+
+  // Delete confirmation
+  const deleteConfirmation = async (confirmationId: string) => {
+    try {
+      // First get the confirmation to get the file path
+      const { data: confirmation, error: fetchError } = await supabase
+        .from("transfer_confirmations")
+        .select("file_path")
+        .eq("id", confirmationId)
+        .single();
+
+      if (fetchError) {
+        throw new Error(`Error al obtener confirmación: ${fetchError.message}`);
+      }
+
+      // Delete file from Supabase Storage
+      if (confirmation.file_path) {
+        console.log("🗑️ Deleting file from storage:", confirmation.file_path);
+        const { error: storageError } = await supabase.storage
+          .from('transfer-confirmations')
+          .remove([confirmation.file_path]);
+
+        if (storageError) {
+          console.warn("⚠️ Could not delete file from storage:", storageError.message);
+          // Continue with database deletion even if storage deletion fails
+        } else {
+          console.log("✅ File deleted from storage successfully");
+        }
+      }
+
+      // Delete from database
+      const { error: dbError } = await supabase
+        .from("transfer_confirmations")
+        .delete()
+        .eq("id", confirmationId);
+
+      if (dbError) {
+        throw new Error(`Error al eliminar confirmación: ${dbError.message}`);
+      }
+
+      toast({
+        title: "Confirmación eliminada",
+        description: "La confirmación ha sido eliminada exitosamente",
+      });
+
+      await fetchConfirmations();
+    } catch (error: any) {
+      console.error("Error deleting confirmation:", error);
+      toast({
+        title: "Error",
+        description: error?.message ?? "No se pudo eliminar la confirmación",
+        variant: "destructive"
+      });
+    }
+  };
+
+  // Handle delete click
+  const handleDeleteClick = (confirmation: any) => {
+    setConfirmationToDelete(confirmation);
+    setShowDeleteModal(true);
+  };
+
+  // Confirm delete
+  const confirmDelete = async () => {
+    if (confirmationToDelete) {
+      await deleteConfirmation(confirmationToDelete.id);
+      setShowDeleteModal(false);
+      setConfirmationToDelete(null);
+    }
+  };
+
+  // Cancel delete
+  const cancelDelete = () => {
+    setShowDeleteModal(false);
+    setConfirmationToDelete(null);
+  };
+
+  // Preview file
+  const handlePreviewClick = (confirmation: any) => {
+    setPreviewFile(confirmation);
+    setShowPreviewModal(true);
+  };
+
+  // Download file
+  const handleDownloadClick = async (confirmation: any) => {
+    try {
+      if (confirmation.file_url) {
+        // Create a temporary link and trigger download
+        const link = document.createElement('a');
+        link.href = confirmation.file_url;
+        link.download = confirmation.file_name;
+        link.target = '_blank';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        toast({
+          title: "Descarga iniciada",
+          description: `Descargando ${confirmation.file_name}`,
+        });
+      } else {
+        // Fallback: try to get file from storage
+        const { data, error } = await supabase.storage
+          .from('transfer-confirmations')
+          .download(confirmation.file_path);
+
+        if (error) {
+          throw new Error(`Error al descargar archivo: ${error.message}`);
+        }
+
+        // Create blob URL and trigger download
+        const url = URL.createObjectURL(data);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = confirmation.file_name;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        toast({
+          title: "Descarga iniciada",
+          description: `Descargando ${confirmation.file_name}`,
+        });
+      }
+    } catch (error: any) {
+      console.error("Error downloading file:", error);
+      toast({
+        title: "Error",
+        description: error?.message ?? "No se pudo descargar el archivo",
+        variant: "destructive"
+      });
+    }
+  };
+
+
+  // Get file icon based on type
+  const getFileIcon = (fileType: string) => {
+    if (fileType?.includes('pdf')) return <FileText className="h-4 w-4" />;
+    if (fileType?.includes('image')) return <Image className="h-4 w-4" />;
+    return <File className="h-4 w-4" />;
   };
 
   // Debug user info
@@ -792,14 +1112,14 @@ const OperatorDashboard = () => {
                               </div>
                         </div>
                             <div className="flex items-center space-x-2">
-                              <Badge className="bg-green-100 text-green-800">
-                                {batch.status === 'completed' ? 'Completado' : batch.status || 'Desconocido'}
-                              </Badge>
+                            <Badge className="bg-green-100 text-green-800">
+                              {batch.status === 'completed' ? 'Completado' : batch.status || 'Desconocido'}
+                            </Badge>
                               <Button variant="outline" size="sm" onClick={(e) => {
                                 e.stopPropagation();
                                 handleBatchClick(batch);
                               }}>
-                                <Eye className="h-4 w-4 mr-1" />
+                                <FileText className="h-4 w-4 mr-1" />
                                 Ver Detalles
                               </Button>
                             </div>
@@ -827,6 +1147,7 @@ const OperatorDashboard = () => {
           </TabsContent>
 
           <TabsContent value="confirmations" className="space-y-6">
+            {/* Upload Section */}
             <Card className="border-none shadow-elegant">
               <CardHeader>
                 <div className="flex items-center justify-between">
@@ -836,35 +1157,137 @@ const OperatorDashboard = () => {
                       Subir comprobantes de transferencias realizadas
                     </CardDescription>
                   </div>
-                  <Button variant="hero" onClick={uploadConfirmation}>
+                  <Button 
+                    variant="hero" 
+                    onClick={() => setShowUploadModal(true)}
+                    disabled={uploadingFiles}
+                  >
                     <Upload className="h-4 w-4 mr-2" />
-                    Subir Comprobantes
+                    {uploadingFiles ? "Subiendo..." : "Subir Comprobantes"}
                   </Button>
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-8 text-center">
+                <div className="text-center py-8">
                     <Upload className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                     <h3 className="text-lg font-semibold mb-2">Subir Comprobantes</h3>
                     <p className="text-muted-foreground mb-4">
-                      Sube los comprobantes de las transferencias realizadas para confirmar los pagos
-                    </p>
-                    <Button variant="outline">
-                      Seleccionar Archivos
-                    </Button>
-                  </div>
+                    Haz clic en el botón "Subir Comprobantes" para comenzar
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
 
-                  <div className="bg-muted/50 p-4 rounded-lg">
-                    <h4 className="font-semibold mb-2">Instrucciones:</h4>
-                    <ul className="text-sm text-muted-foreground space-y-1">
-                      <li>• Sube comprobantes de PagoMóvil o transferencias bancarias</li>
-                      <li>• Los archivos deben estar en formato PDF o imagen</li>
-                      <li>• Cada comprobante debe corresponder a un adelanto específico</li>
-                      <li>• El sistema marcará automáticamente los adelantos como completados</li>
-                    </ul>
+            {/* Confirmations List */}
+            <Card className="border-none shadow-elegant">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Confirmaciones Subidas</CardTitle>
+                    <CardDescription>
+                      Historial de comprobantes de transferencia subidos
+                    </CardDescription>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Buscar confirmaciones..."
+                        value={confirmationsSearch}
+                        onChange={(e) => setConfirmationsSearch(e.target.value)}
+                        className="pl-10 w-64"
+                      />
+                    </div>
                   </div>
                 </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {isLoadingConfirmations ? (
+                    <div className="text-center py-8">
+                      <Clock className="h-8 w-8 text-muted-foreground mx-auto mb-3 animate-spin" />
+                      <p className="text-muted-foreground">Cargando confirmaciones...</p>
+                    </div>
+                  ) : filteredConfirmations.length === 0 ? (
+                    <div className="text-center py-8">
+                      <AlertCircle className="h-8 w-8 text-orange-500 mx-auto mb-3" />
+                      <p className="text-muted-foreground">
+                        {confirmationsSearch ? 'No se encontraron confirmaciones' : 'No hay confirmaciones subidas'}
+                      </p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {confirmationsSearch ? 'Intenta con otros términos de búsqueda' : 'Las confirmaciones aparecerán aquí después de subirlas'}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {paginatedConfirmations.map((confirmation) => (
+                        <div key={confirmation.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                          <div className="flex items-center space-x-4">
+                            <div className="h-10 w-10 bg-gradient-secondary rounded-full flex items-center justify-center">
+                              {getFileIcon(confirmation.file_type)}
+                            </div>
+                            <div className="flex-1">
+                              <div className="font-medium flex items-center space-x-2">
+                                <span>{confirmation.file_name || 'Archivo sin nombre'}</span>
+                                <Badge variant="outline" className="text-xs">
+                                  {(confirmation.file_size / 1024 / 1024).toFixed(1)} MB
+                                </Badge>
+                              </div>
+                              <div className="text-sm text-muted-foreground">
+                                Lote: {confirmation.processing_batches?.batch_name || 'Sin lote'}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {confirmation.created_at ? new Date(confirmation.created_at).toLocaleString('es-ES') : ''}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <Badge className="bg-green-100 text-green-800">
+                              {confirmation.status === 'uploaded' ? 'Subido' : confirmation.status || 'Desconocido'}
+                            </Badge>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => handlePreviewClick(confirmation)}
+                            >
+                              <FileText className="h-4 w-4 mr-1" />
+                              Vista
+                            </Button>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => handleDownloadClick(confirmation)}
+                            >
+                              <Download className="h-4 w-4 mr-1" />
+                              Descargar
+                            </Button>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => handleDeleteClick(confirmation)}
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                    </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  </div>
+
+                {/* Pagination for Confirmations */}
+                {filteredConfirmations.length > 0 && (
+                  <div className="pt-4 border-t">
+                    <Pagination
+                      currentPage={confirmationsPage}
+                      totalPages={totalConfirmationsPages}
+                      onPageChange={handleConfirmationsPageChange}
+                      itemsPerPage={itemsPerPage}
+                      onItemsPerPageChange={handleItemsPerPageChange}
+                    />
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -967,6 +1390,277 @@ const OperatorDashboard = () => {
             )}
           </DialogContent>
         </Dialog>
+
+        {/* Upload Confirmation Modal */}
+        <Dialog open={showUploadModal} onOpenChange={setShowUploadModal}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center space-x-2">
+                <Upload className="h-5 w-5 text-primary" />
+                <span>Subir Comprobantes</span>
+              </DialogTitle>
+              <DialogDescription>
+                Selecciona los archivos de comprobantes de transferencia
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4">
+              {/* Instructions */}
+                  <div className="bg-muted/50 p-4 rounded-lg">
+                    <h4 className="font-semibold mb-2">Instrucciones:</h4>
+                    <ul className="text-sm text-muted-foreground space-y-1">
+                      <li>• Sube comprobantes de PagoMóvil o transferencias bancarias</li>
+                      <li>• Los archivos deben estar en formato PDF o imagen</li>
+                      <li>• Cada comprobante debe corresponder a un adelanto específico</li>
+                      <li>• El sistema marcará automáticamente los adelantos como completados</li>
+                    </ul>
+                  </div>
+
+              {/* File Input */}
+              <div>
+                <Label htmlFor="file-upload" className="text-sm font-medium mb-2 block">
+                  Seleccionar archivos
+                </Label>
+                <Input
+                  id="file-upload"
+                  type="file"
+                  multiple
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  onChange={handleFileSelect}
+                  className="cursor-pointer"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Formatos permitidos: PDF, JPG, PNG (máx. 10MB por archivo)
+                </p>
+                </div>
+
+              {/* Selected Files */}
+              {selectedFiles.length > 0 && (
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Archivos seleccionados:</Label>
+                  <div className="space-y-1 max-h-32 overflow-y-auto">
+                    {selectedFiles.map((file, index) => (
+                      <div key={index} className="flex items-center justify-between p-2 bg-muted/50 rounded text-sm">
+                        <span className="truncate">{file.name}</span>
+                        <span className="text-muted-foreground">
+                          {(file.size / 1024 / 1024).toFixed(1)} MB
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex space-x-3 pt-4">
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setShowUploadModal(false);
+                    setSelectedFiles([]);
+                  }}
+                  className="flex-1"
+                  disabled={uploadingFiles}
+                >
+                  <X className="h-4 w-4 mr-2" />
+                  Cancelar
+                </Button>
+                <Button 
+                  onClick={uploadConfirmation}
+                  disabled={uploadingFiles || selectedFiles.length === 0}
+                  className="flex-1"
+                  variant="hero"
+                >
+                  {uploadingFiles ? (
+                    <div className="flex items-center space-x-2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      <span>Subiendo...</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center space-x-2">
+                      <Upload className="h-4 w-4" />
+                      <span>Subir Archivos</span>
+                    </div>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Confirmation Modal */}
+        <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center space-x-2">
+                <AlertCircle className="h-5 w-5 text-red-500" />
+                <span>Eliminar Confirmación</span>
+              </DialogTitle>
+              <DialogDescription>
+                ¿Estás seguro de que quieres eliminar esta confirmación? Esta acción no se puede deshacer.
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4">
+              {confirmationToDelete && (
+                <div className="p-4 bg-muted/50 rounded-lg">
+                  <div className="font-medium">{confirmationToDelete.file_name}</div>
+                  <div className="text-sm text-muted-foreground">
+                    Lote: {confirmationToDelete.processing_batches?.batch_name || 'Sin lote'}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Subido: {confirmationToDelete.created_at ? new Date(confirmationToDelete.created_at).toLocaleString('es-ES') : ''}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex space-x-3">
+                <Button 
+                  variant="outline" 
+                  onClick={cancelDelete}
+                  className="flex-1"
+                >
+                  <X className="h-4 w-4 mr-2" />
+                  Cancelar
+                </Button>
+                <Button 
+                  onClick={confirmDelete}
+                  className="flex-1 bg-red-600 hover:bg-red-700"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Eliminar
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Preview Modal */}
+        <Dialog open={showPreviewModal} onOpenChange={setShowPreviewModal}>
+          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center space-x-2">
+                <FileText className="h-5 w-5 text-primary" />
+                <span>Vista Previa</span>
+              </DialogTitle>
+              <DialogDescription>
+                Vista previa del archivo seleccionado
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4">
+              {previewFile && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+                    <div className="flex items-center space-x-3">
+                      {getFileIcon(previewFile.file_type)}
+                      <div>
+                        <div className="font-medium">{previewFile.file_name}</div>
+                        <div className="text-sm text-muted-foreground">
+                          {(previewFile.file_size / 1024 / 1024).toFixed(1)} MB • {previewFile.file_type}
+                        </div>
+                      </div>
+                    </div>
+                    <Badge className="bg-green-100 text-green-800">
+                      {previewFile.status === 'uploaded' ? 'Subido' : previewFile.status}
+                    </Badge>
+                  </div>
+
+                  <div className="border rounded-lg p-4">
+                    {previewFile.file_type?.includes('image') ? (
+                      <div className="space-y-4">
+                        {previewFile.file_url ? (
+                          <div className="text-center">
+                            <img 
+                              src={previewFile.file_url} 
+                              alt={previewFile.file_name}
+                              className="max-w-full max-h-96 mx-auto rounded-lg shadow-lg"
+                              onError={(e) => {
+                                const target = e.currentTarget as HTMLElement;
+                                target.style.display = 'none';
+                                const nextElement = target.nextElementSibling as HTMLElement;
+                                if (nextElement) {
+                                  nextElement.style.display = 'block';
+                                }
+                              }}
+                            />
+                            <div style={{ display: 'none' }} className="space-y-4">
+                              <Image className="h-16 w-16 text-muted-foreground mx-auto" />
+                              <div>
+                                <div className="font-medium">No se pudo cargar la imagen</div>
+                                <div className="text-sm text-muted-foreground">
+                                  <a 
+                                    href={previewFile.file_url} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="text-blue-600 hover:underline"
+                                  >
+                                    Abrir en nueva pestaña
+                                  </a>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-4">
+                            <Image className="h-16 w-16 text-muted-foreground mx-auto" />
+                            <div>
+                              <div className="font-medium">Vista previa no disponible</div>
+                              <div className="text-sm text-muted-foreground">
+                                El archivo no tiene URL pública
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {previewFile.file_url ? (
+                          <div className="text-center">
+                            <div className="mb-4">
+                              <FileText className="h-16 w-16 text-muted-foreground mx-auto mb-2" />
+                              <div className="font-medium">{previewFile.file_name}</div>
+                              <div className="text-sm text-muted-foreground">
+                                {(previewFile.file_size / 1024 / 1024).toFixed(1)} MB • {previewFile.file_type}
+                              </div>
+                            </div>
+                            <div className="space-x-2">
+                              <Button 
+                                variant="outline" 
+                                onClick={() => window.open(previewFile.file_url, '_blank')}
+                              >
+                                <FileText className="h-4 w-4 mr-2" />
+                                Abrir en nueva pestaña
+                              </Button>
+                              <Button 
+                                variant="outline" 
+                                onClick={() => handleDownloadClick(previewFile)}
+                              >
+                                <Download className="h-4 w-4 mr-2" />
+                                Descargar
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-4">
+                            <FileText className="h-16 w-16 text-muted-foreground mx-auto" />
+                            <div>
+                              <div className="font-medium">Vista previa no disponible</div>
+                              <div className="text-sm text-muted-foreground">
+                                El archivo no tiene URL pública
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+
       </div>
     </div>
   );
