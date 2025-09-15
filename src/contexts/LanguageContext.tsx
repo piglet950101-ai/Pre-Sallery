@@ -251,6 +251,9 @@ const translations: Translations = {
   'common.open': { en: 'Open', es: 'Abrir' },
   'common.yes': { en: 'Yes', es: 'Sí' },
   'common.no': { en: 'No', es: 'No' },
+  'common.pending': { en: 'pending', es: 'pendiente' },
+
+
 
   // Dashboard common
   'dashboard.welcome': { en: 'Welcome', es: 'Bienvenido' },

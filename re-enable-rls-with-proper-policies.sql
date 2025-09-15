@@ -40,3 +40,4 @@ SELECT COUNT(*) as total_advances FROM public.advance_transactions;
 
 
 
+

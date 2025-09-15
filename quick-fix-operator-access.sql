@@ -24,3 +24,4 @@ SELECT COUNT(*) as company_count FROM public.companies;
 
 
 
+

@@ -95,6 +95,18 @@ const CompanyDashboard = () => {
   const [advanceToAction, setAdvanceToAction] = useState<any>(null);
   const [employeeFees, setEmployeeFees] = useState<any[]>([]);
   const [isLoadingEmployeeFees, setIsLoadingEmployeeFees] = useState(false);
+  
+  // Report states
+  const [reportPeriod, setReportPeriod] = useState('thisMonth');
+  const [reportType, setReportType] = useState('comprehensive');
+  const [reportFormat, setReportFormat] = useState('excel');
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const [recentReports, setRecentReports] = useState<any[]>([]);
+  
+  // Billing states
+  const [invoices, setInvoices] = useState<any[]>([]);
+  const [isLoadingInvoices, setIsLoadingInvoices] = useState(false);
+  const [billingPeriod, setBillingPeriod] = useState('current');
 
   // Filter out cancelled advances
   const activeAdvances = advances.filter(advance => advance.status !== 'cancelled');
@@ -149,6 +161,63 @@ const CompanyDashboard = () => {
   const monthlyChangePercent = companyData.lastMonthAdvances > 0 
     ? ((companyData.monthlyAdvances - companyData.lastMonthAdvances) / companyData.lastMonthAdvances) * 100
     : 0;
+
+  // Report data calculations
+  const reportData = {
+    totalAdvances: activeAdvances.reduce((sum, advance) => sum + advance.requested_amount, 0),
+    totalAdvanceCount: activeAdvances.length,
+    totalFees: activeAdvances.reduce((sum, advance) => sum + advance.fee_amount, 0),
+    averageFeeRate: activeAdvances.length > 0 
+      ? (activeAdvances.reduce((sum, advance) => sum + (advance.fee_amount / advance.requested_amount * 100), 0) / activeAdvances.length)
+      : 0,
+    activeEmployees: employees.filter(emp => emp.is_active).length,
+    employeeParticipationRate: employees.length > 0 
+      ? (employees.filter(emp => emp.is_active && activeAdvances.some(adv => adv.employee_id === emp.id)).length / employees.length) * 100
+      : 0,
+    averagePerEmployee: employees.filter(emp => emp.is_active).length > 0
+      ? activeAdvances.reduce((sum, advance) => sum + advance.requested_amount, 0) / employees.filter(emp => emp.is_active).length
+      : 0,
+    approvedAdvances: activeAdvances.filter(adv => adv.status === 'completed' || adv.status === 'approved').length,
+    pendingAdvances: activeAdvances.filter(adv => adv.status === 'pending').length,
+    rejectedAdvances: activeAdvances.filter(adv => adv.status === 'failed').length,
+    averageAdvanceAmount: activeAdvances.length > 0
+      ? activeAdvances.reduce((sum, advance) => sum + advance.requested_amount, 0) / activeAdvances.length
+      : 0,
+    mostActiveEmployees: employees.filter(emp => emp.is_active).length > 0 ? employees.filter(emp => emp.is_active).length : 0,
+    mostActiveDay: 'Lunes', // This would be calculated from actual data
+    peakHour: '10:00 AM', // This would be calculated from actual data
+    monthlyGrowth: monthlyChangePercent
+  };
+
+  // Billing data calculations
+  const billingData = {
+    currentMonthFees: companyData.monthlyFees,
+    currentMonthAdvances: companyData.monthlyAdvances,
+    currentMonthRegistrationFees: companyData.totalEmployeeRegistrationFees,
+    totalOutstanding: companyData.monthlyFees + companyData.totalEmployeeRegistrationFees,
+    lastPaymentDate: '2024-01-15', // This would come from actual payment data
+    nextDueDate: '2024-02-15', // This would be calculated
+    paymentHistory: [
+      {
+        id: '1',
+        invoiceNumber: 'INV-2024-001',
+        amount: 1250.00,
+        status: 'paid',
+        dueDate: '2024-01-15',
+        paidDate: '2024-01-14',
+        period: '1-15 Enero, 2024'
+      },
+      {
+        id: '2',
+        invoiceNumber: 'INV-2024-002',
+        amount: 1180.00,
+        status: 'pending',
+        dueDate: '2024-02-01',
+        paidDate: null,
+        period: '16-31 Enero, 2024'
+      }
+    ]
+  };
 
   // Fetch employees from Supabase and set up real-time subscription
   useEffect(() => {
@@ -914,6 +983,198 @@ const CompanyDashboard = () => {
     });
   };
 
+  // Generate comprehensive report
+  const generateReport = async () => {
+    try {
+      setIsGeneratingReport(true);
+      
+      const reportName = `Reporte_${reportType}_${reportPeriod}_${format(new Date(), 'yyyy-MM-dd')}`;
+      
+      // Create report data based on type
+      let reportData = [];
+      
+      switch (reportType) {
+        case 'advances':
+          reportData = activeAdvances.map(advance => ({
+            'Fecha': format(new Date(advance.created_at), 'dd/MM/yyyy HH:mm'),
+            'Empleado': `${advance.employees.first_name} ${advance.employees.last_name}`,
+            'Email': advance.employees.email,
+            'Monto Solicitado': advance.requested_amount,
+            'Comisión': advance.fee_amount,
+            'Monto Neto': advance.net_amount,
+            'Estado': advance.status === 'completed' ? 'Completado' : 
+                      advance.status === 'pending' ? 'Pendiente' :
+                      advance.status === 'processing' ? 'Procesando' :
+                      advance.status === 'approved' ? 'Aprobado' :
+                      advance.status === 'failed' ? 'Fallido' : advance.status,
+            'Método de Pago': advance.payment_method === 'pagomovil' ? 'PagoMóvil' : 'Transferencia Bancaria',
+            'Detalles de Pago': advance.payment_details,
+            'Lote': advance.batch_id || 'N/A'
+          }));
+          break;
+          
+        case 'fees':
+          reportData = activeAdvances.map(advance => ({
+            'Fecha': format(new Date(advance.created_at), 'dd/MM/yyyy'),
+            'Empleado': `${advance.employees.first_name} ${advance.employees.last_name}`,
+            'Monto Adelanto': advance.requested_amount,
+            'Comisión': advance.fee_amount,
+            'Porcentaje Comisión': ((advance.fee_amount / advance.requested_amount) * 100).toFixed(2) + '%',
+            'Estado': advance.status,
+            'Fecha Procesamiento': advance.processed_at ? format(new Date(advance.processed_at), 'dd/MM/yyyy') : 'N/A'
+          }));
+          break;
+          
+        case 'employees':
+          reportData = employees.map(employee => ({
+            'Nombre': `${employee.first_name} ${employee.last_name}`,
+            'Email': employee.email,
+            'Cédula': employee.cedula || 'N/A',
+            'Posición': employee.position,
+            'Departamento': employee.department || 'N/A',
+            'Salario Mensual': employee.monthly_salary,
+            'Estado': employee.is_active ? 'Activo' : 'Inactivo',
+            'Verificado': employee.is_verified ? 'Sí' : 'No',
+            'Fecha Registro': format(new Date(employee.created_at), 'dd/MM/yyyy'),
+            'Adelantos Solicitados': activeAdvances.filter(adv => adv.employee_id === employee.id).length,
+            'Total Adelantos': activeAdvances.filter(adv => adv.employee_id === employee.id)
+              .reduce((sum, adv) => sum + adv.requested_amount, 0)
+          }));
+          break;
+          
+        case 'comprehensive':
+          reportData = activeAdvances.map(advance => ({
+            'Fecha': format(new Date(advance.created_at), 'dd/MM/yyyy HH:mm'),
+            'Empleado': `${advance.employees.first_name} ${advance.employees.last_name}`,
+            'Email': advance.employees.email,
+            'Cédula': advance.employees.cedula || 'N/A',
+            'Posición': advance.employees.position || 'N/A',
+            'Monto Solicitado': advance.requested_amount,
+            'Comisión': advance.fee_amount,
+            'Monto Neto': advance.net_amount,
+            'Estado': advance.status === 'completed' ? 'Completado' : 
+                      advance.status === 'pending' ? 'Pendiente' :
+                      advance.status === 'processing' ? 'Procesando' :
+                      advance.status === 'approved' ? 'Aprobado' :
+                      advance.status === 'failed' ? 'Fallido' : advance.status,
+            'Método de Pago': advance.payment_method === 'pagomovil' ? 'PagoMóvil' : 'Transferencia Bancaria',
+            'Detalles de Pago': advance.payment_details,
+            'Lote': advance.batch_id || 'N/A',
+            'Fecha de Procesamiento': advance.processed_at ? format(new Date(advance.processed_at), 'dd/MM/yyyy HH:mm') : 'N/A'
+          }));
+          break;
+      }
+      
+      if (reportData.length === 0) {
+        toast({
+          title: "No hay datos",
+          description: "No hay datos para generar el reporte en el período seleccionado",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      // Generate file based on format
+      let fileName = '';
+      let fileSize = '';
+      
+      if (reportFormat === 'excel') {
+        const worksheet = XLSX.utils.json_to_sheet(reportData);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Reporte');
+        
+        fileName = `${reportName}.xlsx`;
+        XLSX.writeFile(workbook, fileName);
+        fileSize = `${Math.round(JSON.stringify(reportData).length / 1024)} KB`;
+      } else if (reportFormat === 'csv') {
+        const csv = XLSX.utils.sheet_to_csv(XLSX.utils.json_to_sheet(reportData));
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        fileName = `${reportName}.csv`;
+        a.download = fileName;
+        a.click();
+        window.URL.revokeObjectURL(url);
+        fileSize = `${Math.round(csv.length / 1024)} KB`;
+      }
+      
+      // Add to recent reports
+      const newReport = {
+        name: reportName,
+        type: reportType,
+        period: reportPeriod,
+        format: reportFormat,
+        createdAt: new Date().toISOString(),
+        size: fileSize
+      };
+      
+      setRecentReports(prev => [newReport, ...prev.slice(0, 9)]); // Keep only last 10
+      
+      toast({
+        title: "Reporte generado exitosamente",
+        description: `Se ha generado el reporte ${fileName} con ${reportData.length} registros`,
+      });
+      
+    } catch (error: any) {
+      console.error("Error generating report:", error);
+      toast({
+        title: "Error",
+        description: error?.message ?? "No se pudo generar el reporte",
+        variant: "destructive"
+      });
+    } finally {
+      setIsGeneratingReport(false);
+    }
+  };
+
+  // Export specific report type
+  const exportReport = (type: string) => {
+    setReportType(type);
+    generateReport();
+  };
+
+  // Generate invoice
+  const generateInvoice = async (invoiceData: any) => {
+    try {
+      // This would typically call a backend service to generate a proper invoice
+      const invoiceContent = `
+        FACTURA #${invoiceData.invoiceNumber}
+        
+        Empresa: ${company?.name || 'N/A'}
+        RIF: ${company?.rif || 'N/A'}
+        Período: ${invoiceData.period}
+        Fecha de Vencimiento: ${invoiceData.dueDate}
+        
+        DETALLES:
+        - Comisiones por adelantos: $${invoiceData.advanceFees.toFixed(2)}
+        - Tarifas de registro: $${invoiceData.registrationFees.toFixed(2)}
+        
+        TOTAL: $${invoiceData.amount.toFixed(2)}
+      `;
+      
+      const blob = new Blob([invoiceContent], { type: 'text/plain' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Factura_${invoiceData.invoiceNumber}.txt`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+      
+      toast({
+        title: "Factura generada",
+        description: `Se ha generado la factura ${invoiceData.invoiceNumber}`,
+      });
+    } catch (error: any) {
+      console.error("Error generating invoice:", error);
+      toast({
+        title: "Error",
+        description: "No se pudo generar la factura",
+        variant: "destructive"
+      });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -1368,8 +1629,7 @@ const CompanyDashboard = () => {
                             {employee.is_active ? (
                             <Badge className="bg-green-100 text-green-800">{t('company.active')}</Badge>
                             ) : (
-                            // <Badge variant="secondary">{t('common.pending')}</Badge>
-                            <Badge variant="secondary">'common.pending'</Badge>
+                            <Badge variant="secondary">{t('common.pending')}</Badge>
                           )}
                             <Button 
                               variant="outline" 
@@ -1389,27 +1649,189 @@ const CompanyDashboard = () => {
           </TabsContent>
 
           <TabsContent value="reports" className="space-y-6">
+            {/* Report Filters */}
+            <Card className="border-none shadow-elegant">
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <FileText className="h-5 w-5" />
+                  <span>Filtros de Reporte</span>
+                </CardTitle>
+                <CardDescription>
+                  Selecciona el período y tipo de reporte que deseas generar
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid md:grid-cols-4 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Período</Label>
+                    <Select value={reportPeriod} onValueChange={setReportPeriod}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccionar período" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="thisMonth">Este Mes</SelectItem>
+                        <SelectItem value="lastMonth">Mes Pasado</SelectItem>
+                        <SelectItem value="last3Months">Últimos 3 Meses</SelectItem>
+                        <SelectItem value="last6Months">Últimos 6 Meses</SelectItem>
+                        <SelectItem value="thisYear">Este Año</SelectItem>
+                        <SelectItem value="custom">Personalizado</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Tipo de Reporte</Label>
+                    <Select value={reportType} onValueChange={setReportType}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccionar tipo" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="advances">Adelantos</SelectItem>
+                        <SelectItem value="fees">Comisiones y Tarifas</SelectItem>
+                        <SelectItem value="employees">Empleados</SelectItem>
+                        <SelectItem value="comprehensive">Reporte Completo</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Formato</Label>
+                    <Select value={reportFormat} onValueChange={setReportFormat}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccionar formato" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="excel">Excel (.xlsx)</SelectItem>
+                        <SelectItem value="csv">CSV</SelectItem>
+                        <SelectItem value="pdf">PDF</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div className="flex items-end">
+                    <Button 
+                      onClick={generateReport} 
+                      disabled={isGeneratingReport}
+                      className="w-full"
+                    >
+                      {isGeneratingReport ? (
+                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Download className="h-4 w-4 mr-2" />
+                      )}
+                      Generar Reporte
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Report Summary */}
+            <div className="grid md:grid-cols-4 gap-6">
+              <Card className="border-none shadow-card">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total Adelantos</CardTitle>
+                  <DollarSign className="h-4 w-4 text-primary" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    ${reportData.totalAdvances.toFixed(2)}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {reportData.totalAdvanceCount} solicitudes
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card className="border-none shadow-card">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Comisiones</CardTitle>
+                  <TrendingUp className="h-4 w-4 text-secondary" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    ${reportData.totalFees.toFixed(2)}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {reportData.averageFeeRate.toFixed(1)}% promedio
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card className="border-none shadow-card">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Empleados Activos</CardTitle>
+                  <Users className="h-4 w-4 text-green-600" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    {reportData.activeEmployees}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {reportData.employeeParticipationRate.toFixed(1)}% participación
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card className="border-none shadow-card">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Promedio por Empleado</CardTitle>
+                  <Clock className="h-4 w-4 text-orange-500" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    ${reportData.averagePerEmployee.toFixed(2)}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    por empleado activo
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Detailed Reports */}
             <div className="grid md:grid-cols-2 gap-6">
               <Card className="border-none shadow-card">
                 <CardHeader>
                   <CardTitle className="flex items-center space-x-2">
                     <FileText className="h-5 w-5" />
-                    <span>{t('company.advanceReport')}</span>
+                    <span>Reporte de Adelantos</span>
                   </CardTitle>
                   <CardDescription>
-                    {t('company.downloadReport')}
+                    Análisis detallado de solicitudes de adelanto
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <div className="text-sm font-medium">{t('company.period')} Enero 2024</div>
-                    <div className="text-sm text-muted-foreground">
-                      {t('company.includesAll')}
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">Total de solicitudes:</span>
+                      <span className="font-medium">{reportData.totalAdvanceCount}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">Solicitudes aprobadas:</span>
+                      <span className="font-medium text-green-600">{reportData.approvedAdvances}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">Solicitudes pendientes:</span>
+                      <span className="font-medium text-orange-600">{reportData.pendingAdvances}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">Solicitudes rechazadas:</span>
+                      <span className="font-medium text-red-600">{reportData.rejectedAdvances}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">Monto promedio:</span>
+                      <span className="font-medium">${reportData.averageAdvanceAmount.toFixed(2)}</span>
                     </div>
                   </div>
-                  <Button className="w-full" variant="outline">
+                  <Button 
+                    className="w-full" 
+                    variant="outline"
+                    onClick={() => exportReport('advances')}
+                    disabled={isGeneratingReport}
+                  >
                     <Download className="h-4 w-4 mr-2" />
-                    {t('company.downloadCSV')}
+                    Exportar Reporte de Adelantos
                   </Button>
                 </CardContent>
               </Card>
@@ -1418,95 +1840,365 @@ const CompanyDashboard = () => {
                 <CardHeader>
                   <CardTitle className="flex items-center space-x-2">
                     <TrendingUp className="h-5 w-5" />
-                    <span>{t('company.usageAnalysis')}</span>
+                    <span>Análisis de Uso</span>
                   </CardTitle>
                   <CardDescription>
-                    {t('company.usageStats')}
+                    Estadísticas de participación y tendencias
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <div className="text-sm font-medium">{t('company.monthlyAverage')} $294</div>
-                    <div className="text-sm text-muted-foreground">
-                      78% {t('company.employeesUse')}
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">Tasa de participación:</span>
+                      <span className="font-medium">{reportData.employeeParticipationRate.toFixed(1)}%</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">Empleados más activos:</span>
+                      <span className="font-medium">{reportData.mostActiveEmployees}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">Día más activo:</span>
+                      <span className="font-medium">{reportData.mostActiveDay}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">Horario pico:</span>
+                      <span className="font-medium">{reportData.peakHour}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">Crecimiento mensual:</span>
+                      <span className={`font-medium ${reportData.monthlyGrowth >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {reportData.monthlyGrowth >= 0 ? '+' : ''}{reportData.monthlyGrowth.toFixed(1)}%
+                      </span>
                     </div>
                   </div>
-                  <Button className="w-full" variant="outline">
+                  <Button 
+                    className="w-full" 
+                    variant="outline"
+                    onClick={() => exportReport('analytics')}
+                    disabled={isGeneratingReport}
+                  >
                     <FileText className="h-4 w-4 mr-2" />
-                    {t('company.viewFullReport')}
+                    Exportar Análisis
                   </Button>
                 </CardContent>
               </Card>
             </div>
+
+            {/* Recent Reports History */}
+            <Card className="border-none shadow-elegant">
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <Clock className="h-5 w-5" />
+                  <span>Reportes Recientes</span>
+                </CardTitle>
+                <CardDescription>
+                  Historial de reportes generados
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {recentReports.length === 0 ? (
+                    <div className="text-center py-8">
+                      <FileText className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
+                      <p className="text-muted-foreground">No hay reportes generados aún</p>
+                    </div>
+                  ) : (
+                    recentReports.map((report, index) => (
+                      <div key={index} className="flex items-center justify-between p-4 border rounded-lg">
+                        <div className="flex items-center space-x-4">
+                          <div className="h-10 w-10 bg-gradient-primary rounded-full flex items-center justify-center">
+                            <FileText className="h-5 w-5 text-white" />
+                          </div>
+                          <div>
+                            <div className="font-medium">{report.name}</div>
+                            <div className="text-sm text-muted-foreground">
+                              {report.type} • {report.period} • {report.format.toUpperCase()}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <div className="text-right">
+                            <div className="text-sm text-muted-foreground">
+                              {format(new Date(report.createdAt), 'dd/MM/yyyy HH:mm')}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {report.size}
+                            </div>
+                          </div>
+                          <Button variant="outline" size="sm">
+                            <Download className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="billing" className="space-y-6">
+            {/* Billing Summary */}
+            <div className="grid md:grid-cols-4 gap-6">
+              <Card className="border-none shadow-card">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Factura Actual</CardTitle>
+                  <FileText className="h-4 w-4 text-primary" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    ${billingData.totalOutstanding.toFixed(2)}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Vence: {billingData.nextDueDate}
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card className="border-none shadow-card">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Comisiones del Mes</CardTitle>
+                  <TrendingUp className="h-4 w-4 text-secondary" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    ${billingData.currentMonthFees.toFixed(2)}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {companyData.activeEmployees} empleados activos
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card className="border-none shadow-card">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Tarifas de Registro</CardTitle>
+                  <Users className="h-4 w-4 text-green-600" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    ${billingData.currentMonthRegistrationFees.toFixed(2)}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {employeeFees.length} empleados registrados
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card className="border-none shadow-card">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Último Pago</CardTitle>
+                  <Clock className="h-4 w-4 text-orange-500" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    {format(new Date(billingData.lastPaymentDate), 'dd/MM')}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {format(new Date(billingData.lastPaymentDate), 'yyyy')}
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Billing Details */}
             <Card className="border-none shadow-elegant">
               <CardHeader>
-                <CardTitle>{t('company.billingPayments')}</CardTitle>
+                <CardTitle className="flex items-center space-x-2">
+                  <DollarSign className="h-5 w-5" />
+                  <span>Detalles de Facturación</span>
+                </CardTitle>
                 <CardDescription>
-                  {t('company.manageBills')}
+                  Desglose de comisiones y tarifas del período actual
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                <div className="grid md:grid-cols-3 gap-6">
-                  <div className="bg-gradient-hero p-6 rounded-lg">
-                    <div className="space-y-2">
-                      <div className="text-sm text-muted-foreground">{t('company.nextInvoice')}</div>
-                      <div className="text-2xl font-bold">${companyData.weeklyBilling}</div>
-                      <div className="text-sm">{t('company.due')} 15 Enero, 2024</div>
+                <div className="grid md:grid-cols-2 gap-6">
+                  <div className="space-y-4">
+                    <h4 className="font-semibold">Comisiones por Adelantos</h4>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">Adelantos procesados:</span>
+                        <span className="font-medium">{reportData.approvedAdvances}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">Monto total adelantos:</span>
+                        <span className="font-medium">${billingData.currentMonthAdvances.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">Comisión promedio:</span>
+                        <span className="font-medium">{reportData.averageFeeRate.toFixed(1)}%</span>
+                      </div>
+                      <div className="flex justify-between items-center border-t pt-2">
+                        <span className="text-sm font-medium">Total comisiones:</span>
+                        <span className="font-bold text-lg">${billingData.currentMonthFees.toFixed(2)}</span>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="bg-muted/50 p-6 rounded-lg">
-                    <div className="space-y-2">
-                      <div className="text-sm text-muted-foreground">{t('company.monthlyCommissions')}</div>
-                      <div className="text-2xl font-bold">${companyData.monthlyFees}</div>
-                      <div className="text-sm">{companyData.activeEmployees} {t('company.activeEmployeesCount')}</div>
-                    </div>
-                  </div>
-
-                  <div className="bg-muted/50 p-6 rounded-lg">
-                    <div className="space-y-2">
-                      <div className="text-sm text-muted-foreground">{t('company.totalYear')}</div>
-                      <div className="text-2xl font-bold">$126,340</div>
-                      <div className="text-sm">+15% {t('company.vsPreviousYear')}</div>
+                  <div className="space-y-4">
+                    <h4 className="font-semibold">Tarifas de Registro</h4>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">Empleados registrados:</span>
+                        <span className="font-medium">{employeeFees.length}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">Tarifa por empleado:</span>
+                        <span className="font-medium">$1.00</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">Empleados activos:</span>
+                        <span className="font-medium">{companyData.activeEmployees}</span>
+                      </div>
+                      <div className="flex justify-between items-center border-t pt-2">
+                        <span className="text-sm font-medium">Total tarifas:</span>
+                        <span className="font-bold text-lg">${billingData.currentMonthRegistrationFees.toFixed(2)}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="space-y-4">
-                  <h4 className="font-semibold">{t('company.recentInvoices')}</h4>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between p-4 border rounded-lg">
-                      <div>
-                        <div className="font-medium">{t('company.invoice')} #2024-001</div>
-                        <div className="text-sm text-muted-foreground">1-7 Enero, 2024</div>
+                <div className="bg-gradient-hero p-6 rounded-lg">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <div className="text-sm text-muted-foreground">Total a Pagar</div>
+                      <div className="text-3xl font-bold">${billingData.totalOutstanding.toFixed(2)}</div>
+                      <div className="text-sm">Vence: {billingData.nextDueDate}</div>
+                    </div>
+                    <div className="flex space-x-2">
+                      <Button 
+                        variant="outline" 
+                        onClick={() => generateInvoice({
+                          invoiceNumber: 'INV-2024-003',
+                          period: 'Enero 2024',
+                          dueDate: billingData.nextDueDate,
+                          advanceFees: billingData.currentMonthFees,
+                          registrationFees: billingData.currentMonthRegistrationFees,
+                          amount: billingData.totalOutstanding
+                        })}
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        Descargar Factura
+                      </Button>
+                      <Button variant="premium">
+                        <DollarSign className="h-4 w-4 mr-2" />
+                        Pagar Ahora
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Payment History */}
+            <Card className="border-none shadow-elegant">
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <Clock className="h-5 w-5" />
+                  <span>Historial de Pagos</span>
+                </CardTitle>
+                <CardDescription>
+                  Facturas y pagos recientes
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {billingData.paymentHistory.map((invoice) => (
+                    <div key={invoice.id} className="flex items-center justify-between p-4 border rounded-lg">
+                      <div className="flex items-center space-x-4">
+                        <div className="h-10 w-10 bg-gradient-primary rounded-full flex items-center justify-center">
+                          <FileText className="h-5 w-5 text-white" />
+                        </div>
+                        <div>
+                          <div className="font-medium">{invoice.invoiceNumber}</div>
+                          <div className="text-sm text-muted-foreground">{invoice.period}</div>
+                        </div>
                       </div>
                       <div className="flex items-center space-x-4">
                         <div className="text-right">
-                          <div className="font-semibold">$11,890</div>
-                          <Badge className="bg-green-100 text-green-800">{t('company.paid')}</Badge>
+                          <div className="font-semibold">${invoice.amount.toFixed(2)}</div>
+                          <Badge 
+                            className={invoice.status === 'paid' 
+                              ? 'bg-green-100 text-green-800' 
+                              : 'bg-orange-100 text-orange-800'
+                            }
+                          >
+                            {invoice.status === 'paid' ? 'Pagado' : 'Pendiente'}
+                          </Badge>
                         </div>
-                        <Button variant="outline" size="sm">
-                          <Download className="h-4 w-4" />
-                        </Button>
+                        <div className="flex space-x-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => generateInvoice(invoice)}
+                          >
+                            <Download className="h-4 w-4" />
+                          </Button>
+                          {invoice.status === 'pending' && (
+                            <Button variant="premium" size="sm">
+                              Pagar
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
 
-                    <div className="flex items-center justify-between p-4 border rounded-lg">
-                      <div>
-                        <div className="font-medium">{t('company.invoice')} #2024-002</div>
-                        <div className="text-sm text-muted-foreground">8-14 Enero, 2024</div>
+            {/* Payment Methods */}
+            <Card className="border-none shadow-elegant">
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <Settings className="h-5 w-5" />
+                  <span>Métodos de Pago</span>
+                </CardTitle>
+                <CardDescription>
+                  Configuración de pagos y facturación
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid md:grid-cols-2 gap-6">
+                  <div className="space-y-4">
+                    <h4 className="font-semibold">Información de Facturación</h4>
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-sm text-muted-foreground">Empresa:</span>
+                        <span className="text-sm font-medium">{company?.name || 'N/A'}</span>
                       </div>
-                      <div className="flex items-center space-x-4">
-                        <div className="text-right">
-                          <div className="font-semibold">$12,430</div>
-                          <Badge variant="secondary">{t('common.pending')}</Badge>
-                        </div>
-                        <Button variant="premium" size="sm">
-                          Pagar Ahora
-                        </Button>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-muted-foreground">RIF:</span>
+                        <span className="text-sm font-medium">{company?.rif || 'N/A'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-muted-foreground">Período de facturación:</span>
+                        <span className="text-sm font-medium">Quincenal</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-muted-foreground">Método de pago:</span>
+                        <span className="text-sm font-medium">Transferencia bancaria</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <h4 className="font-semibold">Próximos Pagos</h4>
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-sm text-muted-foreground">Próxima factura:</span>
+                        <span className="text-sm font-medium">{billingData.nextDueDate}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-muted-foreground">Monto estimado:</span>
+                        <span className="text-sm font-medium">${billingData.totalOutstanding.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-muted-foreground">Días restantes:</span>
+                        <span className="text-sm font-medium">
+                          {Math.ceil((new Date(billingData.nextDueDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))} días
+                        </span>
                       </div>
                     </div>
                   </div>
