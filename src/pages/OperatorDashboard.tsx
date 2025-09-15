@@ -529,6 +529,7 @@ const OperatorDashboard = () => {
       }
 
       console.log("✅ Confirmations loaded:", data?.length || 0, "items");
+      console.log("📊 Sample confirmation data:", data?.[0]);
       setConfirmations(data || []);
     } catch (error: any) {
       console.error("❌ Error fetching confirmations:", error);
@@ -1198,7 +1199,10 @@ const OperatorDashboard = () => {
                               <div className="font-medium flex items-center space-x-2">
                                 <span>{confirmation.file_name || 'Archivo sin nombre'}</span>
                                 <Badge variant="outline" className="text-xs">
-                                  {(confirmation.file_size / 1024 / 1024).toFixed(1)} MB
+                                  {confirmation.file_size && confirmation.file_size > 0 
+                                    ? `${(confirmation.file_size / 1024 / 1024).toFixed(1)} MB`
+                                    : 'Tamaño desconocido'
+                                  }
                                 </Badge>
                               </div>
                               <div className="text-sm text-muted-foreground">

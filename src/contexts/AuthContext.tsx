@@ -60,6 +60,17 @@ export const getActualUserRole = async (userId: string): Promise<string | null> 
       .eq('user_id', userId)
       .single();
 
+    // If table doesn't exist (404 error), skip database query
+    if (userRoleError && userRoleError.code === 'PGRST116') {
+      console.log('user_roles table not found, using metadata fallback');
+      // Fallback to user metadata
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError || !userData.user) {
+        return null;
+      }
+      return (userData.user.app_metadata as any)?.role ?? (userData.user.user_metadata as any)?.role ?? null;
+    }
+
     if (!userRoleError && userRoleData) {
       return userRoleData.role;
     }
@@ -73,7 +84,7 @@ export const getActualUserRole = async (userId: string): Promise<string | null> 
     return (userData.user.app_metadata as any)?.role ?? (userData.user.user_metadata as any)?.role ?? null;
   } catch (error) {
     console.error('Error getting actual user role:', error);
-    // Temporary fallback to metadata only
+    // Fallback to metadata only
     try {
       const { data: userData, error: userError } = await supabase.auth.getUser();
       if (userError || !userData.user) {
