@@ -136,7 +136,7 @@ const translations: Translations = {
   'register.confirmPassword': { en: 'Confirm Password', es: 'Confirmar Contraseña' },
   'register.userType': { en: 'I am a', es: 'Soy un' },
   'register.employee': { en: 'Employee', es: 'Empleado' },
-  'register.company': { en: 'Company', es: 'Representante de Empresa' },
+  'register.company': { en: 'Company', es: 'Compañía' },
   // 'register.company': { en: 'Company Representative', es: 'Representante de Empresa' },
 
   'register.operator': { en: 'Platform Operator', es: 'Operador de Plataforma' },

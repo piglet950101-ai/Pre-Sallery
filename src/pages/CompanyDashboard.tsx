@@ -37,6 +37,15 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
 import * as XLSX from 'xlsx';
 import { format, startOfDay, endOfDay } from 'date-fns';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
+
+// Extend jsPDF type to include autoTable
+declare module 'jspdf' {
+  interface jsPDF {
+    autoTable: (options: any) => jsPDF;
+  }
+}
 
 interface Employee {
   id: string;
@@ -1097,6 +1106,17 @@ const CompanyDashboard = () => {
         a.click();
         window.URL.revokeObjectURL(url);
         fileSize = `${Math.round(csv.length / 1024)} KB`;
+      } else if (reportFormat === 'pdf') {
+        // Generate PDF using jsPDF
+        const pdf = generatePDFReport(reportData, reportType, reportName);
+        fileName = `${reportName}.pdf`;
+        pdf.save(fileName);
+        fileSize = `${Math.round(JSON.stringify(reportData).length / 1024)} KB`;
+        
+        toast({
+          title: "PDF generado exitosamente",
+          description: `Se ha generado el reporte PDF ${fileName}`,
+        });
       }
       
       // Add to recent reports
@@ -1132,6 +1152,191 @@ const CompanyDashboard = () => {
   const exportReport = (type: string) => {
     setReportType(type);
     generateReport();
+  };
+
+  // Generate PDF report using jsPDF
+  const generatePDFReport = (data: any[], type: string, reportName: string) => {
+    const currentDate = new Date();
+    const companyName = company?.name || 'Empresa';
+    const companyRif = company?.rif || 'N/A';
+    
+    // Create new PDF document - auto switch to landscape for many columns
+    const isWide = data && data.length > 0 && Object.keys(data[0]).length > 8;
+    const pdf = new jsPDF(isWide ? 'l' : 'p', 'mm', 'a4');
+    
+    // Simple header
+    pdf.setFontSize(16);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text(`Reporte de ${type}`, 20, 20);
+    
+    pdf.setFontSize(10);
+    pdf.setFont('helvetica', 'normal');
+    pdf.text(`${companyName} - RIF: ${companyRif}`, 20, 28);
+    pdf.text(`Generado: ${format(currentDate, 'dd/MM/yyyy HH:mm')}`, 20, 34);
+    
+    // Simple summary
+    pdf.setFontSize(12);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text('Resumen', 20, 45);
+    
+    pdf.setFontSize(10);
+    pdf.setFont('helvetica', 'normal');
+    pdf.text(`Total de registros: ${data.length}`, 20, 52);
+    pdf.text(`Período: ${reportPeriod}`, 20, 58);
+    
+    // Add basic stats if we have data
+    if (data.length > 0) {
+      const totalAmount = data.reduce((sum, row) => {
+        const amount = parseFloat(String(row['Monto Solicitado'] || row['Monto Adelanto'] || 0));
+        return sum + (isNaN(amount) ? 0 : amount);
+      }, 0);
+      
+      const avgAmount = totalAmount / data.length;
+      
+      pdf.text(`Monto total: $${totalAmount.toFixed(2)}`, 20, 64);
+      pdf.text(`Promedio: $${avgAmount.toFixed(2)}`, 20, 70);
+    }
+    
+    // Add data table if there's data
+    if (data.length > 0) {
+      try {
+        // Prepare table data
+        const headers = Object.keys(data[0]);
+        const tableData = data.map(row => 
+          headers.map(header => String(row[header] || ''))
+        );
+        
+        // Add table using autoTable with responsive design
+        if (pdf.autoTable) {
+          // Calculate optimal column widths based on content
+          const calculateColumnWidths = (headers: string[], data: any[][]) => {
+            const pageWidth = pdf.internal.pageSize.width - 40; // 20mm margins on each side
+            const minWidth = 15; // Minimum column width
+            const maxWidth = pageWidth / headers.length * 2; // Maximum column width
+            
+            return headers.map((header, index) => {
+              // Calculate content width for this column
+              const headerWidth = header.length * 1.5; // Approximate character width
+              const maxDataWidth = Math.max(...data.map(row => String(row[index] || '').length)) * 1.2;
+              const contentWidth = Math.max(headerWidth, maxDataWidth);
+              
+              // Clamp between min and max width
+              return Math.max(minWidth, Math.min(maxWidth, contentWidth));
+            });
+          };
+          
+          const columnWidths = calculateColumnWidths(headers, tableData);
+          
+          pdf.autoTable({
+            head: [headers],
+            body: tableData,
+            startY: 80,
+            styles: {
+              fontSize: 8,
+              cellPadding: 3,
+              lineColor: [0, 0, 0],
+              lineWidth: 0.1,
+              textColor: [0, 0, 0],
+              font: 'helvetica',
+              halign: 'left',
+              valign: 'middle',
+            },
+            headStyles: {
+              fillColor: [240, 240, 240],
+              textColor: [0, 0, 0],
+              fontStyle: 'bold',
+              fontSize: 9,
+              halign: 'center',
+            },
+            alternateRowStyles: {
+              fillColor: [250, 250, 250],
+            },
+            columnStyles: headers.reduce((acc, header, index) => {
+              acc[index] = { 
+                cellWidth: columnWidths[index],
+                halign: 'left',
+                overflow: 'linebreak',
+                cellPadding: 2
+              };
+              return acc;
+            }, {} as any),
+            margin: { left: 20, right: 20, top: 5 },
+            tableWidth: 'wrap',
+            showHead: 'everyPage',
+            pageBreak: 'auto',
+            rowPageBreak: 'avoid',
+            didDrawPage: function (data) {
+              // Simple page number
+              const pageCount = pdf.getNumberOfPages();
+              pdf.setFontSize(8);
+              pdf.setTextColor(100, 100, 100);
+              pdf.text(`Página ${pdf.getCurrentPageInfo().pageNumber} de ${pageCount}`, 
+                pdf.internal.pageSize.width - 30, 
+                pdf.internal.pageSize.height - 10);
+            }
+          });
+        } else {
+          // Fallback: simple text table if autoTable is not available
+          pdf.setFontSize(8);
+          let yPosition = 80;
+          const usableWidth = pdf.internal.pageSize.width - 40; // 20mm side margins
+
+          // Add headers (wrapped to page width)
+          const headers = Object.keys(data[0]);
+          const headerText = headers.join(' | ');
+          const wrappedHeader = pdf.splitTextToSize(headerText, usableWidth);
+          pdf.text(wrappedHeader, 20, yPosition);
+          yPosition += wrappedHeader.length * 6 + 2;
+
+          // Add data rows (limit to first 100, wrapped)
+          const maxRows = Math.min(data.length, 100);
+          for (let i = 0; i < maxRows; i++) {
+            const rowText = headers.map(header => String(data[i][header] || '')).join(' | ');
+            const wrappedRow = pdf.splitTextToSize(rowText, usableWidth);
+            pdf.text(wrappedRow, 20, yPosition);
+            yPosition += wrappedRow.length * 6;
+
+            // New page if needed
+            if (yPosition > pdf.internal.pageSize.height - 20) {
+              pdf.addPage();
+              yPosition = 20;
+            }
+          }
+
+          if (data.length > maxRows) {
+            pdf.text(`... y ${data.length - maxRows} registros más`, 20, yPosition);
+          }
+        }
+      } catch (error) {
+        console.error('Error generating PDF table:', error);
+        pdf.setFontSize(10);
+        pdf.text('Error al generar la tabla. Mostrando datos básicos...', 20, 80);
+        
+        // Simple fallback
+        pdf.setFontSize(8);
+        let yPosition = 90;
+        data.slice(0, 20).forEach((row, index) => {
+          const rowText = Object.values(row).join(' | ');
+          pdf.text(rowText, 20, yPosition);
+          yPosition += 6;
+        });
+      }
+    } else {
+      pdf.setFontSize(10);
+      pdf.text('No hay datos disponibles para el período seleccionado.', 20, 80);
+    }
+    
+    // Simple footer
+    const pageCount = pdf.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      pdf.setPage(i);
+      pdf.setFontSize(8);
+      pdf.setTextColor(100, 100, 100);
+      pdf.text(`Página ${i} de ${pageCount}`, 20, pdf.internal.pageSize.height - 10);
+      pdf.text(`Generado: ${format(currentDate, 'dd/MM/yyyy HH:mm')}`, pdf.internal.pageSize.width - 60, pdf.internal.pageSize.height - 10);
+    }
+    
+    return pdf;
   };
 
   // Generate invoice
