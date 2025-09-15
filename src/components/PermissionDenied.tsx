@@ -22,7 +22,7 @@ const PermissionDenied = ({ requiredRole, userRole }: PermissionDeniedProps) => 
       case 'employee':
         return t('register.employee') ?? 'Employee';
       case 'company':
-        return t('register.company') ?? 'Company Representative';
+        return t('register.company') ?? 'Company ';
       case 'operator':
         return t('register.operator') ?? 'Platform Operator';
       default:

@@ -27,7 +27,8 @@ import {
   Trash2,
   FileText,
   Image,
-  File
+  File,
+  RefreshCw
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -69,10 +70,19 @@ const OperatorDashboard = () => {
   const [confirmationToDelete, setConfirmationToDelete] = useState<any>(null);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [previewFile, setPreviewFile] = useState<any>(null);
+  
+  // Employee fees state
+  const [employeeFees, setEmployeeFees] = useState<any[]>([]);
+  const [isLoadingEmployeeFees, setIsLoadingEmployeeFees] = useState(false);
 
   // Calculate totals from real data
   const totalPendingAmount = pendingAdvances.reduce((sum, advance) => sum + (advance.requested_amount || 0), 0);
   const totalPendingFees = pendingAdvances.reduce((sum, advance) => sum + (advance.fee_amount || 0), 0);
+  
+  // Calculate employee registration fees
+  const totalEmployeeRegistrationFees = employeeFees.reduce((sum, fee) => sum + (fee.fee_amount || 0), 0);
+  const pendingEmployeeFees = employeeFees.filter(fee => fee.status === 'pending').length;
+  const paidEmployeeFees = employeeFees.filter(fee => fee.status === 'paid').length;
 
   // Calculate totals for selected advances only
   const selectedAdvancesList = pendingAdvances.filter(advance => selectedAdvances.has(advance.id));
@@ -396,12 +406,29 @@ const OperatorDashboard = () => {
     }
   };
 
-  // Load data on component mount
+  // Add a flag to prevent unnecessary re-fetching
+  const [hasInitialLoad, setHasInitialLoad] = useState(false);
+
+  // Load data on component mount - only once
   useEffect(() => {
-    fetchPendingAdvances();
-    fetchProcessedBatches();
-    fetchConfirmations();
-  }, []);
+    if (!hasInitialLoad) {
+      fetchPendingAdvances();
+      fetchProcessedBatches();
+      fetchConfirmations();
+      fetchEmployeeFees();
+      setHasInitialLoad(true);
+    }
+  }, [hasInitialLoad]);
+
+  // Manual refresh function
+  const refreshData = async () => {
+    await Promise.all([
+      fetchPendingAdvances(),
+      fetchProcessedBatches(),
+      fetchConfirmations(),
+      fetchEmployeeFees()
+    ]);
+  };
 
   const processBatch = async () => {
     if (selectedAdvances.size === 0) {
@@ -494,6 +521,57 @@ const OperatorDashboard = () => {
       });
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  // Fetch employee fees
+  const fetchEmployeeFees = async () => {
+    try {
+      setIsLoadingEmployeeFees(true);
+      console.log("🔍 Fetching employee fees...");
+      
+      const { data, error } = await supabase
+        .from("employee_fees")
+        .select(`
+          *,
+          employees!inner(
+            first_name,
+            last_name,
+            email
+          ),
+          companies!inner(
+            name,
+            rif
+          )
+        `)
+        .order("created_at", { ascending: false });
+
+      console.log("📊 Employee fees fetch result:", { data, error });
+
+      if (error) {
+        if (error.message.includes("Could not find the table")) {
+          console.log("❌ Employee fees table not found, showing empty state");
+          setEmployeeFees([]);
+          return;
+        }
+        console.error("❌ Database error:", error);
+        throw new Error(`Error al cargar tarifas de empleados: ${error.message}`);
+      }
+
+      console.log("✅ Employee fees loaded:", data?.length || 0, "items");
+      setEmployeeFees(data || []);
+    } catch (error: any) {
+      console.error("❌ Error fetching employee fees:", error);
+      if (!error.message.includes("Could not find the table")) {
+        toast({
+          title: "Error",
+          description: error?.message ?? "No se pudieron cargar las tarifas de empleados",
+          variant: "destructive"
+        });
+      }
+      setEmployeeFees([]);
+    } finally {
+      setIsLoadingEmployeeFees(false);
     }
   };
 
@@ -805,8 +883,26 @@ const OperatorDashboard = () => {
       <Header />
 
       <div className="container mx-auto px-4 py-8 space-y-8">
+        {/* Page Header with Refresh Button */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground">Panel de Operador</h1>
+            <p className="text-muted-foreground">Gestiona adelantos y confirmaciones de transferencias</p>
+          </div>
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={refreshData}
+            disabled={isLoadingAdvances || isLoadingBatches || isLoadingConfirmations || isLoadingEmployeeFees}
+            className="flex items-center space-x-2"
+          >
+            <RefreshCw className={`h-4 w-4 ${(isLoadingAdvances || isLoadingBatches || isLoadingConfirmations || isLoadingEmployeeFees) ? 'animate-spin' : ''}`} />
+            <span>Actualizar</span>
+          </Button>
+        </div>
+
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
           <Card className="border-none shadow-card">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Adelantos Pendientes</CardTitle>
@@ -867,13 +963,29 @@ const OperatorDashboard = () => {
               </p>
             </CardContent>
           </Card>
+
+          <Card className="border-none shadow-card">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Tarifas de Registro</CardTitle>
+              <Users className="h-4 w-4 text-indigo-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-indigo-600">
+                ${isLoadingEmployeeFees ? '...' : totalEmployeeRegistrationFees.toFixed(2)}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {isLoadingEmployeeFees ? '...' : `${employeeFees.length} empleados registrados`}
+              </p>
+            </CardContent>
+          </Card>
         </div>
 
         <Tabs defaultValue="pending" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="pending">Adelantos Pendientes</TabsTrigger>
             <TabsTrigger value="batches">Lotes Procesados</TabsTrigger>
             <TabsTrigger value="confirmations">Confirmaciones</TabsTrigger>
+            <TabsTrigger value="employee-fees">Tarifas de Empleados</TabsTrigger>
           </TabsList>
 
           <TabsContent value="pending" className="space-y-6">
@@ -1258,6 +1370,69 @@ const OperatorDashboard = () => {
                       itemsPerPage={itemsPerPage}
                       onItemsPerPageChange={handleItemsPerPageChange}
                     />
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="employee-fees" className="space-y-6">
+            <Card className="border-none shadow-elegant">
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <Users className="h-5 w-5" />
+                  <span>Tarifas de Registro de Empleados</span>
+                </CardTitle>
+                <CardDescription>
+                  Gestiona las tarifas de $1 USD por cada empleado registrado.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {isLoadingEmployeeFees ? (
+                  <div className="flex items-center justify-center p-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                  </div>
+                ) : employeeFees.length === 0 ? (
+                  <div className="text-center p-8 text-muted-foreground">
+                    <AlertCircle className="h-12 w-12 mx-auto mb-4" />
+                    <p>No hay tarifas de empleados registradas.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {employeeFees.map((fee) => (
+                      <div key={fee.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                        <div className="flex items-center space-x-4">
+                          <div className="h-10 w-10 bg-gradient-primary rounded-full flex items-center justify-center">
+                            <span className="text-white text-xs font-medium">
+                              {fee.employees?.first_name?.[0]}{fee.employees?.last_name?.[0]}
+                            </span>
+                          </div>
+                          <div>
+                            <div className="font-medium text-sm">
+                              {fee.employees?.first_name} {fee.employees?.last_name}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {fee.employees?.email}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              Empresa: {fee.companies?.name} ({fee.companies?.rif})
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-bold text-lg text-primary">${fee.fee_amount.toFixed(2)}</div>
+                          <Badge 
+                            variant={fee.status === 'paid' ? 'default' : fee.status === 'overdue' ? 'destructive' : 'secondary'}
+                            className="text-xs"
+                          >
+                            {fee.status === 'paid' ? 'Pagado' : fee.status === 'overdue' ? 'Vencido' : 'Pendiente'}
+                          </Badge>
+                          <div className="text-xs text-muted-foreground mt-1">
+                            {fee.created_at ? new Date(fee.created_at).toLocaleDateString('es-ES') : ''}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </CardContent>

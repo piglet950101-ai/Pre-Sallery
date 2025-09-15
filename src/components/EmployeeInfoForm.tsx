@@ -522,6 +522,20 @@ export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialD
         <CardDescription>
           Información detallada del empleado
         </CardDescription>
+        
+        {/* Fee Notification */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-4">
+          <div className="flex items-center space-x-2">
+            <DollarSign className="h-4 w-4 text-blue-600" />
+            <span className="text-sm font-medium text-blue-800">
+              Tarifa de Registro por Empleado
+            </span>
+          </div>
+          <p className="text-sm text-blue-700 mt-1">
+            Se aplicará una tarifa única de <strong>$1 USD</strong> por cada empleado registrado. 
+            Esta tarifa se cobra una sola vez al momento del registro y se factura junto con las comisiones de adelantos.
+          </p>
+        </div>
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Progress Bar */}

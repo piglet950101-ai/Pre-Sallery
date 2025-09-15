@@ -1,5 +1,5 @@
--- Simple script to create just the user_roles table
--- Run this in your Supabase SQL Editor
+-- Create user_roles table for secure role management
+-- Run this in your Supabase SQL Editor if you want to use the user_roles table approach
 
 -- Create user_roles table
 CREATE TABLE IF NOT EXISTS public.user_roles (
@@ -17,6 +17,13 @@ ALTER TABLE public.user_roles ENABLE ROW LEVEL SECURITY;
 -- Create RLS policy for user_roles (users can see their own role)
 CREATE POLICY "User roles: users can view own role" ON public.user_roles
   FOR SELECT USING (auth.uid() = user_id);
+
+-- Allow operators to manage all user roles (for admin purposes)
+CREATE POLICY "User roles: operators can manage all" ON public.user_roles
+  FOR ALL USING (
+    (auth.jwt() ->> 'app_metadata')::jsonb ->> 'role' = 'operator' OR
+    (auth.jwt() ->> 'user_metadata')::jsonb ->> 'role' = 'operator'
+  );
 
 -- Create indexes
 CREATE INDEX IF NOT EXISTS idx_user_roles_user_id ON public.user_roles(user_id);

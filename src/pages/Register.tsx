@@ -85,20 +85,89 @@ const Register = () => {
     try {
       setIsLoadingEmployee(true);
       
+      // Clean and normalize inputs
+      const cleanActivationCode = activationCode.trim().replace(/[^0-9]/g, ''); // Remove all non-numeric characters
+      const cleanEmail = employeeEmail.trim().toLowerCase();
+      
+      // Validate activation code format
+      if (cleanActivationCode.length !== 6) {
+        throw new Error("El código de activación debe tener exactamente 6 dígitos");
+      }
+      
+      // Validate email format (very permissive - just check for @ and .)
+      console.log("🔍 Email validation check:", {
+        originalEmail: employeeEmail,
+        cleanedEmail: cleanEmail,
+        hasAt: cleanEmail.includes('@'),
+        hasDot: cleanEmail.includes('.')
+      });
+      
+      if (!cleanEmail.includes('@') || !cleanEmail.includes('.')) {
+        console.error("❌ Email validation failed:", {
+          originalEmail: employeeEmail,
+          cleanedEmail: cleanEmail
+        });
+        throw new Error(`El formato del email no es válido. Email ingresado: "${employeeEmail}"`);
+      }
+      
+      // Additional check: make sure there's at least one character before @ and after .
+      const emailParts = cleanEmail.split('@');
+      console.log("🔍 Email parts analysis:", {
+        emailParts: emailParts,
+        partsLength: emailParts.length,
+        beforeAtLength: emailParts[0]?.length || 0,
+        afterAtHasDot: emailParts[1]?.includes('.') || false
+      });
+      
+      if (emailParts.length !== 2 || emailParts[0].length === 0 || !emailParts[1].includes('.')) {
+        console.error("❌ Email validation failed - invalid structure:", {
+          originalEmail: employeeEmail,
+          cleanedEmail: cleanEmail,
+          emailParts: emailParts
+        });
+        throw new Error(`El formato del email no es válido. Email ingresado: "${employeeEmail}"`);
+      }
+      
       // Debug: Log the inputs
-      console.log("Activation Code:", activationCode);
-      console.log("Employee Email:", employeeEmail);
+      console.log("Original Activation Code:", activationCode);
+      console.log("Cleaned Activation Code:", cleanActivationCode);
+      console.log("Original Employee Email:", employeeEmail);
+      console.log("Cleaned Employee Email:", cleanEmail);
       
       // Check activation code and email directly
+      console.log("🔍 Looking up employee with:", {
+        activationCode: cleanActivationCode,
+        employeeEmail: cleanEmail
+      });
+      
       const { data: employeeData, error: employeeError } = await supabase
         .from("employees")
         .select("id, company_id, first_name, last_name, email, activation_code, is_active")
-        .eq("activation_code", activationCode)
-        .eq("email", employeeEmail)
+        .eq("activation_code", cleanActivationCode)
+        .eq("email", cleanEmail)
         .single();
       
-      console.log("Employee lookup result:", employeeData);
-      console.log("Employee lookup error:", employeeError);
+      console.log("📊 Employee lookup result:", employeeData);
+      console.log("❌ Employee lookup error:", employeeError);
+      
+      // Additional debugging: check if employee exists with just email
+      if (employeeError && employeeError.code === 'PGRST116') {
+        console.log("🔍 No exact match found, checking if email exists...");
+        const { data: emailCheck, error: emailError } = await supabase
+          .from("employees")
+          .select("email, activation_code")
+          .eq("email", cleanEmail)
+          .single();
+        
+        console.log("📧 Email check result:", emailCheck);
+        console.log("📧 Email check error:", emailError);
+        
+        if (emailCheck) {
+          console.log("⚠️ Email exists but activation code doesn't match");
+          console.log("Expected code:", activationCode);
+          console.log("Actual code:", emailCheck.activation_code);
+        }
+      }
       
       if (employeeError) {
         if (employeeError.code === 'PGRST116') {
@@ -119,7 +188,7 @@ const Register = () => {
       
       // Create Supabase auth user
       const { data, error } = await supabase.auth.signUp({
-        email: employeeEmail,
+        email: cleanEmail,
         password: employeePassword,
         options: {
           emailRedirectTo: `${window.location.origin}/login`,
@@ -166,9 +235,11 @@ const Register = () => {
           // Try alternative approach - call a function
           try {
             const { error: functionError } = await supabase.functions.invoke('activate-employee', {
-              employee_id: employeeData.id,
-              auth_user_id: data.user.id,
-              phone: employeePhone
+              body: {
+                employee_id: employeeData.id,
+                auth_user_id: data.user.id,
+                phone: employeePhone
+              }
             });
             
             if (functionError) {

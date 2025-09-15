@@ -93,6 +93,8 @@ const CompanyDashboard = () => {
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [advanceToAction, setAdvanceToAction] = useState<any>(null);
+  const [employeeFees, setEmployeeFees] = useState<any[]>([]);
+  const [isLoadingEmployeeFees, setIsLoadingEmployeeFees] = useState(false);
 
   // Filter out cancelled advances
   const activeAdvances = advances.filter(advance => advance.status !== 'cancelled');
@@ -112,6 +114,8 @@ const CompanyDashboard = () => {
                advanceDate.getFullYear() === now.getFullYear();
       })
       .reduce((sum, advance) => sum + advance.fee_amount, 0),
+    totalEmployeeRegistrationFees: employeeFees
+      .reduce((sum, fee) => sum + fee.fee_amount, 0),
     weeklyBilling: activeAdvances
       .filter(advance => {
         const advanceDate = new Date(advance.created_at);
@@ -187,6 +191,9 @@ const CompanyDashboard = () => {
         }
         
         setEmployees(employeesData || []);
+        
+        // Fetch employee fees for this company
+        fetchEmployeeFees();
         
         // Fetch advances for this company
         const { data: advancesData, error: advancesError } = await supabase
@@ -388,6 +395,58 @@ const CompanyDashboard = () => {
     }
   };
 
+  // Fetch employee fees
+  const fetchEmployeeFees = async () => {
+    try {
+      setIsLoadingEmployeeFees(true);
+      
+      // Get current company user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error("Usuario no autenticado");
+      }
+      
+      // Get company data from companies table
+      const { data: companyData, error: companyError } = await supabase
+        .from("companies")
+        .select("*")
+        .eq("auth_user_id", user.id)
+        .single();
+      
+      if (companyError || !companyData) {
+        throw new Error("No se encontró la información de la empresa");
+      }
+      
+      // Fetch employee fees for this company
+      const { data: feesData, error: feesError } = await supabase
+        .from("employee_fees")
+        .select(`
+          *,
+          employees!inner(
+            first_name,
+            last_name,
+            email
+          )
+        `)
+        .eq("company_id", companyData.id)
+        .order("created_at", { ascending: false });
+      
+      if (feesError) {
+        console.error("Error fetching employee fees:", feesError);
+        // Don't throw error, just log it - fees table might not exist yet
+        setEmployeeFees([]);
+        return;
+      }
+      
+      setEmployeeFees(feesData || []);
+    } catch (error: any) {
+      console.error("Error fetching employee fees:", error);
+      setEmployeeFees([]);
+    } finally {
+      setIsLoadingEmployeeFees(false);
+    }
+  };
+
   const handleEmployeeSave = async (employeeInfo: any) => {
     try {
       setIsLoading(true);
@@ -455,6 +514,27 @@ const CompanyDashboard = () => {
       if (employeeError) {
         throw new Error(`Error al crear empleado: ${employeeError.message}`);
       }
+
+      // Create employee fee record ($1 one-time registration fee)
+      const currentDate = new Date();
+      const dueDate = new Date(currentDate.getTime() + (30 * 24 * 60 * 60 * 1000)); // 30 days from now
+      
+      const { error: feeError } = await supabase
+        .from("employee_fees")
+        .insert([{
+          company_id: companyData.id,
+          employee_id: employeeData.id,
+          fee_amount: 1.00,
+          fee_type: 'employee_registration_fee',
+          status: 'pending',
+          due_date: dueDate.toISOString().split('T')[0],
+          notes: `One-time registration fee for ${employeeInfo.firstName} ${employeeInfo.lastName}`
+        }]);
+
+      if (feeError) {
+        console.error("Error creating employee fee:", feeError);
+        // Don't throw error here, just log it - employee was created successfully
+      }
       
       // TODO: Send activation code via email/SMS
       // await supabase.functions.invoke('send-activation-code', { 
@@ -465,7 +545,7 @@ const CompanyDashboard = () => {
       
       toast({
         title: "Empleado agregado exitosamente",
-        description: `Se ha enviado un código de activación (${activationCode}) a ${employeeInfo.email}`,
+        description: `Se ha enviado un código de activación (${activationCode}) a ${employeeInfo.email}. Se ha agregado una tarifa de registro de $1 USD por este empleado.`,
       });
       
       // Refresh employee list
@@ -840,7 +920,7 @@ const CompanyDashboard = () => {
       <Header />
 
       <div className="container mx-auto px-4 py-8 space-y-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
           <Card className="border-none shadow-card">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">{t('company.activeEmployees')}</CardTitle>
@@ -897,6 +977,21 @@ const CompanyDashboard = () => {
               </div>
               <p className="text-xs text-muted-foreground">
                 {t('company.nextBill')} {new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-none shadow-card">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Tarifas de Registro</CardTitle>
+              <Users className="h-4 w-4 text-green-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">
+                ${isLoadingEmployeeFees ? '...' : companyData.totalEmployeeRegistrationFees.toFixed(2)}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {isLoadingEmployeeFees ? '...' : `${employeeFees.length} empleados registrados`}
               </p>
             </CardContent>
           </Card>
@@ -1273,7 +1368,8 @@ const CompanyDashboard = () => {
                             {employee.is_active ? (
                             <Badge className="bg-green-100 text-green-800">{t('company.active')}</Badge>
                             ) : (
-                            <Badge variant="secondary">{t('common.pending')}</Badge>
+                            // <Badge variant="secondary">{t('common.pending')}</Badge>
+                            <Badge variant="secondary">'common.pending'</Badge>
                           )}
                             <Button 
                               variant="outline" 
