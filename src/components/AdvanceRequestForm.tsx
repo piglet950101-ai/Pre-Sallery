@@ -72,19 +72,34 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
   };
 
   const handleSubmit = () => {
+    // Check if amount exceeds available limit
     if (requestAmount > maxAvailable) {
       toast({
-        title: "Monto excede el límite",
-        description: "El monto solicitado excede tu límite disponible",
+        title: "Monto excede el límite disponible",
+        description: `Solo puedes solicitar hasta $${maxAvailable.toFixed(2)} USD. Ya has usado $${employeeData.usedAmount.toFixed(2)} de tus $${(employeeData.availableAmount + employeeData.usedAmount).toFixed(2)} disponibles.`,
         variant: "destructive"
       });
       return;
     }
 
+    // Check minimum amount
     if (requestAmount < 20) {
       toast({
         title: "Monto mínimo",
         description: "El adelanto mínimo es de $20 USD",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Check if this would exceed the total available amount
+    const totalAfterRequest = employeeData.usedAmount + requestAmount;
+    const maxTotalAvailable = employeeData.availableAmount + employeeData.usedAmount;
+    
+    if (totalAfterRequest > maxTotalAvailable) {
+      toast({
+        title: "Límite excedido",
+        description: `Con esta solicitud usarías $${totalAfterRequest.toFixed(2)} de $${maxTotalAvailable.toFixed(2)} disponibles. Solo puedes solicitar $${maxAvailable.toFixed(2)} USD más.`,
         variant: "destructive"
       });
       return;
@@ -209,7 +224,25 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
             <Progress value={80} className="h-3" />
             <div className="flex justify-between text-xs mt-1 text-muted-foreground">
               <span>Disponible para adelanto (80%)</span>
-              <span>${maxAvailable} USD</span>
+              <span>${(employeeData.availableAmount + employeeData.usedAmount).toFixed(2)} USD</span>
+            </div>
+          </div>
+
+          <div className="animate-slide-up" style={{ animationDelay: '0.15s' }}>
+            <div className="flex justify-between text-sm mb-2">
+              <span className="flex items-center space-x-2">
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
+                <span>Uso de adelantos</span>
+              </span>
+              <span className="font-medium">${employeeData.usedAmount.toFixed(2)} / ${(employeeData.availableAmount + employeeData.usedAmount).toFixed(2)} USD</span>
+            </div>
+            <Progress 
+              value={employeeData.usedAmount > 0 ? (employeeData.usedAmount / (employeeData.availableAmount + employeeData.usedAmount)) * 100 : 0} 
+              className="h-3" 
+            />
+            <div className="flex justify-between text-xs mt-1 text-muted-foreground">
+              <span>Usado: ${employeeData.usedAmount.toFixed(2)}</span>
+              <span>Disponible: ${employeeData.availableAmount.toFixed(2)}</span>
             </div>
           </div>
         </div>
@@ -295,6 +328,21 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
                 <div className="flex items-center space-x-2 mt-2 text-destructive text-sm">
                   <AlertCircle className="h-4 w-4" />
                   <span>Monto excede el límite disponible</span>
+                </div>
+              )}
+              
+              {/* Warning when close to limit */}
+              {requestAmount > 0 && requestAmount <= maxAvailable && (employeeData.usedAmount + requestAmount) > (employeeData.availableAmount + employeeData.usedAmount) * 0.9 && (
+                <div className="flex items-center space-x-2 mt-2 text-orange-600 text-sm">
+                  <AlertCircle className="h-4 w-4" />
+                  <span>Estás cerca de tu límite máximo de adelantos</span>
+                </div>
+              )}
+              
+              {/* Show remaining available amount */}
+              {requestAmount > 0 && requestAmount <= maxAvailable && (
+                <div className="text-xs text-muted-foreground mt-2">
+                  Después de esta solicitud te quedarían ${(maxAvailable - requestAmount).toFixed(2)} USD disponibles
                 </div>
               )}
             </div>

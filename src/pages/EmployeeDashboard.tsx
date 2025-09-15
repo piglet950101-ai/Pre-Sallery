@@ -104,10 +104,15 @@ const EmployeeDashboard = () => {
   
   const monthlySalary = employee?.monthly_salary || 0;
   const earnedAmount = Math.round(((monthlySalary / totalDays) * workedDays) * 100) / 100;
-  const availableAmount = Math.round((earnedAmount * 0.8) * 100) / 100; // 80% of earned amount
+  
+  // Calculate used amount from all non-cancelled advances (completed, pending, processing, approved)
   const usedAmount = Math.round(advanceRequests
-    .filter(req => req.status === 'completed')
+    .filter(req => req.status !== 'cancelled' && req.status !== 'failed')
     .reduce((sum, req) => sum + req.requested_amount, 0) * 100) / 100;
+  
+  // Available amount is 80% of earned amount minus already used advances
+  const maxAvailableAmount = Math.round((earnedAmount * 0.8) * 100) / 100;
+  const availableAmount = Math.max(0, maxAvailableAmount - usedAmount);
   const pendingAdvances = advanceRequests.filter(req => 
     req.status === 'pending' || req.status === 'processing'
   ).length;
