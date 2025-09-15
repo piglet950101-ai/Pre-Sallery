@@ -70,9 +70,10 @@ interface EmployeeInfoFormProps {
   onCancel: () => void;
   isLoading?: boolean;
   initialData?: Partial<EmployeeInfo>;
+  checkEmailDuplicate?: (email: string) => Promise<boolean>;
 }
 
-export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialData }: EmployeeInfoFormProps) => {
+export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialData, checkEmailDuplicate }: EmployeeInfoFormProps) => {
   const { toast } = useToast();
   const [formData, setFormData] = useState<EmployeeInfo>({
     firstName: initialData?.firstName || "",
@@ -126,16 +127,40 @@ export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialD
     }
   };
 
-  const handleNext = () => {
-    if (validateStep(currentStep)) {
-      setCurrentStep(prev => Math.min(prev + 1, totalSteps));
-    } else {
+  const handleNext = async () => {
+    if (!validateStep(currentStep)) {
       toast({
         title: "Información incompleta",
         description: "Por favor completa todos los campos requeridos",
         variant: "destructive"
       });
+      return;
     }
+    // On step 1, check for duplicate email before allowing to proceed
+    if (currentStep === 1 && checkEmailDuplicate) {
+      const email = String(formData.email || '').trim().toLowerCase();
+      if (email) {
+        try {
+          const isDuplicate = await checkEmailDuplicate(email);
+          if (isDuplicate) {
+            toast({
+              title: "Correo duplicado",
+              description: "Este correo ya está registrado para un empleado de la empresa.",
+              variant: "destructive"
+            });
+            return;
+          }
+        } catch (err: any) {
+          toast({
+            title: "Error al validar correo",
+            description: err?.message ?? "Inténtalo nuevamente",
+            variant: "destructive"
+          });
+          return;
+        }
+      }
+    }
+    setCurrentStep(prev => Math.min(prev + 1, totalSteps));
   };
 
   const handlePrevious = () => {

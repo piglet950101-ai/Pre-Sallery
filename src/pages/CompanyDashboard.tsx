@@ -116,6 +116,12 @@ const CompanyDashboard = () => {
   const [invoices, setInvoices] = useState<any[]>([]);
   const [isLoadingInvoices, setIsLoadingInvoices] = useState(false);
   const [billingPeriod, setBillingPeriod] = useState('current');
+  // Export confirmation modal state
+  const [isExportConfirmOpen, setIsExportConfirmOpen] = useState(false);
+  const [pendingExportType, setPendingExportType] = useState<string | null>(null);
+  // Delete employee modal state
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null);
 
   // Filter out cancelled advances
   const activeAdvances = advances.filter(advance => advance.status !== 'cancelled');
@@ -548,6 +554,40 @@ const CompanyDashboard = () => {
       if (companyError || !companyData) {
         throw new Error("No se encontró la información de la empresa");
       }
+
+      // Normalize and validate email
+      const normalizedEmail = String(employeeInfo.email || "").trim().toLowerCase();
+      if (!normalizedEmail || !normalizedEmail.includes('@') || !normalizedEmail.includes('.')) {
+        toast({
+          title: "Email inválido",
+          description: "Ingresa una dirección de correo válida",
+          variant: "destructive"
+        });
+        setIsLoading(false);
+        return;
+      }
+
+      // Check for duplicate email within this company before inserting
+      const { data: existingByEmail, error: dupCheckError } = await supabase
+        .from("employees")
+        .select("id")
+        .eq("company_id", companyData.id)
+        .ilike("email", normalizedEmail)
+        .limit(1);
+
+      if (dupCheckError && dupCheckError.code !== 'PGRST116') {
+        throw new Error(`Error verificando email: ${dupCheckError.message}`);
+      }
+
+      if (Array.isArray(existingByEmail) && existingByEmail.length > 0) {
+        toast({
+          title: "Correo duplicado",
+          description: "Este correo ya está registrado para un empleado de la empresa.",
+          variant: "destructive"
+        });
+        setIsLoading(false);
+        return;
+      }
       
       // Insert employee data into employees table
       const { data: employeeData, error: employeeError } = await supabase
@@ -557,7 +597,7 @@ const CompanyDashboard = () => {
           company_id: companyData.id,
           first_name: employeeInfo.firstName,
           last_name: employeeInfo.lastName,
-          email: employeeInfo.email,
+          email: normalizedEmail,
           phone: employeeInfo.phone || null,
           cedula: employeeInfo.cedula || null,
           birth_date: employeeInfo.birthDate,
@@ -614,6 +654,9 @@ const CompanyDashboard = () => {
         // Don't throw error here, just log it - employee was created successfully
       }
       
+      // Refresh fees after adding new employee fee
+      await fetchEmployeeFees();
+
       // TODO: Send activation code via email/SMS
       // await supabase.functions.invoke('send-activation-code', { 
       //   email: employeeInfo.email, 
@@ -672,6 +715,42 @@ const CompanyDashboard = () => {
       // Fallback to the employee data we already have
       setEditingEmployee(employee);
       setIsEditDialogOpen(true);
+    }
+  };
+
+  const openDeleteEmployee = (employee: Employee) => {
+    setEmployeeToDelete(employee);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteEmployee = async () => {
+    if (!employeeToDelete) return;
+    try {
+      setIsLoading(true);
+      // Soft delete: mark employee inactive, or hard delete if desired
+      const { error } = await supabase
+        .from("employees")
+        .delete()
+        .eq("id", employeeToDelete.id);
+      if (error) throw error;
+
+      // Remove from local state
+      setEmployees(prev => prev.filter(e => e.id !== employeeToDelete.id));
+
+      toast({
+        title: "Empleado eliminado",
+        description: `${employeeToDelete.first_name} ${employeeToDelete.last_name} fue eliminado correctamente`,
+      });
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: err?.message ?? "No se pudo eliminar el empleado",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+      setIsDeleteDialogOpen(false);
+      setEmployeeToDelete(null);
     }
   };
 
@@ -1150,8 +1229,145 @@ const CompanyDashboard = () => {
 
   // Export specific report type
   const exportReport = (type: string) => {
-    setReportType(type);
+    setPendingExportType(type);
+    setIsExportConfirmOpen(true);
+  };
+
+  // Export a PDF mirroring the on-screen "Reporte de Adelantos" summary section
+  const generateAdvancesSectionPDF = () => {
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const marginX = 20;
+    let y = 20;
+
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(16);
+    pdf.text('Reporte de Adelantos', marginX, y);
+    y += 8;
+
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(10);
+    pdf.text('Análisis detallado de solicitudes de adelanto', marginX, y);
+    y += 6;
+    pdf.text(`Fecha de exportación: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, marginX, y);
+    y += 8;
+
+    const summary = {
+      total: activeAdvances.length,
+      approved: activeAdvances.filter(a => a.status === 'completed' || a.status === 'approved').length,
+      pending: activeAdvances.filter(a => a.status === 'pending' || a.status === 'processing').length,
+      rejected: activeAdvances.filter(a => a.status === 'failed').length,
+      average: activeAdvances.length > 0 
+        ? activeAdvances.reduce((s, a) => s + a.requested_amount, 0) / activeAdvances.length 
+        : 0,
+    };
+
+    const rows = [
+      ['Total de solicitudes:', String(summary.total)],
+      ['Solicitudes aprobadas:', String(summary.approved)],
+      ['Solicitudes pendientes:', String(summary.pending)],
+      ['Solicitudes rechazadas:', String(summary.rejected)],
+      ['Monto promedio:', `$${summary.average.toFixed(2)}`],
+    ];
+
+    pdf.setFontSize(11);
+    rows.forEach(([label, value]) => {
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(label, marginX, y);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text(value, marginX + 120, y, { align: 'right' });
+      y += 8;
+    });
+
+    // subtle divider
+    y += 4;
+    pdf.setDrawColor(230);
+    pdf.line(marginX, y, 190, y);
+
+    return pdf;
+  };
+
+  // Export a PDF mirroring the on-screen "Análisis de Uso" summary section
+  const generateAnalyticsSectionPDF = () => {
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const marginX = 20;
+    let y = 20;
+
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(16);
+    pdf.text('Análisis de Uso', marginX, y);
+    y += 8;
+
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(10);
+    pdf.text('Estadísticas de participación y tendencias', marginX, y);
+    y += 6;
+    pdf.text(`Fecha de exportación: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, marginX, y);
+    y += 8;
+
+    const analytics = {
+      participation: `${reportData.employeeParticipationRate.toFixed(1)}%`,
+      mostActiveEmployees: String(reportData.mostActiveEmployees),
+      mostActiveDay: reportData.mostActiveDay,
+      peakHour: reportData.peakHour,
+      monthlyGrowth: `${reportData.monthlyGrowth >= 0 ? '+' : ''}${reportData.monthlyGrowth.toFixed(1)}%`,
+    };
+
+    const rows: Array<[string, string]> = [
+      ['Tasa de participación:', analytics.participation],
+      ['Empleados más activos:', analytics.mostActiveEmployees],
+      ['Día más activo:', analytics.mostActiveDay],
+      ['Horario pico:', analytics.peakHour],
+      ['Crecimiento mensual:', analytics.monthlyGrowth],
+    ];
+
+    pdf.setFontSize(11);
+    rows.forEach(([label, value]) => {
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(label, marginX, y);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text(String(value), marginX + 120, y, { align: 'right' });
+      y += 8;
+    });
+
+    // subtle divider
+    y += 4;
+    pdf.setDrawColor(230);
+    pdf.line(marginX, y, 190, y);
+
+    return pdf;
+  };
+
+  const confirmExport = () => {
+    if (!pendingExportType) {
+      setIsExportConfirmOpen(false);
+      return;
+    }
+    // For advances button: export a PDF summary matching the on-screen section format
+    if (pendingExportType === 'advances') {
+      setIsExportConfirmOpen(false);
+      const fileName = `Reporte_Adelantos_${format(new Date(), 'yyyy-MM-dd')}.pdf`;
+      const pdf = generateAdvancesSectionPDF();
+      pdf.save(fileName);
+      setPendingExportType(null);
+      return;
+    }
+    if (pendingExportType === 'analytics') {
+      setIsExportConfirmOpen(false);
+      const fileName = `Analisis_de_Uso_${format(new Date(), 'yyyy-MM-dd')}.pdf`;
+      const pdf = generateAnalyticsSectionPDF();
+      pdf.save(fileName);
+      setPendingExportType(null);
+      return;
+    }
+    setReportType(pendingExportType);
+    setIsExportConfirmOpen(false);
     generateReport();
+    setPendingExportType(null);
+  };
+
+  const cancelExport = () => {
+    setIsExportConfirmOpen(false);
+    setPendingExportType(null);
   };
 
   // Generate PDF report using jsPDF
@@ -1174,27 +1390,29 @@ const CompanyDashboard = () => {
     pdf.text(`${companyName} - RIF: ${companyRif}`, 20, 28);
     pdf.text(`Generado: ${format(currentDate, 'dd/MM/yyyy HH:mm')}`, 20, 34);
     
-    // Simple summary
-    pdf.setFontSize(12);
-    pdf.setFont('helvetica', 'bold');
-    pdf.text('Resumen', 20, 45);
-    
-    pdf.setFontSize(10);
-    pdf.setFont('helvetica', 'normal');
-    pdf.text(`Total de registros: ${data.length}`, 20, 52);
-    pdf.text(`Período: ${reportPeriod}`, 20, 58);
-    
-    // Add basic stats if we have data
-    if (data.length > 0) {
-      const totalAmount = data.reduce((sum, row) => {
-        const amount = parseFloat(String(row['Monto Solicitado'] || row['Monto Adelanto'] || 0));
-        return sum + (isNaN(amount) ? 0 : amount);
-      }, 0);
-      
-      const avgAmount = totalAmount / data.length;
-      
-      pdf.text(`Monto total: $${totalAmount.toFixed(2)}`, 20, 64);
-      pdf.text(`Promedio: $${avgAmount.toFixed(2)}`, 20, 70);
+    // Summary: include for analytics and other types, but not for 'advances'
+    if (type !== 'advances') {
+      pdf.setFontSize(12);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Resumen', 20, 45);
+
+      pdf.setFontSize(10);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(`Total de registros: ${data.length}`, 20, 52);
+      pdf.text(`Período: ${reportPeriod}`, 20, 58);
+
+      // Add basic stats if we have data
+      if (data.length > 0) {
+        const totalAmount = data.reduce((sum, row) => {
+          const amount = parseFloat(String(row['Monto Solicitado'] || row['Monto Adelanto'] || 0));
+          return sum + (isNaN(amount) ? 0 : amount);
+        }, 0);
+
+        const avgAmount = totalAmount / data.length;
+
+        pdf.text(`Monto total: $${totalAmount.toFixed(2)}`, 20, 64);
+        pdf.text(`Promedio: $${avgAmount.toFixed(2)}`, 20, 70);
+      }
     }
     
     // Add data table if there's data
@@ -1230,7 +1448,7 @@ const CompanyDashboard = () => {
           pdf.autoTable({
             head: [headers],
             body: tableData,
-            startY: 80,
+            startY: type !== 'advances' ? 80 : 50,
             styles: {
               fontSize: 8,
               cellPadding: 3,
@@ -1386,6 +1604,44 @@ const CompanyDashboard = () => {
       <Header />
 
       <div className="container mx-auto px-4 py-8 space-y-8">
+        {/* Delete employee confirmation */}
+        <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Eliminar empleado</DialogTitle>
+              <DialogDescription>
+                ¿Seguro que deseas eliminar a {employeeToDelete ? `${employeeToDelete.first_name} ${employeeToDelete.last_name}` : 'este empleado'}? Esta acción no se puede deshacer.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="flex gap-2 sm:gap-0">
+              <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)} className="flex-1 sm:flex-none">
+                Cancelar
+              </Button>
+              <Button variant="destructive" onClick={confirmDeleteEmployee} className="flex-1 sm:flex-none">
+                Eliminar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+        {/* Export confirmation modal */}
+        <Dialog open={isExportConfirmOpen} onOpenChange={setIsExportConfirmOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Confirmar exportación</DialogTitle>
+              <DialogDescription>
+                ¿Deseas exportar {pendingExportType === 'analytics' ? 'el análisis' : 'el reporte de adelantos'} en el formato seleccionado?
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="flex gap-2 sm:gap-0">
+              <Button variant="outline" onClick={cancelExport} className="flex-1 sm:flex-none">
+                Cancelar
+              </Button>
+              <Button onClick={confirmExport} className="flex-1 sm:flex-none">
+                Aceptar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
           <Card className="border-none shadow-card">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -1788,6 +2044,28 @@ const CompanyDashboard = () => {
                           onSave={handleEmployeeSave}
                           onCancel={() => setIsDialogOpen(false)}
                           isLoading={isLoading}
+                          checkEmailDuplicate={async (email: string) => {
+                            try {
+                              // Get current user and company
+                              const { data: { user } } = await supabase.auth.getUser();
+                              if (!user) return false;
+                              const { data: companyData } = await supabase
+                                .from("companies")
+                                .select("id")
+                                .eq("auth_user_id", user.id)
+                                .single();
+                              if (!companyData) return false;
+                              const { data: existing } = await supabase
+                                .from("employees")
+                                .select("id")
+                                .eq("company_id", companyData.id)
+                                .ilike("email", email)
+                                .limit(1);
+                              return Array.isArray(existing) && existing.length > 0;
+                            } catch {
+                              return false;
+                            }
+                          }}
                         />
                       </DialogContent>
                     </Dialog>
@@ -1842,6 +2120,13 @@ const CompanyDashboard = () => {
                               onClick={() => handleEditEmployee(employee)}
                             >
                               {t('common.edit')}
+                            </Button>
+                            <Button 
+                              variant="destructive" 
+                              size="sm"
+                              onClick={() => openDeleteEmployee(employee)}
+                            >
+                              Eliminar
                             </Button>
                         </div>
                       </div>
