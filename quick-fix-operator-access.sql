@@ -23,3 +23,4 @@ SELECT COUNT(*) as employee_count FROM public.employees;
 SELECT COUNT(*) as company_count FROM public.companies;
 
 
+

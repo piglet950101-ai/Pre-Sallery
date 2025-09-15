@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { EmployeeInfoForm } from "@/components/EmployeeInfoForm";
+import Header from "@/components/Header";
 import { 
   Users, 
   DollarSign, 
@@ -836,32 +837,7 @@ const CompanyDashboard = () => {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="border-b bg-background/80 backdrop-blur-md sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <div className="h-8 w-8 bg-gradient-primary rounded-lg flex items-center justify-center">
-                <DollarSign className="h-5 w-5 text-white" />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold">{companyData.name}</h1>
-                <p className="text-sm text-muted-foreground">{t('company.panel')}</p>
-              </div>
-            </div>
-            <div className="flex items-center space-x-3">
-              <Button variant="outline" size="sm" asChild>
-                <Link to="/company/configuration">
-                  <Settings className="h-4 w-4 mr-2" />
-                  {t('company.configuration')}
-                </Link>
-              </Button>
-              <Button variant="outline" asChild>
-                <Link to="/">{t('dashboard.logout')}</Link>
-              </Button>
-            </div>
-          </div>
-        </div>
-      </header>
+      <Header />
 
       <div className="container mx-auto px-4 py-8 space-y-8">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

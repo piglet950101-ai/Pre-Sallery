@@ -35,3 +35,4 @@ JOIN public.user_roles ur ON ur.user_id = u.id
 WHERE u.email = 'admin@presallery.com';
 
 
+

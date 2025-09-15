@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import Header from "@/components/Header";
 
 const About = () => {
   const { t } = useLanguage();
@@ -77,27 +77,7 @@ const About = () => {
   return (
     <div className="min-h-screen bg-background">
       {/* Navigation */}
-      <nav className="border-b bg-background/95 backdrop-blur-md sticky top-0 z-50 shadow-sm">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <Link to="/" className="flex items-center space-x-2">
-              <div className="h-8 w-8 bg-gradient-primary rounded-lg flex items-center justify-center">
-                <DollarSign className="h-5 w-5 text-white" />
-              </div>
-              <span className="text-xl font-bold text-foreground">AvancePay</span>
-            </Link>
-            <div className="flex items-center space-x-3">
-              <LanguageSwitcher />
-              <Button variant="ghost" asChild>
-                <Link to="/login">{t('nav.login')}</Link>
-              </Button>
-              <Button variant="premium" asChild>
-                <Link to="/register">{t('nav.getStarted')}</Link>
-              </Button>
-            </div>
-          </div>
-        </div>
-      </nav>
+      <Header showNavigation={false} />
 
       <div className="container mx-auto px-4 py-16">
         {/* Hero Section */}

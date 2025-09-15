@@ -31,7 +31,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Link } from "react-router-dom";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import Header from "@/components/Header";
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import * as XLSX from 'xlsx';
@@ -402,35 +402,7 @@ const EmployeeDashboard = () => {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="border-b bg-background/80 backdrop-blur-md sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <div className="h-8 w-8 bg-gradient-primary rounded-lg flex items-center justify-center">
-                <DollarSign className="h-5 w-5 text-white" />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold">{t('employee.welcome').replace('{name}', employeeName)}</h1>
-                <p className="text-sm text-muted-foreground">{t('employee.panel')}</p>
-              </div>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={refreshData}
-                disabled={isRefreshing}
-              >
-                <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
-                Actualizar
-              </Button>
-            <Button variant="outline" asChild>
-              <Link to="/">{t('dashboard.logout')}</Link>
-            </Button>
-            </div>
-          </div>
-        </div>
-      </header>
+      <Header />
 
       <div className="container mx-auto px-4 py-8 space-y-8">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

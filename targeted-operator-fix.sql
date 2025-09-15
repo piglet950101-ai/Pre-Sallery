@@ -43,3 +43,4 @@ SELECT 'Testing access to companies...' as test;
 SELECT COUNT(*) as total_companies FROM public.companies;
 
 
+

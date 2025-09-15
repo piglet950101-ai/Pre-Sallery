@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import Header from "@/components/Header";
 import heroBgVenezuela from "@/assets/hero-bg-venezuela.jpg";
 import featuresBgPattern from "@/assets/features-bg-pattern.jpg";
 
@@ -31,34 +31,7 @@ const Landing = () => {
   return (
     <div className="min-h-screen bg-background">
       {/* Navigation */}
-      <nav className="border-b bg-background/95 backdrop-blur-md sticky top-0 z-50 shadow-sm">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <div className="h-8 w-8 bg-gradient-primary rounded-lg flex items-center justify-center">
-                <DollarSign className="h-5 w-5 text-white" />
-              </div>
-              <span className="text-xl font-bold text-foreground">AvancePay</span>
-              <Badge variant="secondary" className="ml-2">Venezuela</Badge>
-            </div>
-            <div className="hidden md:flex items-center space-x-8">
-              <a href="#features" className="text-muted-foreground hover:text-foreground transition-colors">{t('nav.features')}</a>
-              <a href="#how-it-works" className="text-muted-foreground hover:text-foreground transition-colors">{t('nav.howItWorks')}</a>
-              <a href="#pricing" className="text-muted-foreground hover:text-foreground transition-colors">{t('nav.pricing')}</a>
-              <a href="#testimonials" className="text-muted-foreground hover:text-foreground transition-colors">{t('nav.testimonials')}</a>
-            </div>
-            <div className="flex items-center space-x-3">
-              <LanguageSwitcher />
-              <Button variant="ghost" asChild>
-                <Link to="/login">{t('nav.login')}</Link>
-              </Button>
-              <Button variant="premium" asChild>
-                <Link to="/register">{t('nav.getStarted')}</Link>
-              </Button>
-            </div>
-          </div>
-        </div>
-      </nav>
+      <Header showNavigation={true} />
 
       {/* Hero Section */}
       <section className="relative py-24 px-4 bg-gradient-hero overflow-hidden">

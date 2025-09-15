@@ -39,3 +39,4 @@ SELECT 'Testing with RLS enabled...' as test;
 SELECT COUNT(*) as total_advances FROM public.advance_transactions;
 
 
+

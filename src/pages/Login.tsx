@@ -69,12 +69,39 @@ const Login = () => {
       const pathByRole = role === 'company' ? '/company' : role === 'employee' ? '/employee' : role === 'operator' ? '/operator' : fallbackRedirect;
       console.log("Redirecting to:", pathByRole);
       navigate(pathByRole);
-      toast({ title: t('login.successTitle') ?? 'Inicio de sesión exitoso' });
+      toast({ title: t('login.success') ?? 'Inicio de sesión exitoso' });
     } catch (err: any) {
       console.error("Login error:", err);
+      
+      // Check for specific error types
+      let errorTitle = t('login.errorTitle') ?? 'Error al iniciar sesión';
+      let errorDescription = err?.message ?? 'Revisa tus credenciales';
+      
+      // Handle specific error types
+      if (err?.message?.includes('Invalid login credentials') || 
+          err?.message?.includes('Invalid credentials') ||
+          err?.message?.includes('Wrong password') ||
+          err?.message?.includes('incorrect password') ||
+          err?.message?.includes('Invalid password') ||
+          err?.status === 400) {
+        errorTitle = t('login.incorrectPassword') ?? 'Incorrect Password';
+        errorDescription = t('login.incorrectPasswordDesc') ?? 'The password you entered is incorrect. Please try again.';
+      } else if (err?.message?.includes('User not found') ||
+                 err?.message?.includes('No user found') ||
+                 err?.message?.includes('Email not found')) {
+        errorTitle = t('login.userNotFound') ?? 'User Not Found';
+        errorDescription = t('login.userNotFoundDesc') ?? 'No account found with this email address. Please check your email or create a new account.';
+      } else if (err?.message?.includes('Too many requests') ||
+                 err?.message?.includes('Rate limit') ||
+                 err?.message?.includes('Too many attempts')) {
+        errorTitle = t('login.tooManyRequests') ?? 'Too Many Attempts';
+        errorDescription = t('login.tooManyRequestsDesc') ?? 'Too many login attempts. Please wait a few minutes before trying again.';
+      }
+      
       toast({
-        title: t('login.errorTitle') ?? 'Error al iniciar sesión',
-        description: err?.message ?? 'Revisa tus credenciales',
+        title: errorTitle,
+        description: errorDescription,
+        variant: "destructive"
       });
     } finally {
       setIsLoading(false);

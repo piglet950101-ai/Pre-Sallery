@@ -33,6 +33,7 @@ import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
+import Header from "@/components/Header";
 
 const OperatorDashboard = () => {
   const { toast } = useToast();
@@ -798,42 +799,9 @@ const OperatorDashboard = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Debug Info */}
-      {user && (
-        <div className="bg-yellow-100 border border-yellow-300 p-2 text-xs">
-          <strong>Debug:</strong> User: {user.email} | 
-          Role: {(user.user_metadata as any)?.role || (user.app_metadata as any)?.role || 'none'} |
-          ID: {user.id} |
-          User Metadata: {JSON.stringify(user.user_metadata)} |
-          App Metadata: {JSON.stringify(user.app_metadata)}
-        </div>
-      )}
-      
+     
       {/* Header */}
-      <header className="border-b bg-background/80 backdrop-blur-md sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <div className="h-8 w-8 bg-gradient-primary rounded-lg flex items-center justify-center">
-                <DollarSign className="h-5 w-5 text-white" />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold">Panel de Operaciones</h1>
-                <p className="text-sm text-muted-foreground">Procesamiento manual de adelantos</p>
-              </div>
-            </div>
-            <div className="flex items-center space-x-3">
-              <Badge variant="outline" className="flex items-center space-x-1">
-                <Clock className="h-3 w-3" />
-                <span>Próximo lote: 3:00 PM</span>
-              </Badge>
-              <Button variant="outline" asChild>
-                <a href="/">Cerrar Sesión</a>
-              </Button>
-            </div>
-          </div>
-        </div>
-      </header>
+      <Header />
 
       <div className="container mx-auto px-4 py-8 space-y-8">
         {/* Summary Cards */}
