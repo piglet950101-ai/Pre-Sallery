@@ -38,7 +38,7 @@ interface AdvanceRequestFormProps {
 }
 
 export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingAdvanceRequests = [] }: AdvanceRequestFormProps) => {
-  const [requestAmount, setRequestAmount] = useState<number>(50);
+  const [requestAmount, setRequestAmount] = useState<number>(20);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const { toast } = useToast();
@@ -62,7 +62,7 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
   const calculateFee = (amount: number) => Math.max(amount * feeRate, minFee);
   const netAmount = requestAmount - calculateFee(requestAmount);
 
-  const quickAmounts = [50, 100, 200, Math.floor(maxAvailable)];
+  const quickAmounts = [20, 50, 100, 200, Math.floor(maxAvailable)];
 
   const handleQuickAmount = (amount: number) => {
     setRequestAmount(Math.min(amount, maxAvailable));
@@ -330,7 +330,7 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
                   onChange={(e) => handleAmountChange(e.target.value)}
                   className="pl-10 h-12 text-lg font-semibold"
                   placeholder="0.00"
-                  min="1"
+                  min="20"
                   max={maxAvailable}
                   step="0.01"
                   disabled={hasPendingAdvance}
@@ -348,6 +348,17 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
                 <div className="flex items-center space-x-2 mt-2 text-orange-600 text-sm">
                   <AlertCircle className="h-4 w-4" />
                   <span>{t('employee.nearLimit') || 'You are close to your maximum advance limit'}</span>
+                </div>
+              )}
+              
+              {/* Warning when requesting minimum amount */}
+              {requestAmount > 0 && requestAmount <= maxAvailable && requestAmount <= 20 && (
+                <div className="flex items-start space-x-2 mt-2 text-blue-600 text-sm">
+                  <AlertCircle className="h-4 w-4 mt-0.5" />
+                  <div>
+                    <div className="font-medium">{t('employee.minimumAmount') || 'You are requesting a minimum amount'}</div>
+                    <div className="text-xs text-blue-500 mt-1">{t('employee.minimumAmountDesc') || 'Consider requesting a higher amount to maximize your advance benefit'}</div>
+                  </div>
                 </div>
               )}
               
@@ -399,7 +410,7 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
               className="w-full h-12 text-base font-semibold" 
               variant="hero" 
               onClick={handleSubmit}
-              disabled={isSubmitting || requestAmount <= 0 || requestAmount > maxAvailable || hasPendingAdvance}
+              disabled={isSubmitting || requestAmount < 20 || requestAmount > maxAvailable || hasPendingAdvance}
             >
               {isSubmitting ? (
                 <div className="flex items-center space-x-2">
@@ -437,7 +448,7 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
               <span>{t('employee.confirmRequestTitle') || 'Confirm Advance Request'}</span>
             </DialogTitle>
             <DialogDescription>
-              Por favor, revisa los detalles de tu solicitud antes de confirmar.
+              {t('employee.confirmDialogDesc') || 'Please review your request details before confirming.'}
             </DialogDescription>
           </DialogHeader>
           

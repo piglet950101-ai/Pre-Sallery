@@ -239,21 +239,48 @@ const CompanyDashboard = () => {
     return currentMonthUnpaidAdvances + currentMonthUnpaidFees;
   };
 
-  // Compute next due date (biweekly: 1st and 15th of each month)
+  // Compute next due date (twice a month: 15th and end of month)
   const computeNextDueDate = () => {
     try {
       const now = new Date();
       const dayOfMonth = now.getDate();
       let nextDue: Date;
+      
       if (dayOfMonth <= 15) {
+        // First billing period: charge on 15th
         nextDue = new Date(now.getFullYear(), now.getMonth(), 15);
       } else {
-        nextDue = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+        // Second billing period: charge on last day of month
+        nextDue = new Date(now.getFullYear(), now.getMonth() + 1, 0);
       }
       return nextDue.toISOString().split('T')[0];
     } catch (e) {
       // Fallback to today if any unexpected error occurs
       return new Date().toISOString().split('T')[0];
+    }
+  };
+
+  // Determine current billing period
+  const getCurrentBillingPeriod = () => {
+    const now = new Date();
+    const dayOfMonth = now.getDate();
+    
+    if (dayOfMonth <= 15) {
+      return {
+        period: 'first',
+        startDate: new Date(now.getFullYear(), now.getMonth(), 1),
+        endDate: new Date(now.getFullYear(), now.getMonth(), 15),
+        dueDate: new Date(now.getFullYear(), now.getMonth(), 15),
+        description: '1-15th of month'
+      };
+    } else {
+      return {
+        period: 'second',
+        startDate: new Date(now.getFullYear(), now.getMonth(), 16),
+        endDate: new Date(now.getFullYear(), now.getMonth() + 1, 0),
+        dueDate: new Date(now.getFullYear(), now.getMonth() + 1, 0),
+        description: '16th-end of month'
+      };
     }
   };
 
@@ -402,7 +429,56 @@ const CompanyDashboard = () => {
     }
   }, [paymentHistory.length, paymentsPerPage]);
 
-  // Calculate current month unpaid amounts
+  // Calculate current billing period amounts based on new logic
+  const currentBillingPeriod = getCurrentBillingPeriod();
+  
+  // Calculate advances for current billing period
+  const currentPeriodUnpaidAdvances = unpaidAdvances
+    .filter(advance => {
+      const advanceDate = new Date(advance.created_at);
+      return advanceDate >= currentBillingPeriod.startDate && advanceDate <= currentBillingPeriod.endDate;
+    })
+    .reduce((sum, advance) => sum + advance.requested_amount, 0);
+
+  // Calculate employee fees for current billing period
+  let currentPeriodUnpaidFees = 0;
+  
+  // Calculate monthly employee fees ($1 per active employee per month)
+  const activeEmployeesCount = employees.filter(emp => emp.is_active).length;
+  const monthlyEmployeeFees = activeEmployeesCount * 1.00; // $1 per employee per month
+  
+  if (currentBillingPeriod.period === 'second') {
+    // Second billing period: charge remaining monthly employee fees + advances fees
+    // For second period, charge the remaining half of monthly employee fees
+    const remainingEmployeeFees = monthlyEmployeeFees / 2; // Half of monthly fee
+    currentPeriodUnpaidFees = remainingEmployeeFees;
+    
+    // Add advances fees for this period
+    const advancesFees = unpaidAdvances
+      .filter(advance => {
+        const advanceDate = new Date(advance.created_at);
+        return advanceDate >= currentBillingPeriod.startDate && advanceDate <= currentBillingPeriod.endDate;
+      })
+      .reduce((sum, advance) => sum + (advance.fee_amount || 0), 0);
+    
+    currentPeriodUnpaidFees += advancesFees;
+  } else {
+    // First billing period: charge first half of monthly employee fees + advances fees
+    const firstHalfEmployeeFees = monthlyEmployeeFees / 2; // Half of monthly fee
+    currentPeriodUnpaidFees = firstHalfEmployeeFees;
+    
+    // Add advances fees for this period
+    const advancesFees = unpaidAdvances
+      .filter(advance => {
+        const advanceDate = new Date(advance.created_at);
+        return advanceDate >= currentBillingPeriod.startDate && advanceDate <= currentBillingPeriod.endDate;
+      })
+      .reduce((sum, advance) => sum + (advance.fee_amount || 0), 0);
+    
+    currentPeriodUnpaidFees += advancesFees;
+  }
+
+  // Legacy calculations for backward compatibility
   const currentMonthUnpaidAdvances = unpaidAdvances
     .filter(advance => {
       const advanceDate = new Date(advance.created_at);
@@ -419,15 +495,16 @@ const CompanyDashboard = () => {
     })
     .reduce((sum, fee) => sum + fee.fee_amount, 0);
 
-  // Billing data calculations - use only UNPAID amounts
+  // Billing data calculations - use new period-based amounts
   const billingData = {
-    currentMonthFees: currentMonthUnpaidFees,
-    currentMonthAdvances: currentMonthUnpaidAdvances,
-    currentMonthRegistrationFees: currentMonthUnpaidFees,
-    totalOutstanding: currentMonthUnpaidAdvances + currentMonthUnpaidFees,
+    currentMonthFees: currentPeriodUnpaidFees,
+    currentMonthAdvances: currentPeriodUnpaidAdvances,
+    currentMonthRegistrationFees: currentPeriodUnpaidFees,
+    totalOutstanding: currentPeriodUnpaidAdvances + currentPeriodUnpaidFees,
     lastPaymentDate: lastPaymentDate || '2024-01-15',
     nextDueDate: computeNextDueDate(),
-    paymentHistory: paymentHistory
+    paymentHistory: paymentHistory,
+    billingPeriod: currentBillingPeriod
   };
 
   // Initialize totalOutstanding when component mounts
@@ -439,9 +516,9 @@ const CompanyDashboard = () => {
 
   // Update totalOutstanding when unpaid amounts change
   useEffect(() => {
-    const newTotal = currentMonthUnpaidAdvances + currentMonthUnpaidFees;
+    const newTotal = currentPeriodUnpaidAdvances + currentPeriodUnpaidFees;
     setTotalOutstanding(newTotal);
-  }, [currentMonthUnpaidAdvances, currentMonthUnpaidFees]);
+  }, [currentPeriodUnpaidAdvances, currentPeriodUnpaidFees]);
 
   // Create initial payment records for testing
   const createInitialPayments = async () => {
@@ -3083,21 +3160,45 @@ const CompanyDashboard = () => {
                       </div>
                       <div className="flex justify-between items-center border-t pt-2">
                         <span className="text-sm font-medium">{t('company.billing.totalBilling')}:</span>
-                        <span className="font-bold text-lg">${billingData.currentMonthAdvances.toFixed(2)}</span>
+                        <span className="font-bold text-lg">${billingData.totalOutstanding.toFixed(2)}</span>
                       </div>
                     </div>
                   </div>
 
                   <div className="space-y-4">
-                    <h4 className="font-semibold">{t('company.billing.registrationFees')}</h4>
+                    <h4 className="font-semibold">
+                      {t('company.billing.employeeFees')} & {t('company.billing.advancesFees')}
+                    </h4>
                     <div className="space-y-3">
                       <div className="flex justify-between items-center">
                         <span className="text-sm text-muted-foreground">{t('company.billing.registeredEmployees')}:</span>
-                        <span className="font-medium">{unpaidEmployeeFees.length}</span>
+                        <span className="font-medium">{activeEmployeesCount}</span>
                       </div>
                       <div className="flex justify-between items-center">
-                        <span className="text-sm text-muted-foreground">{t('company.billing.feePerEmployee')}:</span>
-                        <span className="font-medium">$1.00</span>
+                        <span className="text-sm text-muted-foreground">{t('company.billing.feePerEmployeeMonth')}</span>
+                        <span className="font-medium">$1.00/month</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">
+                          {billingData.billingPeriod.period === 'first' 
+                            ? t('company.billing.firstHalf')
+                            : t('company.billing.secondHalf')}
+                        </span>
+                        <span className="font-medium">
+                          ${(activeEmployeesCount * 1.00 / 2).toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">{t('company.billing.advancesFees')}:</span>
+                        <span className="font-medium">
+                          ${unpaidAdvances
+                            .filter(advance => {
+                              const advanceDate = new Date(advance.created_at);
+                              return advanceDate >= billingData.billingPeriod.startDate && advanceDate <= billingData.billingPeriod.endDate;
+                            })
+                            .reduce((sum, advance) => sum + (advance.fee_amount || 0), 0)
+                            .toFixed(2)}
+                        </span>
                       </div>
                       <div className="flex justify-between items-center border-t pt-2">
                         <span className="text-sm font-medium">{t('company.billing.totalFees')}:</span>
@@ -3308,7 +3409,11 @@ const CompanyDashboard = () => {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-sm text-muted-foreground">{t('company.billing.billingPeriod')}</span>
-                        <span className="text-sm font-medium">{t('company.billing.biweekly')}</span>
+                        <span className="text-sm font-medium">
+                          {billingData.billingPeriod.period === 'first' 
+                            ? t('company.billing.firstPeriod') 
+                            : t('company.billing.secondPeriod')}
+                        </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-sm text-muted-foreground">{t('company.billing.paymentMethodLabelFull')}</span>

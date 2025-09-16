@@ -983,7 +983,7 @@ const OperatorDashboard = () => {
 
           <Card className="border-none shadow-card">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">{t('company.billing.registrationFees')}</CardTitle>
+              <CardTitle className="text-sm font-medium">{t('company.billing.monthlyEmployeeFees') || 'Monthly Employee Fees'}</CardTitle>
               <Users className="h-4 w-4 text-indigo-600" />
             </CardHeader>
             <CardContent>
@@ -991,7 +991,7 @@ const OperatorDashboard = () => {
                 ${isLoadingEmployeeFees ? '...' : totalEmployeeRegistrationFees.toFixed(2)}
               </div>
               <p className="text-xs text-muted-foreground">
-                {isLoadingEmployeeFees ? '...' : `${employeeFees.length} empleados registrados`}
+                {isLoadingEmployeeFees ? '...' : `${employeeFees.length} ${t('operator.activeEmployees') || 'active employees'}`}
               </p>
             </CardContent>
           </Card>
@@ -1060,7 +1060,7 @@ const OperatorDashboard = () => {
                       )}
                     </Button>
                     <div className="text-sm text-muted-foreground">
-                      {selectedAdvances.size} de {pendingAdvances.length} adelantos seleccionados
+                      {selectedAdvances.size} {t('common.of')} {pendingAdvances.length} {t('operator.pendingAdvances').toLowerCase()}
                     </div>
                   </div>
                 )}
@@ -1122,12 +1122,12 @@ const OperatorDashboard = () => {
                                 {t('company.reports.commissions')}: ${advance.fee_amount.toFixed(2)}
                           </div>
                               <div className="text-sm text-primary font-medium">
-                                Neto: ${advance.net_amount.toFixed(2)}
-                      </div>
+                                {t('common.netAmount')}: ${advance.net_amount.toFixed(2)}
+                              </div>
                     </div>
                             <div className="text-right">
                               <div className="text-sm text-muted-foreground">{formattedTime}</div>
-                              <Badge variant="secondary">Aprobado</Badge>
+                              <Badge variant="secondary">{t('company.approved')}</Badge>
                       </div>
                     </div>
                   </div>
@@ -1438,6 +1438,9 @@ const OperatorDashboard = () => {
                         </div>
                         <div className="text-right">
                           <div className="font-bold text-lg text-primary">${fee.fee_amount.toFixed(2)}</div>
+                          <div className="text-xs text-muted-foreground mb-1">
+                            {t('operator.monthlyFee') || 'Monthly fee'}
+                          </div>
                           <Badge 
                             variant={fee.status === 'paid' ? 'default' : fee.status === 'overdue' ? 'destructive' : 'secondary'}
                             className="text-xs"
