@@ -331,7 +331,7 @@ const CompanyDashboard = () => {
         .single();
       
       if (companyError || !companyData) {
-        throw new Error("No se pudo obtener la información de la empresa");
+        throw new Error(t('company.billing.couldNotLoadEmployees'));
       }
       
       // Fetch payments for this company
@@ -342,7 +342,7 @@ const CompanyDashboard = () => {
         .order("created_at", { ascending: false });
       
       if (paymentsError) {
-        throw new Error("Error al cargar el historial de pagos");
+        throw new Error(t('company.billing.couldNotLoadPayments'));
       }
       
       // Transform data for UI
@@ -382,8 +382,8 @@ const CompanyDashboard = () => {
     } catch (error: any) {
       console.error('Error fetching payment history:', error);
       toast({
-        title: "Error",
-        description: "No se pudo cargar el historial de pagos",
+        title: t('company.billing.error'),
+        description: t('company.billing.couldNotLoadPayments'),
         variant: "destructive"
       });
     } finally {
@@ -523,7 +523,7 @@ const CompanyDashboard = () => {
           .single();
         
         if (companyError || !companyData) {
-          throw new Error("No se encontró la información de la empresa");
+          throw new Error(t('company.billing.couldNotLoadEmployees'));
         }
         
         companyId = companyData.id;
@@ -714,7 +714,7 @@ const CompanyDashboard = () => {
         .single();
       
       if (companyError || !companyData) {
-        throw new Error("No se encontró la información de la empresa");
+        throw new Error(t('company.billing.couldNotLoadEmployees'));
       }
       
       // Fetch employees for this company
@@ -764,7 +764,7 @@ const CompanyDashboard = () => {
         .single();
       
       if (companyError || !companyData) {
-        throw new Error("No se encontró la información de la empresa");
+        throw new Error(t('company.billing.couldNotLoadEmployees'));
       }
       
       // Fetch employee fees for this company
@@ -818,15 +818,15 @@ const CompanyDashboard = () => {
         .single();
       
       if (companyError || !companyData) {
-        throw new Error("No se encontró la información de la empresa");
+        throw new Error(t('company.billing.couldNotLoadEmployees'));
       }
 
       // Normalize and validate email
       const normalizedEmail = String(employeeInfo.email || "").trim().toLowerCase();
       if (!normalizedEmail || !normalizedEmail.includes('@') || !normalizedEmail.includes('.')) {
         toast({
-          title: "Email inválido",
-          description: "Ingresa una dirección de correo válida",
+          title: t('company.billing.invalidEmail'),
+          description: t('company.billing.invalidEmailDesc'),
           variant: "destructive"
         });
         setIsLoading(false);
@@ -847,8 +847,8 @@ const CompanyDashboard = () => {
 
       if (Array.isArray(existingByEmail) && existingByEmail.length > 0) {
         toast({
-          title: "Correo duplicado",
-          description: "Este correo ya está registrado para un empleado de la empresa.",
+          title: t('company.billing.duplicateEmail'),
+          description: t('company.billing.duplicateEmailDesc'),
           variant: "destructive"
         });
         setIsLoading(false);
@@ -931,8 +931,8 @@ const CompanyDashboard = () => {
       // });
       
       toast({
-        title: "Empleado agregado exitosamente",
-        description: `Se ha enviado un código de activación (${activationCode}) a ${employeeInfo.email}. Se ha agregado una tarifa de registro de $1 USD por este empleado.`,
+        title: t('company.billing.employeeAdded'),
+        description: t('company.billing.employeeAddedDesc'),
       });
       
       // Refresh employee list
@@ -1004,8 +1004,8 @@ const CompanyDashboard = () => {
       setEmployees(prev => prev.filter(e => e.id !== employeeToDelete.id));
 
       toast({
-        title: "Empleado eliminado",
-        description: `${employeeToDelete.first_name} ${employeeToDelete.last_name} fue eliminado correctamente`,
+        title: t('company.billing.employeeDeleted'),
+        description: `${employeeToDelete.first_name} ${employeeToDelete.last_name} ${t('company.billing.employeeDeletedDesc')}`,
       });
     } catch (err: any) {
       toast({
@@ -1025,7 +1025,7 @@ const CompanyDashboard = () => {
       setIsLoading(true);
       
       if (!editingEmployee) {
-        throw new Error("No se encontró el empleado a editar");
+        throw new Error(t('company.billing.couldNotUpdateEmployees'));
       }
       
       // Update employee data in Supabase
@@ -1068,8 +1068,8 @@ const CompanyDashboard = () => {
       }
       
       toast({
-        title: "Empleado actualizado exitosamente",
-        description: `La información de ${employeeInfo.firstName} ${employeeInfo.lastName} ha sido actualizada`,
+        title: t('company.billing.dataUpdated'),
+        description: t('company.billing.dataUpdatedDesc'),
       });
       
       // Refresh employee list
@@ -1299,41 +1299,37 @@ const CompanyDashboard = () => {
   const exportToExcel = () => {
     if (filteredAdvances.length === 0) {
       toast({
-        title: "No hay datos",
-        description: "No hay adelantos para exportar en el rango seleccionado",
+        title: t('common.noData'),
+        description: t('common.noDataToExport'),
         variant: "destructive"
       });
       return;
     }
 
     const exportData = filteredAdvances.map(advance => ({
-      'Fecha': format(new Date(advance.created_at), 'dd/MM/yyyy HH:mm'),
-      'Empleado': `${advance.employees.first_name} ${advance.employees.last_name}`,
-      'Email': advance.employees.email,
-      'Monto Solicitado': `$${advance.requested_amount.toFixed(2)}`,
-      'Comisión': `$${advance.fee_amount.toFixed(2)}`,
-      'Monto Neto': `$${advance.net_amount.toFixed(2)}`,
-      'Estado': advance.status === 'completed' ? 'Completado' : 
-                advance.status === 'pending' ? 'Pendiente' :
-                advance.status === 'processing' ? 'Procesando' :
-                advance.status === 'approved' ? 'Aprobado' :
-                advance.status === 'failed' ? 'Fallido' : advance.status,
-      'Método de Pago': advance.payment_method === 'pagomovil' ? 'PagoMóvil' : 'Transferencia Bancaria',
-      'Detalles de Pago': advance.payment_details,
-      'Lote': advance.batch_id || 'N/A',
-      'Fecha de Procesamiento': advance.processed_at ? format(new Date(advance.processed_at), 'dd/MM/yyyy HH:mm') : 'N/A'
+      [t('common.date')]: format(new Date(advance.created_at), 'dd/MM/yyyy HH:mm'),
+      [t('common.employee')]: `${advance.employees.first_name} ${advance.employees.last_name}`,
+      Email: advance.employees.email,
+      [t('common.requestedAmount')]: `$${advance.requested_amount.toFixed(2)}`,
+      [t('common.fee')]: `$${advance.fee_amount.toFixed(2)}`,
+      [t('common.netAmount')]: `$${advance.net_amount.toFixed(2)}`,
+      [t('common.status')]: advance.status,
+      [t('common.paymentMethod')]: advance.payment_method === 'pagomovil' ? 'PagoMóvil' : 'Transferencia Bancaria',
+      [t('common.paymentDetails')]: advance.payment_details,
+      [t('common.batch')]: advance.batch_id || 'N/A',
+      [t('common.processedAt')]: advance.processed_at ? format(new Date(advance.processed_at), 'dd/MM/yyyy HH:mm') : 'N/A'
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(exportData);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Adelantos de Empleados');
+    XLSX.utils.book_append_sheet(workbook, worksheet, t('company.reports.advancesReport'));
 
-    const fileName = `adelantos_empleados_${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
+    const fileName = `advances_${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
     XLSX.writeFile(workbook, fileName);
 
     toast({
-      title: "Exportación exitosa",
-      description: `Se ha exportado ${filteredAdvances.length} adelantos a ${fileName}`,
+      title: t('common.exportSuccess'),
+      description: `${filteredAdvances.length} ${t('company.reports.type.advances').toLowerCase()} - ${fileName}`,
     });
   };
 
@@ -2155,17 +2151,17 @@ const CompanyDashboard = () => {
         <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>Eliminar empleado</DialogTitle>
+              <DialogTitle>{t('company.deleteEmployeeTitle')}</DialogTitle>
               <DialogDescription>
-                ¿Seguro que deseas eliminar a {employeeToDelete ? `${employeeToDelete.first_name} ${employeeToDelete.last_name}` : 'este empleado'}? Esta acción no se puede deshacer.
+                {t('company.deleteEmployeeConfirm').replace('{name}', employeeToDelete ? `${employeeToDelete.first_name} ${employeeToDelete.last_name}` : t('common.employee'))}
               </DialogDescription>
             </DialogHeader>
             <DialogFooter className="flex gap-2 sm:gap-0">
               <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)} className="flex-1 sm:flex-none">
-                Cancelar
+                {t('common.cancel')}
               </Button>
               <Button variant="destructive" onClick={confirmDeleteEmployee} className="flex-1 sm:flex-none">
-                Eliminar
+                {t('common.delete')}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -2174,17 +2170,17 @@ const CompanyDashboard = () => {
         <Dialog open={isExportConfirmOpen} onOpenChange={setIsExportConfirmOpen}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>Confirmar exportación</DialogTitle>
+              <DialogTitle>{t('company.exportConfirmTitle')}</DialogTitle>
               <DialogDescription>
-                ¿Deseas exportar {pendingExportType === 'analytics' ? 'el análisis' : 'el reporte de adelantos'} en el formato seleccionado?
+                {t('company.exportConfirmDesc')}
               </DialogDescription>
             </DialogHeader>
             <DialogFooter className="flex gap-2 sm:gap-0">
               <Button variant="outline" onClick={cancelExport} className="flex-1 sm:flex-none">
-                Cancelar
+                {t('common.cancel')}
               </Button>
               <Button onClick={confirmExport} className="flex-1 sm:flex-none">
-                Aceptar
+                {t('common.accept')}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -2286,7 +2282,7 @@ const CompanyDashboard = () => {
                   </div>
                   <div className="flex items-center space-x-2">
                     <div className="flex items-center space-x-2">
-                      <Label className="text-sm text-muted-foreground">Mostrar:</Label>
+                      <Label className="text-sm text-muted-foreground">{t('common.show')}:</Label>
                       <Select value={itemsPerPage.toString()} onValueChange={(value) => handleItemsPerPageChange(Number(value))}>
                         <SelectTrigger className="w-[80px] h-8">
                           <SelectValue />
@@ -2301,7 +2297,7 @@ const CompanyDashboard = () => {
                     </div>
                     <Button variant="outline" size="sm" onClick={exportToExcel}>
                       <Download className="h-4 w-4 mr-2" />
-                      Exportar XLS
+                      {t('common.exportXLS')}
                     </Button>
                   </div>
                 </div>
@@ -2309,7 +2305,7 @@ const CompanyDashboard = () => {
                 {/* Date Filters */}
                 <div className="flex items-center space-x-4 mt-4">
                   <div className="flex items-center space-x-2">
-                    <Label className="text-sm font-medium">Desde:</Label>
+                    <Label className="text-sm font-medium">{t('common.from')}:</Label>
                     <Popover>
                       <PopoverTrigger asChild>
                         <Button
@@ -2318,7 +2314,7 @@ const CompanyDashboard = () => {
                           className="w-[140px] justify-start text-left font-normal"
                         >
                           <CalendarIcon className="mr-2 h-4 w-4" />
-                          {dateFrom ? format(dateFrom, "dd/MM/yyyy") : "Seleccionar"}
+                          {dateFrom ? format(dateFrom, "dd/MM/yyyy") : t('common.select')}
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0" align="start">
@@ -2333,7 +2329,7 @@ const CompanyDashboard = () => {
                   </div>
                   
                   <div className="flex items-center space-x-2">
-                    <Label className="text-sm font-medium">Hasta:</Label>
+                    <Label className="text-sm font-medium">{t('common.to')}:</Label>
                     <Popover>
                       <PopoverTrigger asChild>
                         <Button
@@ -2342,7 +2338,7 @@ const CompanyDashboard = () => {
                           className="w-[140px] justify-start text-left font-normal"
                         >
                           <CalendarIcon className="mr-2 h-4 w-4" />
-                          {dateTo ? format(dateTo, "dd/MM/yyyy") : "Seleccionar"}
+                          {dateTo ? format(dateTo, "dd/MM/yyyy") : t('common.select')}
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0" align="start">
@@ -2387,8 +2383,8 @@ const CompanyDashboard = () => {
                       </p>
                       <p className="text-sm text-muted-foreground mt-1">
                         {activeAdvances.length === 0 
-                          ? "Las solicitudes de tus empleados aparecerán aquí" 
-                          : "Ajusta el rango de fechas para ver más resultados"
+                          ? t('common.noData') 
+                          : t('company.reports.filtersDesc')
                         }
                       </p>
                     </div>
@@ -2469,7 +2465,7 @@ const CompanyDashboard = () => {
                               <Badge variant="outline" className="text-muted-foreground">Cancelado</Badge>
                             )}
                             {advance.status === 'failed' && (
-                              <Badge variant="destructive">Fallido</Badge>
+                              <Badge variant="destructive">{t('common.failed')}</Badge>
                           )}
                         </div>
                       </div>
@@ -2621,14 +2617,14 @@ const CompanyDashboard = () => {
                   <div className="flex items-center justify-center py-8">
                     <div className="text-center">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-                      <p className="text-muted-foreground">Cargando empleados...</p>
+                      <p className="text-muted-foreground">{t('company.billing.loadingPayments')}</p>
                     </div>
                   </div>
                 ) : employees.length === 0 ? (
                   <div className="text-center py-8">
                     <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                    <p className="text-muted-foreground">No hay empleados registrados</p>
-                    <p className="text-sm text-muted-foreground mt-2">Agrega tu primer empleado usando el botón "Agregar Empleado"</p>
+                    <p className="text-muted-foreground">{t('company.noEmployees')}</p>
+                    <p className="text-sm text-muted-foreground mt-2">{t('company.addFirstEmployeeHint')}</p>
                   </div>
                 ) : (
                 <div className="space-y-4">
@@ -2923,7 +2919,7 @@ const CompanyDashboard = () => {
               <CardHeader>
                 <CardTitle className="flex items-center space-x-2">
                   <Clock className="h-5 w-5" />
-                  <span>Reportes Recientes</span>
+                  <span>{t('company.recentReports')}</span>
                 </CardTitle>
                 <CardDescription>
                   Historial de reportes generados
@@ -3329,7 +3325,7 @@ const CompanyDashboard = () => {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <CheckCircle className="h-5 w-5 text-green-600" />
-              Aprobar Adelanto
+              {t('company.approveAdvanceTitle')}
             </DialogTitle>
             <DialogDescription>
               ¿Estás seguro de que quieres aprobar este adelanto de{" "}
@@ -3351,14 +3347,14 @@ const CompanyDashboard = () => {
               onClick={cancelApproveAction}
               className="flex-1 sm:flex-none"
             >
-              Cancelar
+              {t('common.cancel')}
             </Button>
             <Button
               onClick={confirmApproveAdvance}
               className="flex-1 sm:flex-none bg-green-600 hover:bg-green-700"
             >
               <CheckCircle className="h-4 w-4 mr-2" />
-              Sí, aprobar
+              {t('company.approve')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -3370,7 +3366,7 @@ const CompanyDashboard = () => {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <X className="h-5 w-5 text-destructive" />
-              Rechazar Adelanto
+              {t('company.reject')}
             </DialogTitle>
             <DialogDescription>
               ¿Estás seguro de que quieres rechazar este adelanto de{" "}

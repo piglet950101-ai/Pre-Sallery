@@ -74,8 +74,8 @@ const Login = () => {
       console.error("Login error:", err);
       
       // Check for specific error types
-      let errorTitle = t('login.errorTitle') ?? 'Error al iniciar sesión';
-      let errorDescription = err?.message ?? 'Revisa tus credenciales';
+      let errorTitle = t('login.errorTitle');
+      let errorDescription = err?.message ?? t('login.errorDescription');
       
       // Handle specific error types
       if (err?.message?.includes('Invalid login credentials') || 
@@ -249,7 +249,7 @@ const Login = () => {
 
             <div className="text-center space-y-2">
               <Button variant="link" className="text-sm" asChild>
-                <Link to="/forgot-password">¿Olvidaste tu contraseña?</Link>
+                <Link to="/forgot-password">{t('login.forgot')}</Link>
               </Button>
             </div>
           </CardContent>

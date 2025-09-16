@@ -69,12 +69,12 @@ const Register = () => {
           });
         }
       }
-      toast({ title: t('register.successTitle') ?? 'Cuenta creada. Revisa tu email.' });
+      toast({ title: t('register.successTitle') });
       navigate('/login');
     } catch (err: any) {
       toast({
-        title: t('register.errorTitle') ?? 'Error al registrar',
-        description: err?.message ?? 'Inténtalo de nuevo',
+        title: t('register.errorTitle'),
+        description: err?.message ?? t('register.tryAgain'),
       });
     } finally {
       setIsLoading(false);
@@ -91,7 +91,7 @@ const Register = () => {
       
       // Validate activation code format
       if (cleanActivationCode.length !== 6) {
-        throw new Error("El código de activación debe tener exactamente 6 dígitos");
+        throw new Error(t('register.activationCode6Digits'));
       }
       
       // Validate email format (very permissive - just check for @ and .)
@@ -107,7 +107,7 @@ const Register = () => {
           originalEmail: employeeEmail,
           cleanedEmail: cleanEmail
         });
-        throw new Error(`El formato del email no es válido. Email ingresado: "${employeeEmail}"`);
+        throw new Error(t('register.invalidEmailFormat').replace('{email}', employeeEmail));
       }
       
       // Additional check: make sure there's at least one character before @ and after .
@@ -125,7 +125,7 @@ const Register = () => {
           cleanedEmail: cleanEmail,
           emailParts: emailParts
         });
-        throw new Error(`El formato del email no es válido. Email ingresado: "${employeeEmail}"`);
+        throw new Error(t('register.invalidEmailFormat').replace('{email}', employeeEmail));
       }
       
       // Debug: Log the inputs
@@ -172,18 +172,18 @@ const Register = () => {
       if (employeeError) {
         if (employeeError.code === 'PGRST116') {
           // No rows found
-          throw new Error("Código de activación inválido o email no coincide. Verifica los datos proporcionados por tu empresa.");
+          throw new Error(t('register.invalidActivationOrEmail'));
         }
         console.error("Error checking employee:", employeeError);
-        throw new Error(`Error al verificar los datos: ${employeeError.message}`);
+        throw new Error(`Error checking data: ${employeeError.message}`);
       }
       
       if (!employeeData) {
-        throw new Error("Código de activación inválido o email no coincide. Verifica los datos proporcionados por tu empresa.");
+        throw new Error(t('register.invalidActivationOrEmail'));
       }
       
       if (employeeData.is_active) {
-        throw new Error("Esta cuenta ya ha sido activada");
+        throw new Error(t('register.accountAlreadyActivated'));
       }
       
       // Create Supabase auth user
@@ -244,13 +244,13 @@ const Register = () => {
             
             if (functionError) {
               console.error("Function error:", functionError);
-              throw new Error("No se pudo activar la cuenta del empleado. Contacta al soporte técnico.");
+              throw new Error('Could not activate employee account. Contact support.');
             } else {
               console.log("Employee activated via function");
             }
           } catch (funcErr) {
             console.error("Function call failed:", funcErr);
-            throw new Error("No se pudo activar la cuenta del empleado. Contacta al soporte técnico.");
+            throw new Error('Could not activate employee account. Contact support.');
           }
         } else {
           console.log("Employee record updated successfully - is_active set to true");
@@ -258,15 +258,15 @@ const Register = () => {
       }
       
       toast({
-        title: "Cuenta de empleado activada exitosamente",
-        description: `Bienvenido ${employeeData.first_name} ${employeeData.last_name}. Revisa tu email para confirmar tu cuenta.`,
+        title: t('register.employeeActivatedTitle'),
+        description: t('register.employeeActivatedDesc').replace('{name}', `${employeeData.first_name} ${employeeData.last_name}`),
       });
       
       navigate('/login');
     } catch (err: any) {
       toast({
-        title: "Error al activar cuenta",
-        description: err?.message ?? "Inténtalo de nuevo",
+        title: t('register.activateErrorTitle'),
+        description: err?.message ?? t('register.tryAgain'),
         variant: "destructive"
       });
     } finally {
@@ -304,11 +304,11 @@ const Register = () => {
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="company" className="flex items-center space-x-2">
                   <Building className="h-4 w-4" />
-                  <span>Empresa</span>
+                  <span>{t('register.companyTab')}</span>
                 </TabsTrigger>
                 <TabsTrigger value="employee" className="flex items-center space-x-2">
                   <User className="h-4 w-4" />
-                  <span>Empleado</span>
+                  <span>{t('register.employeeTab')}</span>
                 </TabsTrigger>
               </TabsList>
 
@@ -318,7 +318,7 @@ const Register = () => {
                     <Label htmlFor="company-name">Nombre de la empresa</Label>
                     <Input
                       id="company-name"
-                      placeholder="Empresa C.A."
+                      placeholder={t('register.companyNamePlaceholder')}
                       className="h-12"
                       value={companyName}
                       onChange={(e) => setCompanyName(e.target.value)}
@@ -349,7 +349,7 @@ const Register = () => {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="company-email">Correo electrónico</Label>
+                    <Label htmlFor="company-email">{t('register.companyEmailLabel')}</Label>
                     <Input
                       id="company-email"
                       type="email"
@@ -372,7 +372,7 @@ const Register = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="company-password">Contraseña</Label>
+                  <Label htmlFor="company-password">{t('register.companyPasswordLabel')}</Label>
                   <Input
                     id="company-password"
                     type="password"
@@ -406,16 +406,16 @@ const Register = () => {
                   disabled={isLoading}
                   onClick={signUpCompany}
                 >
-                  Crear Cuenta Empresarial
+                  {t('register.createCompanyButton')}
                 </Button>
               </TabsContent>
 
               <TabsContent value="employee" className="space-y-4">
                 <div className="bg-secondary/20 border border-secondary/30 p-4 rounded-lg text-center">
                   <User className="h-8 w-8 text-secondary mx-auto mb-2" />
-                  <h4 className="font-semibold text-secondary-foreground">Registro por invitación</h4>
+                  <h4 className="font-semibold text-secondary-foreground">{t('register.inviteTitle')}</h4>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Los empleados son registrados por su empresa. Si trabajas para una empresa que usa AvancePay,
+                    {t('register.inviteDescription')}
                     recibirás un enlace de activación por SMS o email.
                   </p>
                 </div>
@@ -437,7 +437,7 @@ const Register = () => {
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="employee-email">Correo electrónico</Label>
+                      <Label htmlFor="employee-email">{t('register.employeeEmailLabel')}</Label>
                       <Input
                         id="employee-email"
                         type="email"
@@ -460,7 +460,7 @@ const Register = () => {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="employee-password">Contraseña</Label>
+                    <Label htmlFor="employee-password">{t('register.employeePasswordLabel')}</Label>
                     <Input
                       id="employee-password"
                       type="password"
@@ -476,7 +476,7 @@ const Register = () => {
                     disabled={isLoadingEmployee}
                     onClick={signUpEmployee}
                   >
-                    {isLoadingEmployee ? "Activando..." : "Activar Cuenta de Empleado"}
+                    {isLoadingEmployee ? t('register.activating') : t('register.activateEmployeeCTA')}
                   </Button>
                 </div>
               </TabsContent>
@@ -486,9 +486,9 @@ const Register = () => {
 
         <div className="text-center">
           <p className="text-muted-foreground">
-            ¿Ya tienes cuenta?{" "}
+            {t('register.haveAccount')} {" "}
             <Button variant="link" className="p-0" asChild>
-              <Link to="/login">Iniciar sesión</Link>
+              <Link to="/login">{t('register.loginLink')}</Link>
             </Button>
           </p>
         </div>

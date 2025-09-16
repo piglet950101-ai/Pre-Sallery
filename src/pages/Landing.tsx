@@ -109,32 +109,32 @@ const Landing = () => {
                         <DollarSign className="h-6 w-6 text-white" />
                       </div>
                       <div>
-                        <p className="font-semibold">María González</p>
-                        <p className="text-sm text-muted-foreground">Empleada</p>
+                        <p className="font-semibold">{t('landing.sampleEmployeeName')}</p>
+                        <p className="text-sm text-muted-foreground">{t('landing.sampleEmployeeRole')}</p>
                       </div>
                     </div>
-                    <Badge className="bg-green-100 text-green-800">Aprobado</Badge>
+                    <Badge className="bg-green-100 text-green-800">{t('landing.sampleApproved')}</Badge>
                   </div>
                   
                   <div className="space-y-4">
                     <div className="bg-muted/50 rounded-lg p-4">
                       <div className="text-2xl font-bold text-primary">$240.00</div>
-                      <div className="text-sm text-muted-foreground">Disponible para adelanto</div>
+                      <div className="text-sm text-muted-foreground">{t('landing.availableForAdvance')}</div>
                     </div>
                     
                     <div className="space-y-2 text-sm">
                       <div className="flex justify-between">
-                        <span>Salario devengado (15 días):</span>
+                        <span>{t('landing.earnedSalary15')}</span>
                         <span>$300.00</span>
                       </div>
                       <div className="flex justify-between">
-                        <span>Disponible (80%):</span>
+                        <span>{t('landing.availablePercent')}</span>
                         <span className="font-semibold text-primary">$240.00</span>
                       </div>
                     </div>
                     
                     <Button className="w-full" variant="premium">
-                      Solicitar Adelanto Ahora
+                      {t('landing.requestAdvanceNow')}
                     </Button>
                   </div>
                 </div>
@@ -142,10 +142,10 @@ const Landing = () => {
               
               {/* Floating elements */}
               <div className="absolute -top-4 -right-4 bg-secondary text-secondary-foreground px-3 py-2 rounded-lg shadow-card text-sm font-medium animate-pulse-glow">
-                ¡Instantáneo!
+                {t('landing.instantBadge')}
               </div>
               <div className="absolute -bottom-4 -left-4 bg-primary text-primary-foreground px-3 py-2 rounded-lg shadow-card text-sm font-medium">
-                PagoMóvil Ready
+                {t('landing.pagoMovilReady')}
               </div>
             </div>
           </div>
@@ -180,9 +180,7 @@ const Landing = () => {
       <section id="how-it-works" className="py-20 px-4 bg-muted/20">
         <div className="container mx-auto max-w-6xl">
           <div className="text-center space-y-4 mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold text-foreground">
-              {t('landing.howItWorks.title')}
-            </h2>
+            <h2 className="text-4xl md:text-5xl font-bold text-foreground">{t('landing.howItWorks.title')}</h2>
             <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
               {t('landing.howItWorks.subtitle')}
             </p>
@@ -232,48 +230,48 @@ const Landing = () => {
           <div className="bg-background rounded-2xl p-8 shadow-card">
             <div className="grid md:grid-cols-2 gap-8 items-center">
               <div className="space-y-6">
-                <h3 className="text-2xl font-bold">Para Empleados: Acceso Instantáneo</h3>
+                <h3 className="text-2xl font-bold">{t('landing.forEmployeesTitle')}</h3>
                 <div className="space-y-4">
                   <div className="flex items-start space-x-3">
                     <div className="h-6 w-6 bg-primary rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                       <CheckCircle className="h-4 w-4 text-white" />
                     </div>
-                    <p className="text-muted-foreground">Visualiza en tiempo real cuánto has devengado y cuánto puedes solicitar</p>
+                    <p className="text-muted-foreground">{t('landing.forEmployeesPoint1')}</p>
                   </div>
                   <div className="flex items-start space-x-3">
                     <div className="h-6 w-6 bg-primary rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                       <CheckCircle className="h-4 w-4 text-white" />
                     </div>
-                    <p className="text-muted-foreground">Recibe el dinero en tu PagoMóvil o cuenta bancaria el mismo día</p>
+                    <p className="text-muted-foreground">{t('landing.forEmployeesPoint2')}</p>
                   </div>
                   <div className="flex items-start space-x-3">
                     <div className="h-6 w-6 bg-primary rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                       <CheckCircle className="h-4 w-4 text-white" />
                     </div>
-                    <p className="text-muted-foreground">Se desconta automáticamente de tu próxima nómina</p>
+                    <p className="text-muted-foreground">{t('landing.forEmployeesPoint3')}</p>
                   </div>
                 </div>
               </div>
               <div className="space-y-6">
-                <h3 className="text-2xl font-bold">Para Empresas: Control Total</h3>
+                <h3 className="text-2xl font-bold">{t('landing.forCompaniesTitle')}</h3>
                 <div className="space-y-4">
                   <div className="flex items-start space-x-3">
                     <div className="h-6 w-6 bg-secondary rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                       <CheckCircle className="h-4 w-4 text-white" />
                     </div>
-                    <p className="text-muted-foreground">Dashboard completo con todos los adelantos y empleados</p>
+                    <p className="text-muted-foreground">{t('landing.forCompaniesPoint1')}</p>
                   </div>
                   <div className="flex items-start space-x-3">
                     <div className="h-6 w-6 bg-secondary rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                       <CheckCircle className="h-4 w-4 text-white" />
                     </div>
-                    <p className="text-muted-foreground">Reportes semanales con todos los adelantos para ajustar nómina</p>
+                    <p className="text-muted-foreground">{t('landing.forCompaniesPoint2')}</p>
                   </div>
                   <div className="flex items-start space-x-3">
                     <div className="h-6 w-6 bg-secondary rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                       <CheckCircle className="h-4 w-4 text-white" />
                     </div>
-                    <p className="text-muted-foreground">Facturación semanal automatizada, solo paga por lo que uses</p>
+                    <p className="text-muted-foreground">{t('landing.forCompaniesPoint3')}</p>
                   </div>
                 </div>
               </div>
@@ -290,11 +288,9 @@ const Landing = () => {
         ></div>
         <div className="container mx-auto max-w-6xl">
           <div className="text-center space-y-4 mb-16">
-            <h2 className="text-4xl font-bold text-foreground">
-              Características Diseñadas para Venezuela
-            </h2>
+            <h2 className="text-4xl font-bold text-foreground">{t('landing.features.title')}</h2>
             <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
-              Cumplimiento LOTTT, integración bancaria completa y la mejor experiencia para empleados y empresas
+              {t('landing.features.subtitle')}
             </p>
           </div>
 
@@ -304,10 +300,9 @@ const Landing = () => {
                 <div className="h-12 w-12 bg-gradient-primary rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                   <CreditCard className="h-6 w-6 text-white" />
                 </div>
-                <CardTitle>PagoMóvil & Bancos</CardTitle>
+                <CardTitle>{t('landing.features.card1.title')}</CardTitle>
                 <CardDescription>
-                  Compatible con todos los bancos venezolanos: Mercantil, Venezuela, Banesco, Provincial y más. 
-                  PagoMóvil instantáneo.
+                  {t('landing.features.card1.desc')}
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -317,10 +312,9 @@ const Landing = () => {
                 <div className="h-12 w-12 bg-gradient-secondary rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                   <Shield className="h-6 w-6 text-white" />
                 </div>
-                <CardTitle>Cumplimiento LOTTT</CardTitle>
+                <CardTitle>{t('landing.features.card2.title')}</CardTitle>
                 <CardDescription>
-                  Diseñado específicamente para cumplir con la Ley Orgánica del Trabajo venezolana. 
-                  KYC automático y reportes legales.
+                  {t('landing.features.card2.desc')}
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -330,10 +324,9 @@ const Landing = () => {
                 <div className="h-12 w-12 bg-gradient-primary rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                   <Clock className="h-6 w-6 text-white" />
                 </div>
-                <CardTitle>Lotes Automáticos</CardTitle>
+                <CardTitle>{t('landing.features.card3.title')}</CardTitle>
                 <CardDescription>
-                  Procesamiento en lotes dos veces al día (11:00 AM y 3:00 PM) para máxima eficiencia 
-                  y menores costos operativos.
+                  {t('landing.features.card3.desc')}
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -343,10 +336,9 @@ const Landing = () => {
                 <div className="h-12 w-12 bg-gradient-secondary rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                   <BarChart3 className="h-6 w-6 text-white" />
                 </div>
-                <CardTitle>Analytics Empresarial</CardTitle>
+                <CardTitle>{t('landing.features.card4.title')}</CardTitle>
                 <CardDescription>
-                  Dashboard completo con métricas de uso, análisis de flujo de caja y 
-                  reportes de satisfacción de empleados.
+                  {t('landing.features.card4.desc')}
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -356,10 +348,9 @@ const Landing = () => {
                 <div className="h-12 w-12 bg-gradient-primary rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                   <FileText className="h-6 w-6 text-white" />
                 </div>
-                <CardTitle>Reportes Automáticos</CardTitle>
+                <CardTitle>{t('landing.features.card5.title')}</CardTitle>
                 <CardDescription>
-                  Exportación automática de reportes CSV/Excel para integración con sistemas 
-                  de nómina existentes. Conciliación perfecta.
+                  {t('landing.features.card5.desc')}
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -369,10 +360,9 @@ const Landing = () => {
                 <div className="h-12 w-12 bg-gradient-secondary rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                   <Banknote className="h-6 w-6 text-white" />
                 </div>
-                <CardTitle>Límites Inteligentes</CardTitle>
+                <CardTitle>{t('landing.features.card6.title')}</CardTitle>
                 <CardDescription>
-                  Cálculo automático de elegibilidad basado en días trabajados. 
-                  Máximo 80% del salario devengado, sin riesgo para la empresa.
+                  {t('landing.features.card6.desc')}
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -384,12 +374,8 @@ const Landing = () => {
       <section id="testimonials" className="py-20 px-4 bg-muted/20">
         <div className="container mx-auto max-w-6xl">
           <div className="text-center space-y-4 mb-16">
-            <h2 className="text-4xl font-bold text-foreground">
-              Lo Que Dicen Nuestros Clientes
-            </h2>
-            <p className="text-xl text-muted-foreground">
-              Empresas venezolanas que ya transformaron su nómina con AvancePay
-            </p>
+            <h2 className="text-4xl font-bold text-foreground">{t('landing.testimonials.title')}</h2>
+            <p className="text-xl text-muted-foreground">{t('landing.testimonials.subtitle')}</p>
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -400,8 +386,8 @@ const Landing = () => {
                     <span className="text-white font-bold">CA</span>
                   </div>
                   <div>
-                    <div className="font-semibold">Carlos Mendoza</div>
-                    <div className="text-sm text-muted-foreground">Director de RRHH, TechVenezuela C.A.</div>
+                    <div className="font-semibold">{t('landing.testimonials.card1.name')}</div>
+                    <div className="text-sm text-muted-foreground">{t('landing.testimonials.card1.role')}</div>
                   </div>
                 </div>
                 <div className="flex items-center space-x-1 mb-4">
@@ -411,10 +397,7 @@ const Landing = () => {
                 </div>
               </CardHeader>
               <CardContent>
-                <p className="text-muted-foreground">
-                  "AvancePay mejoró significativamente la satisfacción de nuestros empleados. 
-                  La implementación fue súper rápida y el soporte técnico es excepcional."
-                </p>
+                <p className="text-muted-foreground">"{t('landing.testimonials.card1.quote')}"</p>
               </CardContent>
             </Card>
 
@@ -425,8 +408,8 @@ const Landing = () => {
                     <span className="text-white font-bold">MR</span>
                   </div>
                   <div>
-                    <div className="font-semibold">María Rodríguez</div>
-                    <div className="text-sm text-muted-foreground">Empleada, Servicios Financieros</div>
+                    <div className="font-semibold">{t('landing.testimonials.card2.name')}</div>
+                    <div className="text-sm text-muted-foreground">{t('landing.testimonials.card2.role')}</div>
                   </div>
                 </div>
                 <div className="flex items-center space-x-1 mb-4">
@@ -436,10 +419,7 @@ const Landing = () => {
                 </div>
               </CardHeader>
               <CardContent>
-                <p className="text-muted-foreground">
-                  "Es increíble poder acceder a mi salario cuando lo necesito. El proceso es súper fácil 
-                  y el dinero llega a mi PagoMóvil en minutos."
-                </p>
+                <p className="text-muted-foreground">"{t('landing.testimonials.card2.quote')}"</p>
               </CardContent>
             </Card>
 
@@ -450,8 +430,8 @@ const Landing = () => {
                     <span className="text-white font-bold">JS</span>
                   </div>
                   <div>
-                    <div className="font-semibold">José Silva</div>
-                    <div className="text-sm text-muted-foreground">CEO, Industrias del Zulia</div>
+                    <div className="font-semibold">{t('landing.testimonials.card3.name')}</div>
+                    <div className="text-sm text-muted-foreground">{t('landing.testimonials.card3.role')}</div>
                   </div>
                 </div>
                 <div className="flex items-center space-x-1 mb-4">
@@ -461,10 +441,7 @@ const Landing = () => {
                 </div>
               </CardHeader>
               <CardContent>
-                <p className="text-muted-foreground">
-                  "Los reportes semanales facilitan muchísimo nuestra gestión de nómina. 
-                  AvancePay se integró perfectamente con nuestros procesos existentes."
-                </p>
+                <p className="text-muted-foreground">"{t('landing.testimonials.card3.quote')}"</p>
               </CardContent>
             </Card>
           </div>
@@ -475,22 +452,18 @@ const Landing = () => {
       <section id="pricing" className="py-20 px-4 bg-background">
         <div className="container mx-auto max-w-5xl">
           <div className="text-center space-y-4 mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold text-foreground">
-              Precios Claros y Justos
-            </h2>
-            <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
-              Sin letra pequeña. Sin costos ocultos. Solo paga por lo que usas con facturación semanal automatizada.
-            </p>
+            <h2 className="text-4xl md:text-5xl font-bold text-foreground">{t('landing.pricing.title')}</h2>
+            <p className="text-xl text-muted-foreground max-w-3xl mx-auto">{t('landing.pricing.subtitle')}</p>
           </div>
 
           <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
             <Card className="relative border-2 border-border shadow-card hover:shadow-elegant transition-all duration-300">
               <CardHeader className="text-center pb-8">
                 <div className="space-y-2">
-                  <CardTitle className="text-2xl">Para Empresas</CardTitle>
+                  <CardTitle className="text-2xl">{t('landing.pricing.planCompany.title')}</CardTitle>
                   <div className="space-y-1">
                     <div className="text-4xl font-bold text-primary">$1</div>
-                    <div className="text-muted-foreground">por empleado activo / mes</div>
+                    <div className="text-muted-foreground">{t('landing.pricing.planCompany.priceNote')}</div>
                   </div>
                 </div>
               </CardHeader>
@@ -498,36 +471,36 @@ const Landing = () => {
                 <div className="space-y-4">
                   <div className="flex items-start space-x-3">
                     <CheckCircle className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
-                    <span>Dashboard empresarial completo con analytics</span>
+                    <span>{t('landing.pricing.company.b1')}</span>
                   </div>
                   <div className="flex items-start space-x-3">
                     <CheckCircle className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
-                    <span>Reportes CSV/Excel automatizados para nómina</span>
+                    <span>{t('landing.pricing.company.b2')}</span>
                   </div>
                   <div className="flex items-start space-x-3">
                     <CheckCircle className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
-                    <span>Gestión completa de empleados y métodos de pago</span>
+                    <span>{t('landing.pricing.company.b3')}</span>
                   </div>
                   <div className="flex items-start space-x-3">
                     <CheckCircle className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
-                    <span>Soporte técnico prioritario 24/7</span>
+                    <span>{t('landing.pricing.company.b4')}</span>
                   </div>
                   <div className="flex items-start space-x-3">
                     <CheckCircle className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
-                    <span>Facturación semanal con conciliación automática</span>
+                    <span>{t('landing.pricing.company.b5')}</span>
                   </div>
                   <div className="flex items-start space-x-3">
                     <CheckCircle className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
-                    <span>Cumplimiento LOTTT y reportes legales</span>
+                    <span>{t('landing.pricing.company.b6')}</span>
                   </div>
                 </div>
                 
                 <div className="pt-4 border-t">
                   <div className="text-sm text-muted-foreground mb-4">
-                    <strong>Ejemplo práctico:</strong> Empresa con 50 empleados = $50/mes
+                    <strong>{t('landing.pricing.companyExampleLabel') || 'Example:'}</strong> {t('landing.pricing.company.example')}
                   </div>
                   <Button className="w-full" variant="outline" size="lg">
-                    Comenzar Prueba Gratis
+                    {t('landing.pricing.company.cta')}
                   </Button>
                 </div>
               </CardContent>
@@ -536,15 +509,13 @@ const Landing = () => {
             <Card className="relative border-2 border-primary shadow-elegant hover:scale-105 transition-all duration-300">
               <CardHeader className="text-center pb-8">
                 <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
-                  <Badge className="bg-secondary text-secondary-foreground px-4 py-1">
-                    Costo cero para empresas
-                  </Badge>
+                  <Badge className="bg-secondary text-secondary-foreground px-4 py-1">{t('landing.pricing.badge')}</Badge>
                 </div>
                 <div className="space-y-2 pt-2">
-                  <CardTitle className="text-2xl">Para Empleados</CardTitle>
+                  <CardTitle className="text-2xl">{t('landing.pricing.planEmployee.title')}</CardTitle>
                   <div className="space-y-1">
                     <div className="text-4xl font-bold text-primary">5%</div>
-                    <div className="text-muted-foreground">por adelanto (mín. $1, máx. $20)</div>
+                    <div className="text-muted-foreground">{t('landing.pricing.employee.priceNote')}</div>
                   </div>
                 </div>
               </CardHeader>
@@ -552,36 +523,36 @@ const Landing = () => {
                 <div className="space-y-4">
                   <div className="flex items-start space-x-3">
                     <CheckCircle className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
-                    <span>Acceso hasta 80% del salario devengado</span>
+                    <span>{t('landing.pricing.employee.b1')}</span>
                   </div>
                   <div className="flex items-start space-x-3">
                     <CheckCircle className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
-                    <span>Adelantos procesados en lotes (11 AM y 3 PM)</span>
+                    <span>{t('landing.pricing.employee.b2')}</span>
                   </div>
                   <div className="flex items-start space-x-3">
                     <CheckCircle className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
-                    <span>PagoMóvil y transferencias a cualquier banco</span>
+                    <span>{t('landing.pricing.employee.b3')}</span>
                   </div>
                   <div className="flex items-start space-x-3">
                     <CheckCircle className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
-                    <span>App móvil y web responsive</span>
+                    <span>{t('landing.pricing.employee.b4')}</span>
                   </div>
                   <div className="flex items-start space-x-3">
                     <CheckCircle className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
-                    <span>Historial completo de adelantos</span>
+                    <span>{t('landing.pricing.employee.b5')}</span>
                   </div>
                   <div className="flex items-start space-x-3">
                     <CheckCircle className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
-                    <span>Cálculo automático de elegibilidad</span>
+                    <span>{t('landing.pricing.employee.b6')}</span>
                   </div>
                 </div>
                 
                 <div className="pt-4 border-t">
                   <div className="text-sm text-muted-foreground mb-4">
-                    <strong>Ejemplo:</strong> Adelanto de $100 → Recibes $95 (comisión $5)
+                    <strong>{t('landing.pricing.employeeExampleLabel') || 'Example:'}</strong> {t('landing.pricing.employee.example')}
                   </div>
                   <Button className="w-full" variant="hero" size="lg">
-                    Activar Mi Cuenta
+                    {t('landing.pricing.employee.cta')}
                   </Button>
                 </div>
               </CardContent>
@@ -605,39 +576,34 @@ const Landing = () => {
         <div className="absolute inset-0 bg-grid-pattern opacity-5"></div>
         <div className="container mx-auto max-w-4xl text-center space-y-8 relative">
           <div className="space-y-4">
-            <h2 className="text-4xl md:text-5xl font-bold text-foreground">
-              ¿Listo para Revolucionar tu Nómina?
-            </h2>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Únete a más de 150 empresas venezolanas que ya mejoraron la satisfacción de sus empleados 
-              y simplificaron su gestión de adelantos salariales.
-            </p>
+            <h2 className="text-4xl md:text-5xl font-bold text-foreground">{t('landing.cta.title')}</h2>
+            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">{t('landing.cta.subtitle')}</p>
           </div>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button size="lg" variant="hero" className="text-lg px-12 py-6 group" asChild>
               <Link to="/register">
-                Comenzar Prueba Gratuita
+                {t('landing.cta.startTrial')}
                 <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
               </Link>
             </Button>
             <Button size="lg" variant="outline" className="text-lg px-12 py-6" asChild>
-              <Link to="/login">Tengo una Cuenta</Link>
+              <Link to="/login">{t('landing.cta.haveAccount')}</Link>
             </Button>
           </div>
           
           <div className="grid md:grid-cols-3 gap-8 pt-8">
             <div className="text-center space-y-2">
-              <div className="text-2xl font-bold text-primary">30 días</div>
-              <div className="text-sm text-muted-foreground">Prueba completamente gratis</div>
+              <div className="text-2xl font-bold text-primary">{t('landing.cta.metric30')}</div>
+              <div className="text-sm text-muted-foreground">{t('landing.cta.metric30Label')}</div>
             </div>
             <div className="text-center space-y-2">
-              <div className="text-2xl font-bold text-primary">24 horas</div>
-              <div className="text-sm text-muted-foreground">Tiempo de implementación</div>
+              <div className="text-2xl font-bold text-primary">{t('landing.cta.metric24h')}</div>
+              <div className="text-sm text-muted-foreground">{t('landing.cta.metric24hLabel')}</div>
             </div>
             <div className="text-center space-y-2">
-              <div className="text-2xl font-bold text-primary">24/7</div>
-              <div className="text-sm text-muted-foreground">Soporte técnico incluido</div>
+              <div className="text-2xl font-bold text-primary">{t('landing.cta.metric247')}</div>
+              <div className="text-sm text-muted-foreground">{t('landing.cta.metric247Label')}</div>
             </div>
           </div>
         </div>
@@ -656,8 +622,7 @@ const Landing = () => {
                 <Badge variant="secondary">Venezuela</Badge>
               </div>
               <p className="text-muted-foreground max-w-md">
-                La primera plataforma venezolana de adelantos salariales diseñada específicamente 
-                para cumplir con LOTTT y optimizar la experiencia de empleados y empresas.
+                {t('footer.description')}
               </p>
               <div className="flex space-x-4">
                 <Button variant="outline" size="sm">WhatsApp</Button>
@@ -667,46 +632,46 @@ const Landing = () => {
             </div>
             
             <div className="space-y-4">
-              <h4 className="font-semibold text-foreground">Producto</h4>
+              <h4 className="font-semibold text-foreground">{t('footer.product')}</h4>
               <div className="space-y-3 text-muted-foreground">
-                <div className="hover:text-foreground cursor-pointer transition-colors">Características</div>
-                <div className="hover:text-foreground cursor-pointer transition-colors">Precios</div>
-                <div className="hover:text-foreground cursor-pointer transition-colors">Demo en Vivo</div>
-                <div className="hover:text-foreground cursor-pointer transition-colors">Integraciones</div>
+                <div className="hover:text-foreground cursor-pointer transition-colors">{t('footer.product.features')}</div>
+                <div className="hover:text-foreground cursor-pointer transition-colors">{t('footer.product.pricing')}</div>
+                <div className="hover:text-foreground cursor-pointer transition-colors">{t('footer.product.liveDemo')}</div>
+                <div className="hover:text-foreground cursor-pointer transition-colors">{t('footer.product.integrations')}</div>
                 <div className="hover:text-foreground cursor-pointer transition-colors">API</div>
               </div>
             </div>
             
             <div className="space-y-4">
-              <h4 className="font-semibold text-foreground">Empresa</h4>
+              <h4 className="font-semibold text-foreground">{t('footer.company')}</h4>
               <div className="space-y-3 text-muted-foreground">
-                <div className="hover:text-foreground cursor-pointer transition-colors">Sobre AvancePay</div>
-                <div className="hover:text-foreground cursor-pointer transition-colors">Nuestro Equipo</div>
-                <div className="hover:text-foreground cursor-pointer transition-colors">Carreras</div>
-                <div className="hover:text-foreground cursor-pointer transition-colors">Contacto</div>
-                <div className="hover:text-foreground cursor-pointer transition-colors">Prensa</div>
+                <div className="hover:text-foreground cursor-pointer transition-colors">{t('footer.company.about')}</div>
+                <div className="hover:text-foreground cursor-pointer transition-colors">{t('footer.company.team')}</div>
+                <div className="hover:text-foreground cursor-pointer transition-colors">{t('footer.company.careers')}</div>
+                <div className="hover:text-foreground cursor-pointer transition-colors">{t('footer.company.contact')}</div>
+                <div className="hover:text-foreground cursor-pointer transition-colors">{t('footer.company.press')}</div>
               </div>
             </div>
             
             <div className="space-y-4">
-              <h4 className="font-semibold text-foreground">Soporte</h4>
+              <h4 className="font-semibold text-foreground">{t('footer.support')}</h4>
               <div className="space-y-3 text-muted-foreground">
-                <div className="hover:text-foreground cursor-pointer transition-colors">Centro de Ayuda</div>
-                <div className="hover:text-foreground cursor-pointer transition-colors">Documentación</div>
-                <div className="hover:text-foreground cursor-pointer transition-colors">Estado del Sistema</div>
-                <div className="hover:text-foreground cursor-pointer transition-colors">Términos de Uso</div>
-                <div className="hover:text-foreground cursor-pointer transition-colors">Privacidad</div>
+                <div className="hover:text-foreground cursor-pointer transition-colors">{t('footer.support.helpCenter')}</div>
+                <div className="hover:text-foreground cursor-pointer transition-colors">{t('footer.support.docs')}</div>
+                <div className="hover:text-foreground cursor-pointer transition-colors">{t('footer.support.status')}</div>
+                <div className="hover:text-foreground cursor-pointer transition-colors">{t('footer.support.terms')}</div>
+                <div className="hover:text-foreground cursor-pointer transition-colors">{t('footer.support.privacy')}</div>
               </div>
             </div>
           </div>
           
           <div className="border-t mt-12 pt-8 flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
             <div className="text-muted-foreground text-sm">
-              &copy; 2024 AvancePay Venezuela. Todos los derechos reservados. | RIF: J-12345678-9
+              &copy; 2024 AvancePay Venezuela. {t('footer.copyright')} | RIF: J-12345678-9
             </div>
             <div className="flex items-center space-x-4 text-sm text-muted-foreground">
-              <span>Hecho con ❤️ en Venezuela</span>
-              <Badge variant="outline">Cumplimiento LOTTT</Badge>
+              <span>{t('footer.madeInVe')}</span>
+              <Badge variant="outline">{t('footer.lotttBadge')}</Badge>
             </div>
           </div>
         </div>

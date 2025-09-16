@@ -35,9 +35,11 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
 import Header from "@/components/Header";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 const OperatorDashboard = () => {
   const { toast } = useToast();
+  const { t } = useLanguage();
   const { user } = useAuth();
   const [selectedTab, setSelectedTab] = useState<string>("pending");
   const [isProcessing, setIsProcessing] = useState(false);
@@ -215,10 +217,10 @@ const OperatorDashboard = () => {
       <div className={`flex items-center justify-between ${className}`}>
         <div className="flex items-center space-x-4">
           <div className="text-sm text-muted-foreground">
-            Página {currentPage} de {totalPages}
+            {t('common.page')} {currentPage} {t('common.of')} {totalPages}
           </div>
           <div className="flex items-center space-x-2">
-            <span className="text-sm text-muted-foreground">Mostrar:</span>
+            <span className="text-sm text-muted-foreground">{t('common.show')}:</span>
             <Select value={itemsPerPage.toString()} onValueChange={onItemsPerPageChange}>
               <SelectTrigger className="w-20 h-8">
                 <SelectValue />
@@ -303,8 +305,8 @@ const OperatorDashboard = () => {
     } catch (error: any) {
       console.error("Error fetching batch advances:", error);
       toast({
-        title: "Error",
-        description: error?.message ?? "No se pudieron cargar los adelantos del lote",
+        title: t('common.error'),
+        description: error?.message ?? t('company.billing.couldNotLoadPayments'),
         variant: "destructive"
       });
     } finally {
@@ -340,8 +342,8 @@ const OperatorDashboard = () => {
         console.error("Supabase error:", error);
         if (error.message.includes("Could not find the table")) {
           toast({
-            title: "Tabla no encontrada",
-            description: "La tabla 'advance_transactions' no existe. Ejecuta el script SQL para crearla.",
+            title: t('common.error'),
+            description: 'advance_transactions table missing',
             variant: "destructive"
           });
         } else {
@@ -355,8 +357,8 @@ const OperatorDashboard = () => {
     } catch (error: any) {
       console.error("Error fetching pending advances:", error);
       toast({
-        title: "Error",
-        description: error?.message ?? "No se pudieron cargar los adelantos pendientes",
+        title: t('common.error'),
+        description: error?.message ?? t('company.billing.couldNotLoadEmployees'),
         variant: "destructive"
       });
     } finally {
@@ -382,8 +384,8 @@ const OperatorDashboard = () => {
         console.error("Supabase error:", error);
         if (error.message.includes("Could not find the table")) {
           toast({
-            title: "Tabla no encontrada",
-            description: "La tabla 'processing_batches' no existe. Ejecuta el script SQL para crearla.",
+            title: t('common.error'),
+            description: 'processing_batches table missing',
             variant: "destructive"
           });
         } else {
@@ -397,8 +399,8 @@ const OperatorDashboard = () => {
     } catch (error: any) {
       console.error("Error fetching processed batches:", error);
       toast({
-        title: "Error",
-        description: error?.message ?? "No se pudieron cargar los lotes procesados",
+        title: t('common.error'),
+        description: error?.message ?? t('company.billing.couldNotLoadPayments'),
         variant: "destructive"
       });
     } finally {
@@ -433,8 +435,8 @@ const OperatorDashboard = () => {
   const processBatch = async () => {
     if (selectedAdvances.size === 0) {
       toast({
-        title: "No hay adelantos seleccionados",
-        description: "Selecciona al menos un adelanto para procesar",
+        title: t('common.noData'),
+        description: t('operator.selectAdvancesToProcess'),
         variant: "destructive"
       });
       return;
@@ -447,7 +449,7 @@ const OperatorDashboard = () => {
       const { data: batchData, error: batchError } = await supabase
         .from("processing_batches")
         .insert({
-          batch_name: `Lote ${new Date().toISOString().slice(0, 10)} ${new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`,
+          batch_name: `Batch ${new Date().toISOString().slice(0, 10)} ${new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`,
           total_amount: selectedAmount,
           total_fees: selectedFees,
           advance_count: selectedAdvances.size,
@@ -503,8 +505,8 @@ const OperatorDashboard = () => {
       }
 
       toast({
-        title: "Lote procesado",
-        description: `${selectedAdvances.size} adelantos procesados exitosamente`,
+        title: t('common.success'),
+        description: `${selectedAdvances.size} ${t('company.advances')} ${t('employee.completed')}`,
       });
 
       // Clear selections and refresh data
@@ -515,8 +517,8 @@ const OperatorDashboard = () => {
     } catch (error: any) {
       console.error("Error processing batch:", error);
       toast({
-        title: "Error",
-        description: error?.message ?? "No se pudo procesar el lote",
+        title: t('common.error'),
+        description: error?.message ?? 'Could not process batch',
         variant: "destructive"
       });
     } finally {
@@ -564,8 +566,8 @@ const OperatorDashboard = () => {
       console.error("❌ Error fetching employee fees:", error);
       if (!error.message.includes("Could not find the table")) {
         toast({
-          title: "Error",
-          description: error?.message ?? "No se pudieron cargar las tarifas de empleados",
+          title: t('common.error'),
+          description: error?.message ?? t('company.billing.couldNotLoadEmployees'),
           variant: "destructive"
         });
       }
@@ -614,8 +616,8 @@ const OperatorDashboard = () => {
       // Don't show error toast for missing table, just log it
       if (!error.message.includes("Could not find the table")) {
         toast({
-          title: "Error",
-          description: error?.message ?? "No se pudieron cargar las confirmaciones",
+          title: t('common.error'),
+          description: error?.message ?? 'Could not load confirmations',
           variant: "destructive"
         });
       }
@@ -635,8 +637,8 @@ const OperatorDashboard = () => {
   const uploadConfirmation = async () => {
     if (selectedFiles.length === 0) {
       toast({
-        title: "No hay archivos",
-        description: "Selecciona al menos un archivo para subir",
+        title: t('common.noData'),
+        description: 'Select at least one file to upload',
         variant: "destructive"
       });
       return;
@@ -706,9 +708,9 @@ const OperatorDashboard = () => {
       }
       
     toast({
-      title: "Confirmación subida",
-        description: `${selectedFiles.length} comprobante(s) subido(s) exitosamente`,
-      });
+      title: t('common.success'),
+      description: `${selectedFiles.length} uploaded`,
+    });
 
       setSelectedFiles([]);
       setShowUploadModal(false);
@@ -716,8 +718,8 @@ const OperatorDashboard = () => {
     } catch (error: any) {
       console.error("Error uploading confirmations:", error);
       toast({
-        title: "Error",
-        description: error?.message ?? "No se pudieron subir los comprobantes",
+        title: t('common.error'),
+        description: error?.message ?? 'Could not upload files',
         variant: "destructive"
       });
     } finally {
@@ -765,16 +767,16 @@ const OperatorDashboard = () => {
       }
 
       toast({
-        title: "Confirmación eliminada",
-        description: "La confirmación ha sido eliminada exitosamente",
+        title: t('common.success'),
+        description: 'Confirmation deleted',
       });
 
       await fetchConfirmations();
     } catch (error: any) {
       console.error("Error deleting confirmation:", error);
       toast({
-        title: "Error",
-        description: error?.message ?? "No se pudo eliminar la confirmación",
+        title: t('common.error'),
+        description: error?.message ?? 'Could not delete confirmation',
         variant: "destructive"
       });
     }
@@ -810,51 +812,66 @@ const OperatorDashboard = () => {
   // Download file
   const handleDownloadClick = async (confirmation: any) => {
     try {
-      if (confirmation.file_url) {
-        // Create a temporary link and trigger download
+      toast({ title: t('common.success'), description: `${t('common.downloading')} ${confirmation.file_name}` });
+
+      // Helper to trigger a download from a Blob
+      const triggerBlobDownload = (blob: Blob, fileName: string) => {
+        const objectUrl = URL.createObjectURL(blob);
         const link = document.createElement('a');
-        link.href = confirmation.file_url;
-        link.download = confirmation.file_name;
-        link.target = '_blank';
+        link.href = objectUrl;
+        link.download = fileName;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        
-        toast({
-          title: "Descarga iniciada",
-          description: `Descargando ${confirmation.file_name}`,
-        });
-      } else {
-        // Fallback: try to get file from storage
+        URL.revokeObjectURL(objectUrl);
+      };
+
+      // Prefer downloading from Supabase Storage to force a real file download
+      let blob: Blob | null = null;
+
+      const inferPathFromUrl = (url: string | undefined): string | null => {
+        if (!url) return null;
+        try {
+          const u = new URL(url);
+          // Public URL usually contains /object/public/<bucket>/<path>
+          const marker = '/object/public/transfer-confirmations/';
+          const idx = u.pathname.indexOf(marker);
+          if (idx >= 0) {
+            return decodeURIComponent(u.pathname.substring(idx + marker.length));
+          }
+          return null;
+        } catch {
+          return null;
+        }
+      };
+
+      const filePath = confirmation.file_path || inferPathFromUrl(confirmation.file_url);
+
+      if (filePath) {
         const { data, error } = await supabase.storage
           .from('transfer-confirmations')
-          .download(confirmation.file_path);
-
-        if (error) {
-          throw new Error(`Error al descargar archivo: ${error.message}`);
+          .download(filePath);
+        if (!error && data) {
+          blob = data as Blob;
         }
-
-        // Create blob URL and trigger download
-        const url = URL.createObjectURL(data);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = confirmation.file_name;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-
-        toast({
-          title: "Descarga iniciada",
-          description: `Descargando ${confirmation.file_name}`,
-        });
       }
+
+      // Fallback: try to fetch the public URL directly if blob is still null
+      if (!blob && confirmation.file_url) {
+        const resp = await fetch(confirmation.file_url, { credentials: 'omit', mode: 'cors' });
+        if (!resp.ok) throw new Error(`Network error ${resp.status}`);
+        blob = await resp.blob();
+      }
+
+      if (!blob) throw new Error('File not available for download.');
+
+      triggerBlobDownload(blob, confirmation.file_name || 'file');
     } catch (error: any) {
-      console.error("Error downloading file:", error);
+      console.error('Error downloading file:', error);
       toast({
-        title: "Error",
-        description: error?.message ?? "No se pudo descargar el archivo",
-        variant: "destructive"
+        title: t('common.error'),
+        description: error?.message ?? 'Could not download file',
+        variant: 'destructive'
       });
     }
   };
@@ -886,8 +903,8 @@ const OperatorDashboard = () => {
         {/* Page Header with Refresh Button */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">Panel de Operador</h1>
-            <p className="text-muted-foreground">Gestiona adelantos y confirmaciones de transferencias</p>
+            <h1 className="text-3xl font-bold text-foreground">{t('operator.operatorPanel')}</h1>
+            <p className="text-muted-foreground">{t('operator.approvedTransfers')}</p>
           </div>
           <Button 
             variant="outline" 
@@ -897,7 +914,7 @@ const OperatorDashboard = () => {
             className="flex items-center space-x-2"
           >
             <RefreshCw className={`h-4 w-4 ${(isLoadingAdvances || isLoadingBatches || isLoadingConfirmations || isLoadingEmployeeFees) ? 'animate-spin' : ''}`} />
-            <span>Actualizar</span>
+            <span>{t('company.billing.refresh')}</span>
           </Button>
         </div>
 
@@ -905,7 +922,7 @@ const OperatorDashboard = () => {
         <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
           <Card className="border-none shadow-card">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Adelantos Pendientes</CardTitle>
+              <CardTitle className="text-sm font-medium">{t('operator.pendingAdvances')}</CardTitle>
               <Clock className="h-4 w-4 text-orange-500" />
             </CardHeader>
             <CardContent>
@@ -918,20 +935,20 @@ const OperatorDashboard = () => {
 
           <Card className="border-none shadow-card">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Comisiones</CardTitle>
+              <CardTitle className="text-sm font-medium">{t('company.reports.commissions')}</CardTitle>
               <DollarSign className="h-4 w-4 text-green-500" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-green-500">${totalPendingFees.toFixed(2)}</div>
               <p className="text-xs text-muted-foreground">
-                5% por transacción
+                {t('operator.feeRateNote')}
               </p>
             </CardContent>
           </Card>
 
           <Card className="border-none shadow-card">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Lotes Hoy</CardTitle>
+              <CardTitle className="text-sm font-medium">{t('operator.currentBatch')}</CardTitle>
               <Calendar className="h-4 w-4 text-blue-500" />
             </CardHeader>
             <CardContent>
@@ -951,7 +968,7 @@ const OperatorDashboard = () => {
 
           <Card className="border-none shadow-card">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Procesado</CardTitle>
+              <CardTitle className="text-sm font-medium">{t('company.totalYear')}</CardTitle>
               <Banknote className="h-4 w-4 text-purple-500" />
             </CardHeader>
             <CardContent>
@@ -959,14 +976,14 @@ const OperatorDashboard = () => {
                 ${isLoadingBatches ? '...' : processedBatches.slice(0, 3).reduce((sum, batch) => sum + (batch.total_amount || 0), 0).toFixed(2)}
               </div>
               <p className="text-xs text-muted-foreground">
-                Últimos 3 lotes
+                {t('operator.last3Batches')}
               </p>
             </CardContent>
           </Card>
 
           <Card className="border-none shadow-card">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Tarifas de Registro</CardTitle>
+              <CardTitle className="text-sm font-medium">{t('company.billing.registrationFees')}</CardTitle>
               <Users className="h-4 w-4 text-indigo-600" />
             </CardHeader>
             <CardContent>
@@ -982,10 +999,10 @@ const OperatorDashboard = () => {
 
         <Tabs defaultValue="pending" className="space-y-6">
           <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="pending">Adelantos Pendientes</TabsTrigger>
-            <TabsTrigger value="batches">Lotes Procesados</TabsTrigger>
-            <TabsTrigger value="confirmations">Confirmaciones</TabsTrigger>
-            <TabsTrigger value="employee-fees">Tarifas de Empleados</TabsTrigger>
+            <TabsTrigger value="pending">{t('operator.pendingAdvances')}</TabsTrigger>
+            <TabsTrigger value="batches">{t('operator.processedBatches')}</TabsTrigger>
+            <TabsTrigger value="confirmations">{t('operator.confirmationsTab')}</TabsTrigger>
+            <TabsTrigger value="employee-fees">{t('operator.employeeFeesTab')}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="pending" className="space-y-6">
@@ -993,33 +1010,33 @@ const OperatorDashboard = () => {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle>Adelantos Pendientes</CardTitle>
+                    <CardTitle>{t('operator.pendingAdvancesTitle')}</CardTitle>
                     <CardDescription>
-                      Selecciona los adelantos para procesar en el próximo lote
+                      {t('operator.selectAdvancesToProcess')}
                     </CardDescription>
                     {selectedAdvances.size > 0 && (
                       <div className="mt-2 text-sm text-muted-foreground">
-                        {selectedAdvances.size} de {pendingAdvances.length} seleccionados • 
+                        {selectedAdvances.size} {t('common.of')} {pendingAdvances.length} {t('operator.pendingAdvances').toLowerCase()} • 
                         Total: ${selectedAmount.toFixed(2)} • 
-                        Comisiones: ${selectedFees.toFixed(2)}
+                        {t('company.reports.commissions')}: ${selectedFees.toFixed(2)}
                       </div>
                     )}
                   </div>
                   <div className="flex space-x-2">
                     <Button variant="outline" size="sm">
                       <Filter className="h-4 w-4 mr-2" />
-                      Filtrar
+                      {t('operator.filter')}
                     </Button>
                     <Button variant="outline" size="sm">
                       <Download className="h-4 w-4 mr-2" />
-                      Exportar CSV
+                      {t('operator.exportCSV')}
                     </Button>
                     <Button 
                       variant="hero" 
                       onClick={processBatch}
                       disabled={isProcessing || selectedAdvances.size === 0}
                     >
-                      {isProcessing ? "Procesando..." : `Procesar Lote (${selectedAdvances.size})`}
+                      {isProcessing ? t('operator.processingDots') : `${t('operator.processBatch')} (${selectedAdvances.size})`}
                     </Button>
                   </div>
                 </div>
@@ -1038,7 +1055,7 @@ const OperatorDashboard = () => {
                       ) : (
                         <>
                           <Square className="h-4 w-4 mr-2" />
-                          Seleccionar Todo
+                          {t('operator.selectAll')}
                         </>
                       )}
                     </Button>
@@ -1053,20 +1070,20 @@ const OperatorDashboard = () => {
                   {isLoadingAdvances ? (
                     <div className="text-center py-8">
                       <Clock className="h-8 w-8 text-muted-foreground mx-auto mb-3 animate-spin" />
-                      <p className="text-muted-foreground">Cargando adelantos pendientes...</p>
+                      <p className="text-muted-foreground">{t('operator.loadingPending')}</p>
                     </div>
                   ) : pendingAdvances.length === 0 ? (
                     <div className="text-center py-8">
                       <CheckCircle className="h-8 w-8 text-green-500 mx-auto mb-3" />
-                      <p className="text-muted-foreground">No hay adelantos pendientes</p>
-                      <p className="text-sm text-muted-foreground mt-1">Todos los adelantos han sido procesados</p>
+                      <p className="text-muted-foreground">{t('operator.noPending')}</p>
+                      <p className="text-sm text-muted-foreground mt-1">{t('operator.allProcessed')}</p>
                     </div>
                   ) : (
                     paginatedPendingAdvances.map((advance) => {
                       const employeeName = advance.employees 
                         ? `${advance.employees.first_name || ''} ${advance.employees.last_name || ''}`.trim()
-                        : 'Empleado desconocido';
-                      const companyName = advance.companies?.name || 'Empresa desconocida';
+                        : t('operator.unknownEmployee');
+                      const companyName = advance.companies?.name || t('operator.unknownCompany');
                       const advanceDate = new Date(advance.created_at);
                       const formattedTime = advanceDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
                       
@@ -1094,7 +1111,7 @@ const OperatorDashboard = () => {
                               <div className="font-medium">{employeeName}</div>
                               <div className="text-sm text-muted-foreground">{companyName}</div>
                               <div className="text-xs text-muted-foreground">
-                                {advance.payment_method === 'pagomovil' ? 'PagoMóvil' : 'Transferencia'}: {advance.payment_details}
+                                {advance.payment_method === 'pagomovil' ? 'PagoMóvil' : 'Bank Transfer'}: {advance.payment_details}
                               </div>
                         </div>
                       </div>
@@ -1102,7 +1119,7 @@ const OperatorDashboard = () => {
                         <div className="text-right">
                               <div className="font-semibold">${advance.requested_amount.toFixed(2)}</div>
                           <div className="text-sm text-muted-foreground">
-                                Comisión: ${advance.fee_amount.toFixed(2)}
+                                {t('company.reports.commissions')}: ${advance.fee_amount.toFixed(2)}
                           </div>
                               <div className="text-sm text-primary font-medium">
                                 Neto: ${advance.net_amount.toFixed(2)}
@@ -1138,9 +1155,9 @@ const OperatorDashboard = () => {
           <TabsContent value="batches" className="space-y-6">
             <Card className="border-none shadow-elegant">
               <CardHeader>
-                <CardTitle>Lotes Procesados</CardTitle>
+                <CardTitle>{t('operator.processedBatchesTitle')}</CardTitle>
                 <CardDescription>
-                  Historial de lotes procesados
+                  {t('operator.processedBatchesDesc')}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -1148,13 +1165,13 @@ const OperatorDashboard = () => {
                   {isLoadingBatches ? (
                     <div className="text-center py-8">
                       <Clock className="h-8 w-8 text-muted-foreground mx-auto mb-3 animate-spin" />
-                      <p className="text-muted-foreground">Cargando lotes procesados...</p>
+                      <p className="text-muted-foreground">{t('operator.loadingBatches')}</p>
                     </div>
                   ) : processedBatches.length === 0 ? (
                     <div className="text-center py-8">
                       <AlertCircle className="h-8 w-8 text-orange-500 mx-auto mb-3" />
-                      <p className="text-muted-foreground">No hay lotes procesados</p>
-                      <p className="text-sm text-muted-foreground mt-1">Los lotes procesados aparecerán aquí</p>
+                      <p className="text-muted-foreground">{t('operator.noProcessedBatches')}</p>
+                      <p className="text-sm text-muted-foreground mt-1">{t('operator.processedBatchesAppear')}</p>
                     </div>
                   ) : (
                     paginatedProcessedBatches.map((batch) => {
@@ -1179,7 +1196,7 @@ const OperatorDashboard = () => {
                               <CheckCircle className="h-5 w-5 text-white" />
                         </div>
                         <div>
-                              <div className="font-medium">{batch.batch_name || 'Lote sin nombre'}</div>
+                              <div className="font-medium">{batch.batch_name || t('operator.unnamedBatch')}</div>
                               <div className="text-sm text-muted-foreground">
                                 {formattedDate} - {formattedTime}
                               </div>
@@ -1194,14 +1211,14 @@ const OperatorDashboard = () => {
                         </div>
                             <div className="flex items-center space-x-2">
                             <Badge className="bg-green-100 text-green-800">
-                              {batch.status === 'completed' ? 'Completado' : batch.status || 'Desconocido'}
+                              {batch.status === 'completed' ? t('employee.completed') : batch.status || 'Unknown'}
                             </Badge>
                               <Button variant="outline" size="sm" onClick={(e) => {
                                 e.stopPropagation();
                                 handleBatchClick(batch);
                               }}>
                                 <FileText className="h-4 w-4 mr-1" />
-                                Ver Detalles
+                                {t('operator.viewDetails')}
                               </Button>
                             </div>
                         </div>
@@ -1233,9 +1250,9 @@ const OperatorDashboard = () => {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle>Confirmar Transferencias</CardTitle>
+                    <CardTitle>{t('operator.uploadSectionTitle')}</CardTitle>
                     <CardDescription>
-                      Subir comprobantes de transferencias realizadas
+                      {t('operator.uploadSectionDesc')}
                     </CardDescription>
                   </div>
                   <Button 
@@ -1244,16 +1261,16 @@ const OperatorDashboard = () => {
                     disabled={uploadingFiles}
                   >
                     <Upload className="h-4 w-4 mr-2" />
-                    {uploadingFiles ? "Subiendo..." : "Subir Comprobantes"}
+                    {uploadingFiles ? t('operator.uploadingDots') : t('operator.uploadCTAButton')}
                   </Button>
                 </div>
               </CardHeader>
               <CardContent>
                 <div className="text-center py-8">
                     <Upload className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold mb-2">Subir Comprobantes</h3>
+                    <h3 className="text-lg font-semibold mb-2">{t('operator.uploadCTATitle')}</h3>
                     <p className="text-muted-foreground mb-4">
-                    Haz clic en el botón "Subir Comprobantes" para comenzar
+                    {t('operator.uploadCTADesc')}
                   </p>
                 </div>
               </CardContent>
@@ -1264,16 +1281,16 @@ const OperatorDashboard = () => {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle>Confirmaciones Subidas</CardTitle>
+                    <CardTitle>{t('operator.confirmationsUploadedTitle')}</CardTitle>
                     <CardDescription>
-                      Historial de comprobantes de transferencia subidos
+                      {t('operator.confirmationsUploadedDesc')}
                     </CardDescription>
                   </div>
                   <div className="flex items-center space-x-2">
                     <div className="relative">
                       <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input
-                        placeholder="Buscar confirmaciones..."
+                        placeholder={t('operator.searchConfirmationsPlaceholder') || 'Search confirmations...'}
                         value={confirmationsSearch}
                         onChange={(e) => setConfirmationsSearch(e.target.value)}
                         className="pl-10 w-64"
@@ -1287,16 +1304,16 @@ const OperatorDashboard = () => {
                   {isLoadingConfirmations ? (
                     <div className="text-center py-8">
                       <Clock className="h-8 w-8 text-muted-foreground mx-auto mb-3 animate-spin" />
-                      <p className="text-muted-foreground">Cargando confirmaciones...</p>
+                      <p className="text-muted-foreground">{t('operator.loadingConfirmations')}</p>
                     </div>
                   ) : filteredConfirmations.length === 0 ? (
                     <div className="text-center py-8">
                       <AlertCircle className="h-8 w-8 text-orange-500 mx-auto mb-3" />
                       <p className="text-muted-foreground">
-                        {confirmationsSearch ? 'No se encontraron confirmaciones' : 'No hay confirmaciones subidas'}
+                        {confirmationsSearch ? t('operator.noConfirmationsSearch') : t('operator.noConfirmations')}
                       </p>
                       <p className="text-sm text-muted-foreground mt-1">
-                        {confirmationsSearch ? 'Intenta con otros términos de búsqueda' : 'Las confirmaciones aparecerán aquí después de subirlas'}
+                        {confirmationsSearch ? t('operator.tryOtherTerms') : t('operator.appearAfterUpload')}
                       </p>
                     </div>
                   ) : (
@@ -1309,16 +1326,16 @@ const OperatorDashboard = () => {
                             </div>
                             <div className="flex-1">
                               <div className="font-medium flex items-center space-x-2">
-                                <span>{confirmation.file_name || 'Archivo sin nombre'}</span>
+                                <span>{confirmation.file_name || t('operator.unnamedFile')}</span>
                                 <Badge variant="outline" className="text-xs">
                                   {confirmation.file_size && confirmation.file_size > 0 
                                     ? `${(confirmation.file_size / 1024 / 1024).toFixed(1)} MB`
-                                    : 'Tamaño desconocido'
+                                    : t('operator.unknownSize')
                                   }
                                 </Badge>
                               </div>
                               <div className="text-sm text-muted-foreground">
-                                Lote: {confirmation.processing_batches?.batch_name || 'Sin lote'}
+                                {t('common.batch')}: {confirmation.processing_batches?.batch_name || t('operator.noBatch')}
                               </div>
                               <div className="text-xs text-muted-foreground">
                                 {confirmation.created_at ? new Date(confirmation.created_at).toLocaleString('es-ES') : ''}
@@ -1335,7 +1352,7 @@ const OperatorDashboard = () => {
                               onClick={() => handlePreviewClick(confirmation)}
                             >
                               <FileText className="h-4 w-4 mr-1" />
-                              Vista
+                              {t('common.view')}
                             </Button>
                             <Button 
                               variant="outline" 
@@ -1343,7 +1360,7 @@ const OperatorDashboard = () => {
                               onClick={() => handleDownloadClick(confirmation)}
                             >
                               <Download className="h-4 w-4 mr-1" />
-                              Descargar
+                              {t('common.download')}
                             </Button>
                             <Button 
                               variant="outline" 
@@ -1381,10 +1398,10 @@ const OperatorDashboard = () => {
               <CardHeader>
                 <CardTitle className="flex items-center space-x-2">
                   <Users className="h-5 w-5" />
-                  <span>Tarifas de Registro de Empleados</span>
+                  <span>{t('operator.employeeFeesTitle')}</span>
                 </CardTitle>
                 <CardDescription>
-                  Gestiona las tarifas de $1 USD por cada empleado registrado.
+                  {t('operator.employeeFeesDesc')}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -1395,7 +1412,7 @@ const OperatorDashboard = () => {
                 ) : employeeFees.length === 0 ? (
                   <div className="text-center p-8 text-muted-foreground">
                     <AlertCircle className="h-12 w-12 mx-auto mb-4" />
-                    <p>No hay tarifas de empleados registradas.</p>
+                    <p>{t('operator.noEmployeeFees')}</p>
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -1415,7 +1432,7 @@ const OperatorDashboard = () => {
                               {fee.employees?.email}
                             </div>
                             <div className="text-xs text-muted-foreground">
-                              Empresa: {fee.companies?.name} ({fee.companies?.rif})
+                              {t('footer.company')}: {fee.companies?.name} ({fee.companies?.rif})
                             </div>
                           </div>
                         </div>
@@ -1425,7 +1442,7 @@ const OperatorDashboard = () => {
                             variant={fee.status === 'paid' ? 'default' : fee.status === 'overdue' ? 'destructive' : 'secondary'}
                             className="text-xs"
                           >
-                            {fee.status === 'paid' ? 'Pagado' : fee.status === 'overdue' ? 'Vencido' : 'Pendiente'}
+                            {fee.status === 'paid' ? t('company.billing.paid') : fee.status === 'overdue' ? t('operator.overdue') : t('company.billing.pending')}
                           </Badge>
                           <div className="text-xs text-muted-foreground mt-1">
                             {fee.created_at ? new Date(fee.created_at).toLocaleDateString('es-ES') : ''}
@@ -1544,7 +1561,7 @@ const OperatorDashboard = () => {
             <DialogHeader>
               <DialogTitle className="flex items-center space-x-2">
                 <Upload className="h-5 w-5 text-primary" />
-                <span>Subir Comprobantes</span>
+                <span>{t('operator.uploadCTAButton')}</span>
               </DialogTitle>
               <DialogDescription>
                 Selecciona los archivos de comprobantes de transferencia
@@ -1641,10 +1658,10 @@ const OperatorDashboard = () => {
             <DialogHeader>
               <DialogTitle className="flex items-center space-x-2">
                 <AlertCircle className="h-5 w-5 text-red-500" />
-                <span>Eliminar Confirmación</span>
+                <span>{t('operator.deleteConfirmationTitle')}</span>
               </DialogTitle>
               <DialogDescription>
-                ¿Estás seguro de que quieres eliminar esta confirmación? Esta acción no se puede deshacer.
+                {t('operator.deleteConfirmationDesc')}
               </DialogDescription>
             </DialogHeader>
             
@@ -1688,10 +1705,10 @@ const OperatorDashboard = () => {
             <DialogHeader>
               <DialogTitle className="flex items-center space-x-2">
                 <FileText className="h-5 w-5 text-primary" />
-                <span>Vista Previa</span>
+                <span>{t('operator.previewTitle')}</span>
               </DialogTitle>
               <DialogDescription>
-                Vista previa del archivo seleccionado
+                {t('operator.previewDesc')}
               </DialogDescription>
             </DialogHeader>
             
@@ -1734,7 +1751,7 @@ const OperatorDashboard = () => {
                             <div style={{ display: 'none' }} className="space-y-4">
                               <Image className="h-16 w-16 text-muted-foreground mx-auto" />
                               <div>
-                                <div className="font-medium">No se pudo cargar la imagen</div>
+                                <div className="font-medium">{t('operator.previewUnavailable')}</div>
                                 <div className="text-sm text-muted-foreground">
                                   <a 
                                     href={previewFile.file_url} 
@@ -1742,7 +1759,7 @@ const OperatorDashboard = () => {
                                     rel="noopener noreferrer"
                                     className="text-blue-600 hover:underline"
                                   >
-                                    Abrir en nueva pestaña
+                                    {t('operator.openNewTab')}
                                   </a>
                                 </div>
                               </div>
@@ -1752,9 +1769,9 @@ const OperatorDashboard = () => {
                           <div className="space-y-4">
                             <Image className="h-16 w-16 text-muted-foreground mx-auto" />
                             <div>
-                              <div className="font-medium">Vista previa no disponible</div>
+                              <div className="font-medium">{t('operator.previewUnavailable')}</div>
                               <div className="text-sm text-muted-foreground">
-                                El archivo no tiene URL pública
+                                {t('operator.fileHasNoPublicUrl')}
                               </div>
                             </div>
                           </div>
@@ -1777,14 +1794,14 @@ const OperatorDashboard = () => {
                                 onClick={() => window.open(previewFile.file_url, '_blank')}
                               >
                                 <FileText className="h-4 w-4 mr-2" />
-                                Abrir en nueva pestaña
+                                {t('operator.openNewTab')}
                               </Button>
                               <Button 
                                 variant="outline" 
                                 onClick={() => handleDownloadClick(previewFile)}
                               >
                                 <Download className="h-4 w-4 mr-2" />
-                                Descargar
+                                {t('common.download')}
                               </Button>
                             </div>
                           </div>

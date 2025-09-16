@@ -161,8 +161,8 @@ const EmployeeDashboard = () => {
       } catch (error: any) {
         console.error("Error fetching employee data:", error);
         toast({
-          title: "Error",
-          description: error?.message ?? "No se pudieron cargar los datos",
+          title: t('common.error'),
+          description: error?.message ?? t('common.noData'),
           variant: "destructive"
         });
       } finally {
@@ -204,14 +204,14 @@ const EmployeeDashboard = () => {
       }
 
       toast({
-        title: "Datos actualizados",
-        description: "La información ha sido actualizada correctamente",
+        title: t('company.billing.dataUpdated'),
+        description: t('company.billing.dataUpdatedDesc'),
       });
     } catch (error: any) {
       console.error("Error refreshing data:", error);
       toast({
-        title: "Error",
-        description: "No se pudieron actualizar los datos",
+        title: t('common.error'),
+        description: t('company.billing.couldNotLoadEmployees'),
         variant: "destructive"
       });
     } finally {
@@ -242,8 +242,8 @@ const EmployeeDashboard = () => {
       }
 
       toast({
-        title: "Adelanto cancelado",
-        description: "Tu solicitud de adelanto ha sido cancelada exitosamente",
+        title: t('employee.cancelledTitle'),
+        description: t('employee.cancelledDesc'),
       });
 
       // Close modal and refresh data
@@ -253,8 +253,8 @@ const EmployeeDashboard = () => {
     } catch (error: any) {
       console.error("Error cancelling advance:", error);
       toast({
-        title: "Error",
-        description: error?.message ?? "No se pudo cancelar el adelanto",
+        title: t('common.error'),
+        description: error?.message ?? t('employee.couldNotCancel'),
         variant: "destructive"
       });
     }
@@ -299,8 +299,8 @@ const EmployeeDashboard = () => {
   const exportToExcel = () => {
     if (filteredAdvanceRequests.length === 0) {
       toast({
-        title: "No hay datos",
-        description: "No hay solicitudes de adelanto para exportar en el rango seleccionado",
+        title: t('common.noData'),
+        description: t('common.noDataToExport'),
         variant: "destructive"
       });
       return;
@@ -325,14 +325,14 @@ const EmployeeDashboard = () => {
 
     const worksheet = XLSX.utils.json_to_sheet(exportData);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Historial de Adelantos');
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Advance History');
 
-    const fileName = `historial_adelantos_${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
+    const fileName = `advance_history_${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
     XLSX.writeFile(workbook, fileName);
 
     toast({
-      title: "Exportación exitosa",
-      description: `Se ha exportado ${filteredAdvanceRequests.length} solicitudes a ${fileName}`,
+      title: t('common.exportSuccess'),
+      description: `${filteredAdvanceRequests.length} ${t('company.requests')} → ${fileName}`,
     });
   };
 
@@ -380,7 +380,7 @@ const EmployeeDashboard = () => {
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Cargando datos del empleado...</p>
+          <p className="text-muted-foreground">{t('employee.loadingEmployeeData')}</p>
         </div>
       </div>
     );
@@ -391,11 +391,11 @@ const EmployeeDashboard = () => {
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <AlertCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
-          <h2 className="text-xl font-semibold mb-2">No se encontraron datos</h2>
-          <p className="text-muted-foreground mb-4">No se pudieron cargar los datos del empleado.</p>
+          <h2 className="text-xl font-semibold mb-2">{t('employee.noDataTitle')}</h2>
+          <p className="text-muted-foreground mb-4">{t('employee.noDataDesc')}</p>
           <Button onClick={refreshData} disabled={isRefreshing}>
             <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
-            Reintentar
+            {t('employee.retry')}
           </Button>
         </div>
       </div>
@@ -527,7 +527,7 @@ const EmployeeDashboard = () => {
                   </span>
                   <div className="flex items-center space-x-2">
                     <div className="flex items-center space-x-2">
-                      <Label className="text-sm text-muted-foreground">Mostrar:</Label>
+                      <Label className="text-sm text-muted-foreground">{t('common.showing')}:</Label>
                       <Select value={itemsPerPage.toString()} onValueChange={(value) => handleItemsPerPageChange(Number(value))}>
                         <SelectTrigger className="w-[80px] h-8">
                           <SelectValue />
@@ -542,7 +542,7 @@ const EmployeeDashboard = () => {
                     </div>
                     <Button variant="outline" size="sm" onClick={exportToExcel}>
                     <Download className="h-4 w-4 mr-2" />
-                      Exportar XLS
+                      {t('common.exportXLS')}
                   </Button>
                   </div>
                 </CardTitle>
@@ -559,7 +559,7 @@ const EmployeeDashboard = () => {
                           className="w-[140px] justify-start text-left font-normal"
                         >
                           <CalendarIcon className="mr-2 h-4 w-4" />
-                          {dateFrom ? format(dateFrom, "dd/MM/yyyy") : "Seleccionar"}
+                          {dateFrom ? format(dateFrom, "dd/MM/yyyy") : t('common.select')}
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0" align="start">
@@ -574,7 +574,7 @@ const EmployeeDashboard = () => {
                   </div>
                   
                   <div className="flex items-center space-x-2">
-                    <Label className="text-sm font-medium">Hasta:</Label>
+                    <Label className="text-sm font-medium">{t('common.to')}:</Label>
                     <Popover>
                       <PopoverTrigger asChild>
                         <Button
@@ -583,7 +583,7 @@ const EmployeeDashboard = () => {
                           className="w-[140px] justify-start text-left font-normal"
                         >
                           <CalendarIcon className="mr-2 h-4 w-4" />
-                          {dateTo ? format(dateTo, "dd/MM/yyyy") : "Seleccionar"}
+                          {dateTo ? format(dateTo, "dd/MM/yyyy") : t('common.select')}
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0" align="start">
@@ -605,7 +605,7 @@ const EmployeeDashboard = () => {
                       className="text-muted-foreground"
                     >
                       <X className="h-4 w-4 mr-1" />
-                      Limpiar
+                      {t('common.clear')}
                     </Button>
                   )}
                 </div>
@@ -617,14 +617,14 @@ const EmployeeDashboard = () => {
                       <Clock className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
                       <p className="text-muted-foreground text-sm">
                         {advanceRequests.length === 0 
-                          ? "No hay solicitudes de adelanto" 
-                          : "No hay solicitudes en el rango seleccionado"
+                          ? t('common.noData') 
+                          : t('company.reports.filtersDesc')
                         }
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
                         {advanceRequests.length === 0 
-                          ? "Tus solicitudes aparecerán aquí" 
-                          : "Ajusta el rango de fechas para ver más resultados"
+                          ? t('employee.requestDescription') 
+                          : t('company.reports.filtersDesc')
                         }
                       </p>
                     </div>
@@ -639,17 +639,17 @@ const EmployeeDashboard = () => {
                       const getStatusBadge = () => {
                         switch (request.status) {
                           case 'completed':
-                            return <Badge className="bg-green-100 text-green-800">Completado</Badge>;
+                            return <Badge className="bg-green-100 text-green-800">{t('employee.completed')}</Badge>;
                           case 'approved':
-                            return <Badge className="bg-blue-100 text-blue-800">Aprobado</Badge>;
+                            return <Badge className="bg-blue-100 text-blue-800">{t('company.approved')}</Badge>;
                           case 'processing':
-                            return <Badge className="bg-orange-100 text-orange-800">Procesando</Badge>;
+                            return <Badge className="bg-orange-100 text-orange-800">{t('common.processing')}</Badge>;
                           case 'pending':
-                            return <Badge variant="secondary">Pendiente</Badge>;
+                            return <Badge variant="secondary">{t('employee.pending')}</Badge>;
                           case 'cancelled':
-                            return <Badge variant="outline" className="text-muted-foreground">Cancelado</Badge>;
+                            return <Badge variant="outline" className="text-muted-foreground">{t('common.cancelled')}</Badge>;
                           case 'failed':
-                            return <Badge variant="destructive">Fallido</Badge>;
+                            return <Badge variant="destructive">{t('common.failed')}</Badge>;
                           default:
                             return <Badge variant="outline">{request.status}</Badge>;
                         }
@@ -684,7 +684,7 @@ const EmployeeDashboard = () => {
                       };
 
                       const getPaymentMethodText = () => {
-                        return request.payment_method === 'pagomovil' ? 'PagoMóvil' : 'Transferencia Bancaria';
+                        return request.payment_method === 'pagomovil' ? 'PagoMóvil' : 'Bank Transfer';
                       };
 
                       return (
@@ -776,7 +776,7 @@ const EmployeeDashboard = () => {
                   <div className="flex items-center justify-between mt-4 pt-4 border-t border-muted/30">
                     <div className="flex items-center space-x-2 text-sm text-muted-foreground">
                       <span>
-                        Mostrando {startIndex + 1} - {Math.min(endIndex, filteredAdvanceRequests.length)} de {filteredAdvanceRequests.length} solicitudes
+                        {t('common.showing')} {startIndex + 1} - {Math.min(endIndex, filteredAdvanceRequests.length)} {t('common.of')} {filteredAdvanceRequests.length} {t('company.requests')}
                       </span>
                       </div>
                     
@@ -924,16 +924,10 @@ const EmployeeDashboard = () => {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <AlertCircle className="h-5 w-5 text-destructive" />
-              Cancelar Adelanto
+              {t('employee.cancelAdvanceTitle')}
             </DialogTitle>
             <DialogDescription>
-              ¿Estás seguro de que quieres cancelar este adelanto de{" "}
-              <span className="font-semibold">
-                ${advanceToCancel?.requested_amount.toFixed(2)}
-              </span>?
-              <br />
-              <br />
-              Esta acción no se puede deshacer.
+              {t('employee.cancelAdvanceConfirm').replace('${amount}', `$${advanceToCancel?.requested_amount.toFixed(2)}`)}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex gap-2 sm:gap-0">
@@ -942,7 +936,7 @@ const EmployeeDashboard = () => {
               onClick={cancelCancelAction}
               className="flex-1 sm:flex-none"
             >
-              No, mantener
+              {t('employee.keep')}
             </Button>
             <Button
               variant="destructive"
@@ -950,7 +944,7 @@ const EmployeeDashboard = () => {
               className="flex-1 sm:flex-none"
             >
               <X className="h-4 w-4 mr-2" />
-              Sí, cancelar
+              {t('employee.yesCancel')}
             </Button>
           </DialogFooter>
         </DialogContent>
