@@ -28,7 +28,7 @@ const RequestAdvance = () => {
               <Button variant="ghost" size="sm" asChild>
                 <Link to="/employee" className="flex items-center space-x-2">
                   <ArrowLeft className="h-4 w-4" />
-                  <span>Volver al Panel</span>
+                  <span>{t('common.back') || 'Back'}</span>
                 </Link>
               </Button>
               <div className="h-6 w-px bg-border" />
@@ -37,13 +37,13 @@ const RequestAdvance = () => {
                   <DollarSign className="h-5 w-5 text-white" />
                 </div>
                 <div>
-                  <h1 className="text-xl font-bold">Solicitar Adelanto</h1>
-                  <p className="text-sm text-muted-foreground">Obtén tu dinero al instante</p>
+                  <h1 className="text-xl font-bold">{t('employee.requestAdvance')}</h1>
+                  <p className="text-sm text-muted-foreground">{t('employee.requestDescription')}</p>
                 </div>
               </div>
             </div>
             <Button variant="outline" asChild>
-              <Link to="/">Cerrar Sesión</Link>
+              <Link to="/">{t('nav.logout')}</Link>
             </Button>
           </div>
         </div>

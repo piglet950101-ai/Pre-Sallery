@@ -307,20 +307,15 @@ const EmployeeDashboard = () => {
     }
 
     const exportData = filteredAdvanceRequests.map(request => ({
-      'Fecha': format(new Date(request.created_at), 'dd/MM/yyyy HH:mm'),
-      'Monto Solicitado': `$${request.requested_amount.toFixed(2)}`,
-      'Comisión': `$${request.fee_amount.toFixed(2)}`,
-      'Monto Neto': `$${request.net_amount.toFixed(2)}`,
-      'Estado': request.status === 'completed' ? 'Completado' : 
-                request.status === 'pending' ? 'Pendiente' :
-                request.status === 'processing' ? 'Procesando' :
-                request.status === 'approved' ? 'Aprobado' :
-                request.status === 'cancelled' ? 'Cancelado' :
-                request.status === 'failed' ? 'Fallido' : request.status,
-      'Método de Pago': request.payment_method === 'pagomovil' ? 'PagoMóvil' : 'Transferencia Bancaria',
-      'Detalles de Pago': request.payment_details,
-      'Lote': request.batch_id || 'N/A',
-      'Fecha de Procesamiento': request.processed_at ? format(new Date(request.processed_at), 'dd/MM/yyyy HH:mm') : 'N/A'
+      [t('common.date')]: format(new Date(request.created_at), 'dd/MM/yyyy HH:mm'),
+      [t('common.requestedAmount')]: `$${request.requested_amount.toFixed(2)}`,
+      [t('common.fee')]: `$${request.fee_amount.toFixed(2)}`,
+      [t('common.netAmount')]: `$${request.net_amount.toFixed(2)}`,
+      [t('common.status')]: request.status,
+      [t('common.paymentMethod')]: request.payment_method === 'pagomovil' ? 'PagoMóvil' : 'Bank Transfer',
+      [t('common.paymentDetails')]: request.payment_details,
+      [t('common.batch')]: request.batch_id || 'N/A',
+      [t('common.processedAt')]: request.processed_at ? format(new Date(request.processed_at), 'dd/MM/yyyy HH:mm') : 'N/A'
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(exportData);
@@ -719,7 +714,7 @@ const EmployeeDashboard = () => {
                                   className="text-destructive hover:text-destructive hover:bg-destructive/10 h-7 px-2 text-xs"
                                 >
                                   <X className="h-3 w-3 mr-1" />
-                                  Cancelar
+                                  {t('common.cancel')}
                                 </Button>
                               )}
                             </div>
@@ -729,7 +724,7 @@ const EmployeeDashboard = () => {
                           <div className="flex items-center justify-between text-xs text-muted-foreground">
                             <div className="flex items-center space-x-4">
                               <span>
-                                <span className="text-destructive">-${request.fee_amount.toFixed(2)}</span> comisión
+                                <span className="text-destructive">-${request.fee_amount.toFixed(2)}</span> {t('common.fee')}
                               </span>
                               <span>
                                 <span className="text-primary font-medium">${request.net_amount.toFixed(2)}</span> neto
@@ -845,7 +840,7 @@ const EmployeeDashboard = () => {
                   <div>
                     <div className="font-medium">{employee.bank_name}</div>
                     <div className="text-sm text-muted-foreground">
-                      {employee.account_type === 'savings' ? 'Cuenta de Ahorros' : 'Cuenta Corriente'}
+                      {employee.account_type === 'savings' ? t('employeeForm.savings') : t('employeeForm.checking')}
                     </div>
                     <div className="text-sm text-muted-foreground">
                       ****-****-{employee.account_number.slice(-4)}

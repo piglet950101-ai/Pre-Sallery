@@ -23,8 +23,9 @@ import {
   AlertCircle
 } from "lucide-react";
 import { format } from "date-fns";
-import { es } from "date-fns/locale";
+import { es, enUS } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface EmployeeInfo {
   // Personal Information
@@ -75,6 +76,7 @@ interface EmployeeInfoFormProps {
 
 export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialData, checkEmailDuplicate }: EmployeeInfoFormProps) => {
   const { toast } = useToast();
+  const { t, language } = useLanguage();
   const [formData, setFormData] = useState<EmployeeInfo>({
     firstName: initialData?.firstName || "",
     lastName: initialData?.lastName || "",
@@ -130,8 +132,8 @@ export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialD
   const handleNext = async () => {
     if (!validateStep(currentStep)) {
       toast({
-        title: "Información incompleta",
-        description: "Por favor completa todos los campos requeridos",
+        title: t('common.incompleteInfo') || 'Incomplete information',
+        description: t('common.fillRequired') || 'Please complete all required fields',
         variant: "destructive"
       });
       return;
@@ -144,16 +146,16 @@ export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialD
           const isDuplicate = await checkEmailDuplicate(email);
           if (isDuplicate) {
             toast({
-              title: "Correo duplicado",
-              description: "Este correo ya está registrado para un empleado de la empresa.",
+              title: t('company.billing.duplicateEmail'),
+              description: t('company.billing.duplicateEmailDesc'),
               variant: "destructive"
             });
             return;
           }
         } catch (err: any) {
           toast({
-            title: "Error al validar correo",
-            description: err?.message ?? "Inténtalo nuevamente",
+            title: t('company.billing.error'),
+            description: err?.message ?? (t('common.tryAgain') || 'Please try again'),
             variant: "destructive"
           });
           return;
@@ -172,8 +174,8 @@ export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialD
       onSave(formData);
     } else {
       toast({
-        title: "Información incompleta",
-        description: "Por favor completa todos los campos requeridos",
+        title: t('common.incompleteInfo') || 'Incomplete information',
+        description: t('common.fillRequired') || 'Please complete all required fields',
         variant: "destructive"
       });
     }
@@ -186,39 +188,39 @@ export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialD
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="firstName">Nombre *</Label>
+                <Label htmlFor="firstName">{t('employeeForm.firstName')} *</Label>
                 <Input
                   id="firstName"
                   value={formData.firstName}
                   onChange={(e) => updateField("firstName", e.target.value)}
-                  placeholder="María"
+                  placeholder={language === 'en' ? 'Mary' : 'María'}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="lastName">Apellido *</Label>
+                <Label htmlFor="lastName">{t('employeeForm.lastName')} *</Label>
                 <Input
                   id="lastName"
                   value={formData.lastName}
                   onChange={(e) => updateField("lastName", e.target.value)}
-                  placeholder="González"
+                  placeholder={language === 'en' ? 'Smith' : 'González'}
                 />
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="email">Email *</Label>
+              <Label htmlFor="email">{t('employeeForm.email')} *</Label>
               <Input
                 id="email"
                 type="email"
                 value={formData.email}
                 onChange={(e) => updateField("email", e.target.value)}
-                placeholder="maria@ejemplo.com"
+                placeholder={language === 'en' ? 'mary@example.com' : 'maria@ejemplo.com'}
               />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="yearOfEmployment">Año de empleo *</Label>
+                <Label htmlFor="yearOfEmployment">{t('employeeForm.yearOfEmployment')} *</Label>
                 <Input
                   id="yearOfEmployment"
                   type="number"
@@ -230,7 +232,7 @@ export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialD
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="weeklyHours">Horas de trabajo semanales *</Label>
+                <Label htmlFor="weeklyHours">{t('employeeForm.weeklyHours')} *</Label>
                 <Input
                   id="weeklyHours"
                   type="number"
@@ -244,7 +246,7 @@ export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialD
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="livingExpenses">Gastos de vida mensuales (USD) *</Label>
+              <Label htmlFor="livingExpenses">{t('employeeForm.livingExpenses')} *</Label>
               <Input
                 id="livingExpenses"
                 type="number"
@@ -257,12 +259,12 @@ export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialD
             </div>
 
             <div className="space-y-2">
-              <Label>Fecha de nacimiento</Label>
+              <Label>{t('employeeForm.birthDate')}</Label>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button variant="outline" className="w-full justify-start text-left font-normal">
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {formData.birthDate ? format(formData.birthDate, "PPP", { locale: es }) : "Seleccionar fecha"}
+                    {formData.birthDate ? format(formData.birthDate, "PPP", { locale: language === 'en' ? enUS : es }) : t('employeeForm.selectDate')}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0">
@@ -283,32 +285,32 @@ export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialD
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="position">Cargo *</Label>
+                <Label htmlFor="position">{t('employeeForm.position')} *</Label>
                 <Input
                   id="position"
                   value={formData.position}
                   onChange={(e) => updateField("position", e.target.value)}
-                  placeholder="Desarrollador"
+                  placeholder={language === 'en' ? 'Developer' : 'Desarrollador'}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="department">Departamento</Label>
+                <Label htmlFor="department">{t('employeeForm.department')}</Label>
                 <Input
                   id="department"
                   value={formData.department}
                   onChange={(e) => updateField("department", e.target.value)}
-                  placeholder="Tecnología"
+                  placeholder={language === 'en' ? 'Technology' : 'Tecnología'}
                 />
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label>Fecha de inicio de empleo *</Label>
+              <Label>{t('employeeForm.startDate')} *</Label>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button variant="outline" className="w-full justify-start text-left font-normal">
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {formData.employmentStartDate ? format(formData.employmentStartDate, "PPP", { locale: es }) : "Seleccionar fecha"}
+                    {formData.employmentStartDate ? format(formData.employmentStartDate, "PPP", { locale: language === 'en' ? enUS : es }) : t('employeeForm.selectDate')}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0">
@@ -324,20 +326,20 @@ export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialD
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="employmentType">Tipo de empleo *</Label>
+                <Label htmlFor="employmentType">{t('employeeForm.employmentType')} *</Label>
                 <Select value={formData.employmentType} onValueChange={(value) => updateField("employmentType", value)}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar tipo" />
+                    <SelectValue placeholder={t('employeeForm.selectType')} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="full-time">Tiempo completo</SelectItem>
-                    <SelectItem value="part-time">Medio tiempo</SelectItem>
-                    <SelectItem value="contract">Contrato</SelectItem>
+                    <SelectItem value="full-time">{t('employeeForm.fullTime')}</SelectItem>
+                    <SelectItem value="part-time">{t('employeeForm.partTime')}</SelectItem>
+                    <SelectItem value="contract">{t('employeeForm.contract')}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="weeklyHours">Horas semanales</Label>
+                <Label htmlFor="weeklyHours">{t('employeeForm.weeklyHoursShort')}</Label>
                 <Input
                   id="weeklyHours"
                   type="number"
@@ -349,7 +351,7 @@ export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialD
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="monthlySalary">Salario mensual (USD) *</Label>
+              <Label htmlFor="monthlySalary">{t('employeeForm.monthlySalary')} *</Label>
               <Input
                 id="monthlySalary"
                 type="number"
@@ -366,7 +368,7 @@ export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialD
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="livingExpenses">Gastos de vida mensuales (USD)</Label>
+                <Label htmlFor="livingExpenses">{t('employeeForm.livingExpenses')}</Label>
                 <Input
                   id="livingExpenses"
                   type="number"
@@ -376,7 +378,7 @@ export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialD
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="dependents">Número de dependientes</Label>
+                <Label htmlFor="dependents">{t('employeeForm.dependents')}</Label>
                 <Input
                   id="dependents"
                   type="number"
@@ -388,22 +390,22 @@ export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialD
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="emergencyContact">Contacto de emergencia *</Label>
+              <Label htmlFor="emergencyContact">{t('employeeForm.emergencyContact')} *</Label>
               <Input
                 id="emergencyContact"
                 value={formData.emergencyContact}
                 onChange={(e) => updateField("emergencyContact", e.target.value)}
-                placeholder="Juan Pérez"
+                placeholder={language === 'en' ? 'John Smith' : 'Juan Pérez'}
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="emergencyPhone">Teléfono de emergencia *</Label>
+              <Label htmlFor="emergencyPhone">{t('employeeForm.emergencyPhone')} *</Label>
               <Input
                 id="emergencyPhone"
                 value={formData.emergencyPhone}
                 onChange={(e) => updateField("emergencyPhone", e.target.value)}
-                placeholder="+58 414 987-6543"
+                placeholder={language === 'en' ? '+1 415 555-0123' : '+58 414 987-6543'}
               />
             </div>
           </div>
@@ -413,41 +415,41 @@ export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialD
         return (
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="address">Dirección *</Label>
+              <Label htmlFor="address">{t('employeeForm.address')} *</Label>
               <Textarea
                 id="address"
                 value={formData.address}
                 onChange={(e) => updateField("address", e.target.value)}
-                placeholder="Av. Principal, Edificio ABC, Piso 5, Apt 501"
+                placeholder={language === 'en' ? '123 Main St, Suite 500' : 'Av. Principal, Edificio ABC, Piso 5, Apt 501'}
               />
             </div>
 
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="city">Ciudad *</Label>
+                <Label htmlFor="city">{t('employeeForm.city')} *</Label>
                 <Input
                   id="city"
                   value={formData.city}
                   onChange={(e) => updateField("city", e.target.value)}
-                  placeholder="Caracas"
+                  placeholder={language === 'en' ? 'City' : 'Caracas'}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="state">Estado *</Label>
+                <Label htmlFor="state">{t('employeeForm.state')} *</Label>
                 <Input
                   id="state"
                   value={formData.state}
                   onChange={(e) => updateField("state", e.target.value)}
-                  placeholder="Distrito Capital"
+                  placeholder={language === 'en' ? 'State' : 'Distrito Capital'}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="postalCode">Código postal</Label>
+                <Label htmlFor="postalCode">{t('employeeForm.postalCode')}</Label>
                 <Input
                   id="postalCode"
                   value={formData.postalCode}
                   onChange={(e) => updateField("postalCode", e.target.value)}
-                  placeholder="1010"
+                  placeholder={language === 'en' ? '1010' : '1010'}
                 />
               </div>
             </div>
@@ -458,17 +460,17 @@ export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialD
         return (
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="bankName">Banco *</Label>
+              <Label htmlFor="bankName">{t('employeeForm.bank')} *</Label>
               <Select value={formData.bankName} onValueChange={(value) => updateField("bankName", value)}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar banco" />
+                  <SelectValue placeholder={t('employeeForm.selectBank')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="BDV">Banco de Venezuela</SelectItem>
-                  <SelectItem value="Mercantil">Banco Mercantil</SelectItem>
+                  <SelectItem value="BDV">{language === 'en' ? 'Bank of Venezuela' : 'Banco de Venezuela'}</SelectItem>
+                  <SelectItem value="Mercantil">{language === 'en' ? 'Banco Mercantil' : 'Banco Mercantil'}</SelectItem>
                   <SelectItem value="Banesco">Banesco</SelectItem>
-                  <SelectItem value="Venezuela">Banco de Venezuela</SelectItem>
-                  <SelectItem value="Provincial">Banco Provincial</SelectItem>
+                  <SelectItem value="Venezuela">{language === 'en' ? 'Bank of Venezuela' : 'Banco de Venezuela'}</SelectItem>
+                  <SelectItem value="Provincial">{language === 'en' ? 'Banco Provincial' : 'Banco Provincial'}</SelectItem>
                   <SelectItem value="BOD">BOD</SelectItem>
                 </SelectContent>
               </Select>
@@ -476,7 +478,7 @@ export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialD
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="accountNumber">Número de cuenta *</Label>
+                <Label htmlFor="accountNumber">{t('employeeForm.accountNumber')} *</Label>
                 <Input
                   id="accountNumber"
                   value={formData.accountNumber}
@@ -485,26 +487,26 @@ export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialD
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="accountType">Tipo de cuenta *</Label>
+                <Label htmlFor="accountType">{t('employeeForm.accountType')} *</Label>
                 <Select value={formData.accountType} onValueChange={(value) => updateField("accountType", value)}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar tipo" />
+                    <SelectValue placeholder={t('employeeForm.selectType')} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="savings">Ahorros</SelectItem>
-                    <SelectItem value="checking">Corriente</SelectItem>
+                    <SelectItem value="savings">{t('employeeForm.savings')}</SelectItem>
+                    <SelectItem value="checking">{t('employeeForm.checking')}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="notes">Notas adicionales</Label>
+              <Label htmlFor="notes">{t('employeeForm.additionalNotes')}</Label>
               <Textarea
                 id="notes"
                 value={formData.notes}
                 onChange={(e) => updateField("notes", e.target.value)}
-                placeholder="Información adicional sobre el empleado..."
+                placeholder={language === 'en' ? 'Additional information about the employee...' : 'Información adicional sobre el empleado...'}
               />
             </div>
           </div>
@@ -517,11 +519,11 @@ export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialD
 
   const getStepTitle = () => {
     const titles = [
-      "Información Personal",
-      "Información Laboral",
-      "Información Financiera",
-      "Dirección",
-      "Información Bancaria"
+      t('employeeForm.step.personal'),
+      t('employeeForm.step.employment'),
+      t('employeeForm.step.financial'),
+      t('employeeForm.step.address'),
+      t('employeeForm.step.banking')
     ];
     return titles[currentStep - 1];
   };
@@ -541,11 +543,11 @@ export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialD
             <CardTitle>{getStepTitle()}</CardTitle>
           </div>
           <Badge variant="outline">
-            Paso {currentStep} de {totalSteps}
+            {t('employeeForm.stepOf').replace('{current}', String(currentStep)).replace('{total}', String(totalSteps))}
           </Badge>
         </div>
         <CardDescription>
-          Información detallada del empleado
+          {t('employeeForm.detailSubtitle')}
         </CardDescription>
         
         {/* Fee Notification */}
@@ -553,12 +555,11 @@ export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialD
           <div className="flex items-center space-x-2">
             <DollarSign className="h-4 w-4 text-blue-600" />
             <span className="text-sm font-medium text-blue-800">
-              Tarifa de Registro por Empleado
+              {t('employeeForm.registrationFeeTitle')}
             </span>
           </div>
           <p className="text-sm text-blue-700 mt-1">
-            Se aplicará una tarifa única de <strong>$1 USD</strong> por cada empleado registrado. 
-            Esta tarifa se cobra una sola vez al momento del registro y se factura junto con las comisiones de adelantos.
+            {t('employeeForm.registrationFeeDesc')}
           </p>
         </div>
       </CardHeader>
@@ -581,20 +582,20 @@ export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialD
             onClick={handlePrevious}
             disabled={currentStep === 1}
           >
-            Anterior
+            {t('common.previous')}
           </Button>
           
           <div className="flex space-x-2">
             <Button variant="outline" onClick={onCancel}>
-              Cancelar
+              {t('common.cancel')}
             </Button>
             {currentStep < totalSteps ? (
               <Button onClick={handleNext}>
-                Siguiente
+                {t('common.next')}
               </Button>
             ) : (
               <Button onClick={handleSubmit} disabled={isLoading}>
-                {isLoading ? "Guardando..." : "Guardar Empleado"}
+                {isLoading ? t('common.saving') : t('common.save')}
               </Button>
             )}
           </div>

@@ -188,14 +188,25 @@ const Header = ({ showNavigation = true, className = "" }: HeaderProps) => {
               {t('nav.testimonials')}
             </a>
             
-            {/* Operator Panel Button - always visible for logged in users */}
-            <Link 
-              to="/operator" 
-              className="text-muted-foreground hover:text-foreground transition-colors flex items-center space-x-2"
-            >
-              <Shield className="h-4 w-4" />
-              <span>{t('nav.operatorPanel') ?? 'Operator Panel'}</span>
-            </Link>
+            {/* Role panel shortcut */}
+            {actualUserRole === 'company' && (
+              <Link 
+                to="/company" 
+                className="text-muted-foreground hover:text-foreground transition-colors flex items-center space-x-2"
+              >
+                <Building className="h-4 w-4" />
+                <span>{t('nav.companyPanel') ?? 'Company Panel'}</span>
+              </Link>
+            )}
+            {actualUserRole === 'employee' && (
+              <Link 
+                to="/employee" 
+                className="text-muted-foreground hover:text-foreground transition-colors flex items-center space-x-2"
+              >
+                <User className="h-4 w-4" />
+                <span>{t('nav.employeePanel') ?? 'Employee Panel'}</span>
+              </Link>
+            )}
             
             {/* Role-specific navigation items */}
             {actualUserRole === 'employee' && (

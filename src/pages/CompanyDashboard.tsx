@@ -122,6 +122,9 @@ const CompanyDashboard = () => {
   const [paymentMethod, setPaymentMethod] = useState('bank_transfer');
   const [paymentDetails, setPaymentDetails] = useState('');
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  // Payment history pagination
+  const [paymentPage, setPaymentPage] = useState(1);
+  const [paymentsPerPage, setPaymentsPerPage] = useState(5);
   
   // Billing state management
   const [paymentHistory, setPaymentHistory] = useState<any[]>([]);
@@ -390,6 +393,14 @@ const CompanyDashboard = () => {
       setIsLoadingPayments(false);
     }
   };
+
+  // Keep payment page within valid bounds when data or page size changes
+  useEffect(() => {
+    const totalPages = Math.max(1, Math.ceil(paymentHistory.length / paymentsPerPage));
+    if (paymentPage > totalPages) {
+      setPaymentPage(totalPages);
+    }
+  }, [paymentHistory.length, paymentsPerPage]);
 
   // Calculate current month unpaid amounts
   const currentMonthUnpaidAdvances = unpaidAdvances
@@ -2574,10 +2585,10 @@ const CompanyDashboard = () => {
                         <DialogHeader>
                           <DialogTitle className="flex items-center space-x-2">
                             <Users className="h-5 w-5" />
-                            <span>Agregar Nuevo Empleado</span>
+                            <span>{t('company.addEmployeeTitle')}</span>
                           </DialogTitle>
                           <DialogDescription>
-                            Completa la información del empleado para enviar un código de activación.
+                            {t('company.addEmployeeDesc')}
                           </DialogDescription>
                         </DialogHeader>
                         <EmployeeInfoForm 
@@ -2922,7 +2933,7 @@ const CompanyDashboard = () => {
                   <span>{t('company.recentReports')}</span>
                 </CardTitle>
                 <CardDescription>
-                  Historial de reportes generados
+                  {t('company.reports.historyDesc')}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -2930,7 +2941,7 @@ const CompanyDashboard = () => {
                   {recentReports.length === 0 ? (
                     <div className="text-center py-8">
                       <FileText className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
-                      <p className="text-muted-foreground">No hay reportes generados aún</p>
+                      <p className="text-muted-foreground">{t('company.reports.noReports')}</p>
                     </div>
                   ) : (
                     recentReports.map((report, index) => (
@@ -3154,7 +3165,72 @@ const CompanyDashboard = () => {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {billingData.paymentHistory.map((invoice) => (
+                  {/* Pagination Controls (Top) */}
+                  {billingData.paymentHistory.length > 0 && (() => {
+                    const totalPages = Math.max(1, Math.ceil(billingData.paymentHistory.length / paymentsPerPage));
+                    // If only one page, keep size selector but hide number/chevrons
+                    const showNav = totalPages > 1;
+                    const count = Math.min(3, totalPages);
+                    const half = Math.floor(count / 2);
+                    const start = Math.max(1, Math.min(paymentPage - half, totalPages - count + 1));
+                    const pages = Array.from({ length: count }, (_, i) => start + i);
+                    return (
+                      <div className="flex items-center justify-between pb-2">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-sm text-muted-foreground">{t('common.show')}:</span>
+                          <Select value={String(paymentsPerPage)} onValueChange={(v) => { setPaymentsPerPage(Number(v)); setPaymentPage(1); }}>
+                            <SelectTrigger className="w-[90px]">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="5">5</SelectItem>
+                              <SelectItem value="10">10</SelectItem>
+                              <SelectItem value="20">20</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {showNav && (
+                          <div className="flex items-center space-x-2">
+                            <Button
+                              aria-label="Previous page"
+                              variant="outline"
+                              size="sm"
+                              className="h-8 w-8 p-0 rounded-lg"
+                              onClick={() => setPaymentPage((p) => Math.max(1, p - 1))}
+                              disabled={paymentPage === 1}
+                            >
+                              <ChevronLeft className="h-4 w-4" />
+                            </Button>
+                            {pages.map((p) => (
+                              <Button
+                                key={p}
+                                aria-label={`Page ${p}`}
+                                variant={p === paymentPage ? 'default' : 'outline'}
+                                size="sm"
+                                className={`h-8 w-8 p-0 rounded-lg ${p === paymentPage ? 'bg-blue-500 text-white hover:bg-blue-600' : ''}`}
+                                onClick={() => setPaymentPage(p)}
+                              >
+                                {p}
+                              </Button>
+                            ))}
+                            <Button
+                              aria-label="Next page"
+                              variant="outline"
+                              size="sm"
+                              className="h-8 w-8 p-0 rounded-lg"
+                              onClick={() => setPaymentPage((p) => Math.min(totalPages, p + 1))}
+                              disabled={paymentPage >= totalPages}
+                            >
+                              <ChevronRight className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                  {billingData.paymentHistory
+                    .slice((paymentPage - 1) * paymentsPerPage, paymentPage * paymentsPerPage)
+                    .map((invoice) => (
                     <div key={invoice.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors">
                       <div className="flex items-center space-x-4">
                         <div className="h-12 w-12 bg-blue-100 rounded-full flex items-center justify-center">

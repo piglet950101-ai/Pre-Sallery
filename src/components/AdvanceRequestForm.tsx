@@ -18,6 +18,7 @@ import {
   X
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/lib/supabase";
 
 interface EmployeeData {
@@ -41,6 +42,7 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const { toast } = useToast();
+  const { t } = useLanguage();
 
   const feeRate = 0.05; // 5%
   const minFee = 1; // $1 minimum
@@ -75,8 +77,13 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
     // Check if amount exceeds available limit
     if (requestAmount > maxAvailable) {
       toast({
-        title: "Monto excede el límite disponible",
-        description: `Solo puedes solicitar hasta $${maxAvailable.toFixed(2)} USD. Ya has usado $${employeeData.usedAmount.toFixed(2)} de tus $${(employeeData.availableAmount + employeeData.usedAmount).toFixed(2)} disponibles.`,
+        title: t('employee.error.amountExceeds') || 'Amount exceeds available limit',
+        description: t('employee.error.amountExceedsDesc') 
+          ? t('employee.error.amountExceedsDesc')
+              .replace('{max}', maxAvailable.toFixed(2))
+              .replace('{used}', employeeData.usedAmount.toFixed(2))
+              .replace('{total}', (employeeData.availableAmount + employeeData.usedAmount).toFixed(2))
+          : `You can request up to $${maxAvailable.toFixed(2)} USD. You have used $${employeeData.usedAmount.toFixed(2)} of $${(employeeData.availableAmount + employeeData.usedAmount).toFixed(2)} available.`,
         variant: "destructive"
       });
       return;
@@ -85,8 +92,8 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
     // Check minimum amount
     if (requestAmount < 20) {
       toast({
-        title: "Monto mínimo",
-        description: "El adelanto mínimo es de $20 USD",
+        title: t('employee.error.minimumAmount') || 'Minimum amount',
+        description: t('employee.error.minimumAmountDesc') || 'Minimum advance is $20 USD',
         variant: "destructive"
       });
       return;
@@ -98,8 +105,13 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
     
     if (totalAfterRequest > maxTotalAvailable) {
       toast({
-        title: "Límite excedido",
-        description: `Con esta solicitud usarías $${totalAfterRequest.toFixed(2)} de $${maxTotalAvailable.toFixed(2)} disponibles. Solo puedes solicitar $${maxAvailable.toFixed(2)} USD más.`,
+        title: t('employee.error.limitExceeded') || 'Limit exceeded',
+        description: t('employee.error.limitExceededDesc')
+          ? t('employee.error.limitExceededDesc')
+              .replace('{totalAfter}', totalAfterRequest.toFixed(2))
+              .replace('{maxTotal}', maxTotalAvailable.toFixed(2))
+              .replace('{max}', maxAvailable.toFixed(2))
+          : `With this request you would use $${totalAfterRequest.toFixed(2)} of $${maxTotalAvailable.toFixed(2)} available. You can request $${maxAvailable.toFixed(2)} USD more.`,
         variant: "destructive"
       });
       return;
@@ -116,7 +128,7 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
       // Get current user
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        throw new Error("Usuario no autenticado");
+        throw new Error(t('employee.error.unauthenticated') || 'Unauthenticated user');
       }
 
       // Get employee data
@@ -127,7 +139,7 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
         .single();
 
       if (employeeError || !employee) {
-        throw new Error("No se encontró la información del empleado");
+        throw new Error(t('employee.error.noEmployee') || 'Employee info not found');
       }
 
       // Calculate amounts
@@ -153,12 +165,12 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
         });
 
       if (requestError) {
-        throw new Error(`Error al crear la solicitud: ${requestError.message}`);
+        throw new Error(`Create request error: ${requestError.message}`);
       }
 
       toast({
-        title: "Solicitud pre-aprobada",
-        description: "Tu adelanto ha sido aprobado y será procesado en el próximo lote (11:00 AM o 3:00 PM)",
+        title: t('employee.preApproved') || 'Pre-approved request',
+        description: t('employee.preApprovedDesc') || 'Your advance was approved and will be processed in the next batch (11:00 AM or 3:00 PM)',
       });
 
       // Reset form
@@ -172,8 +184,8 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
     } catch (error: any) {
       console.error("Error creating advance request:", error);
       toast({
-        title: "Error",
-        description: error?.message ?? "No se pudo enviar la solicitud",
+        title: t('company.billing.error') || 'Error',
+        description: error?.message ?? (t('employee.error.submitFailed') || 'Could not submit request'),
         variant: "destructive"
       });
     } finally {
@@ -189,10 +201,10 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
       <CardHeader>
         <CardTitle className="flex items-center space-x-2">
           <DollarSign className="h-5 w-5 text-primary" />
-          <span>Solicitar Adelanto</span>
+          <span>{t('employee.requestButton')}</span>
         </CardTitle>
         <CardDescription>
-          Solicita un adelanto de tu salario devengado de forma instantánea
+          {t('employee.requestDescription')}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -202,9 +214,9 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
             <div className="flex justify-between text-sm mb-2">
               <span className="flex items-center space-x-2">
                 <Clock className="h-4 w-4 text-muted-foreground" />
-                <span>Días trabajados este mes</span>
+                <span>{t('employee.daysWorkedMonth')}</span>
               </span>
-              <span className="font-medium">{employeeData.workedDays} / {employeeData.totalDays} días</span>
+              <span className="font-medium">{employeeData.workedDays} / {employeeData.totalDays} {t('employee.days')}</span>
             </div>
             <Progress value={progressPercentage} className="h-3" />
             <div className="flex justify-between text-xs mt-1 text-muted-foreground">
@@ -217,13 +229,13 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
             <div className="flex justify-between text-sm mb-2">
               <span className="flex items-center space-x-2">
                 <Calculator className="h-4 w-4 text-muted-foreground" />
-                <span>Salario devengado</span>
+                <span>{t('employee.earnedSalary') || 'Earned salary'}</span>
               </span>
               <span className="font-medium">${employeeData.earnedAmount} USD</span>
             </div>
             <Progress value={80} className="h-3" />
             <div className="flex justify-between text-xs mt-1 text-muted-foreground">
-              <span>Disponible para adelanto (80%)</span>
+              <span>{t('employee.availableForAdvance') || 'Available for advance (80%)'}</span>
               <span>${(employeeData.availableAmount + employeeData.usedAmount).toFixed(2)} USD</span>
             </div>
           </div>
@@ -232,7 +244,7 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
             <div className="flex justify-between text-sm mb-2">
               <span className="flex items-center space-x-2">
                 <DollarSign className="h-4 w-4 text-muted-foreground" />
-                <span>Uso de adelantos</span>
+                <span>{t('employee.advanceUsage') || 'Advance usage'}</span>
               </span>
               <span className="font-medium">${employeeData.usedAmount.toFixed(2)} / ${(employeeData.availableAmount + employeeData.usedAmount).toFixed(2)} USD</span>
             </div>
@@ -250,9 +262,9 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
         {/* Request Form */}
         <div className="bg-gradient-hero p-6 rounded-lg space-y-6 animate-scale-in" style={{ animationDelay: '0.2s' }}>
           <div className="flex items-center justify-between">
-            <h3 className="font-semibold text-foreground">Nuevo Adelanto</h3>
+            <h3 className="font-semibold text-foreground">{t('employee.newAdvance')}</h3>
             <Badge variant="secondary" className="animate-pulse-glow">
-              Procesamiento automático
+              {t('employee.autoProcessing') || 'Automatic processing'}
             </Badge>
           </div>
 
@@ -286,7 +298,7 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
           <div className="space-y-4">
             {/* Quick Amount Buttons */}
             <div>
-              <Label className="text-sm font-medium mb-3 block">Monto rápido:</Label>
+              <Label className="text-sm font-medium mb-3 block">{t('employee.quickAmount') || 'Quick amount:'}</Label>
               <div className="flex flex-wrap gap-2">
                 {quickAmounts.map((amount, index) => (
                   <Button 
@@ -298,7 +310,7 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
                     className="transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
                     style={{ animationDelay: `${0.1 * index}s` }}
                   >
-                    {amount === Math.floor(maxAvailable) ? 'Máximo' : `$${amount}`}
+                    {amount === Math.floor(maxAvailable) ? t('employee.maximum') : `$${amount}`}
                   </Button>
                 ))}
               </div>
@@ -307,7 +319,7 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
             {/* Custom Amount Input */}
             <div>
               <Label htmlFor="custom-amount" className="text-sm font-medium mb-2 block">
-                O ingresa un monto personalizado:
+                {t('employee.enterCustomAmount') || 'Or enter a custom amount:'}
               </Label>
               <div className="relative">
                 <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -327,7 +339,7 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
               {requestAmount > maxAvailable && (
                 <div className="flex items-center space-x-2 mt-2 text-destructive text-sm">
                   <AlertCircle className="h-4 w-4" />
-                  <span>Monto excede el límite disponible</span>
+                  <span>{t('employee.error.amountExceeds') || 'Amount exceeds available limit'}</span>
                 </div>
               )}
               
@@ -335,14 +347,14 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
               {requestAmount > 0 && requestAmount <= maxAvailable && (employeeData.usedAmount + requestAmount) > (employeeData.availableAmount + employeeData.usedAmount) * 0.9 && (
                 <div className="flex items-center space-x-2 mt-2 text-orange-600 text-sm">
                   <AlertCircle className="h-4 w-4" />
-                  <span>Estás cerca de tu límite máximo de adelantos</span>
+                  <span>{t('employee.nearLimit') || 'You are close to your maximum advance limit'}</span>
                 </div>
               )}
               
               {/* Show remaining available amount */}
               {requestAmount > 0 && requestAmount <= maxAvailable && (
                 <div className="text-xs text-muted-foreground mt-2">
-                  Después de esta solicitud te quedarían ${(maxAvailable - requestAmount).toFixed(2)} USD disponibles
+                  {(t('employee.afterRequestLeft') || 'After this request you will have {amount} USD available').replace('{amount}', (maxAvailable - requestAmount).toFixed(2))}
                 </div>
               )}
             </div>
@@ -351,23 +363,23 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
             <div className="border rounded-lg p-4 bg-background space-y-3">
               <div className="text-center">
                 <div className="text-3xl font-bold text-primary">${requestAmount.toFixed(2)}</div>
-                <div className="text-sm text-muted-foreground">Monto solicitado</div>
+                <div className="text-sm text-muted-foreground">{t('employee.requestedAmount')}</div>
               </div>
               
               <Separator />
               
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span>Monto bruto:</span>
+                  <span>{t('employee.grossAmount')}</span>
                   <span className="font-medium">${requestAmount.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Comisión (5%, mín $1):</span>
+                  <span>{t('employee.commission')}</span>
                   <span className="text-destructive font-medium">-${calculateFee(requestAmount).toFixed(2)}</span>
                 </div>
                 <Separator />
                 <div className="flex justify-between font-semibold text-base">
-                  <span>Recibirás:</span>
+                  <span>{t('employee.youWillReceive')}</span>
                   <span className="text-primary">${netAmount.toFixed(2)}</span>
                 </div>
               </div>
@@ -375,7 +387,7 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
               {/* Visual progress of requested amount */}
               <div className="mt-4">
                 <div className="flex justify-between text-xs mb-1">
-                  <span>Usando del límite disponible</span>
+                  <span>{t('employee.usingOfLimit') || 'Using of available limit'}</span>
                   <span>{availablePercentage.toFixed(1)}%</span>
                 </div>
                 <Progress value={availablePercentage} className="h-2" />
@@ -392,11 +404,11 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
               {isSubmitting ? (
                 <div className="flex items-center space-x-2">
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  <span>Procesando...</span>
+                  <span>{t('common.processing')}</span>
                 </div>
               ) : (
                 <div className="flex items-center space-x-2">
-                  <span>Solicitar Adelanto</span>
+                  <span>{t('employee.requestButton')}</span>
                   <ArrowRight className="h-4 w-4" />
                 </div>
               )}
@@ -406,9 +418,9 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
             <div className="flex items-start space-x-3 p-3 bg-primary/10 rounded-lg">
               <CheckCircle className="h-5 w-5 text-primary mt-0.5" />
               <div className="text-sm">
-                <div className="font-medium text-primary">Procesamiento en lotes</div>
+                <div className="font-medium text-primary">{t('employee.batchProcessingTitle') || 'Batch processing'}</div>
                 <div className="text-muted-foreground">
-                  Los adelantos se procesan manualmente en 2 lotes diarios: 11:00 AM y 3:00 PM. Recibirás el dinero el mismo día vía PagoMóvil o transferencia bancaria.
+                  {t('employee.batchProcessingDesc') || 'Advances are processed manually in two daily batches: 11:00 AM and 3:00 PM. You will receive the money the same day via PagoMóvil or bank transfer.'}
                 </div>
               </div>
             </div>
@@ -422,7 +434,7 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
           <DialogHeader>
             <DialogTitle className="flex items-center space-x-2">
               <Shield className="h-5 w-5 text-primary" />
-              <span>Confirmar Solicitud de Adelanto</span>
+              <span>{t('employee.confirmRequestTitle') || 'Confirm Advance Request'}</span>
             </DialogTitle>
             <DialogDescription>
               Por favor, revisa los detalles de tu solicitud antes de confirmar.
@@ -432,26 +444,26 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
           <div className="space-y-4">
             {/* Employee Info */}
             <div className="bg-muted/50 p-4 rounded-lg">
-              <div className="text-sm font-medium text-muted-foreground mb-2">Empleado</div>
+              <div className="text-sm font-medium text-muted-foreground mb-2">{t('common.employee') || 'Employee'}</div>
               <div className="text-lg font-semibold">{employeeData.name}</div>
             </div>
 
             {/* Request Details */}
             <div className="space-y-3">
               <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">Monto solicitado:</span>
+                <span className="text-sm text-muted-foreground">{t('employee.requestedAmount')}</span>
                 <span className="text-lg font-semibold">${requestAmount.toFixed(2)}</span>
               </div>
               
               <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">Comisión (5%):</span>
+                <span className="text-sm text-muted-foreground">{t('employee.commission')}</span>
                 <span className="text-sm text-destructive">-${calculateFee(requestAmount).toFixed(2)}</span>
               </div>
               
               <Separator />
               
               <div className="flex justify-between items-center">
-                <span className="text-base font-semibold">Recibirás:</span>
+                <span className="text-base font-semibold">{t('employee.youWillReceive')}</span>
                 <span className="text-xl font-bold text-primary">${netAmount.toFixed(2)}</span>
               </div>
             </div>
@@ -461,9 +473,9 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
               <div className="flex items-start space-x-3">
                 <Clock className="h-5 w-5 text-primary mt-0.5" />
                 <div className="text-sm">
-                  <div className="font-medium text-primary">Procesamiento</div>
+                  <div className="font-medium text-primary">{t('employee.batchProcessingNext') || 'Your advance will be processed in the next batch (11:00 AM or 3:00 PM) and you will receive the money the same day.'}</div>
                   <div className="text-muted-foreground">
-                    Tu adelanto será procesado en el próximo lote (11:00 AM o 3:00 PM) y recibirás el dinero el mismo día.
+                    {t('employee.batchProcessingNext') || 'Your advance will be processed in the next batch (11:00 AM or 3:00 PM) and you will receive the money the same day.'}
                   </div>
                 </div>
               </div>
@@ -478,7 +490,7 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
                 disabled={isSubmitting}
               >
                 <X className="h-4 w-4 mr-2" />
-                Cancelar
+                {t('employee.cancel')}
               </Button>
               <Button 
                 onClick={handleConfirmSubmit}
@@ -489,12 +501,12 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
                 {isSubmitting ? (
                   <div className="flex items-center space-x-2">
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    <span>Procesando...</span>
+                    <span>{t('common.processing')}</span>
                   </div>
                 ) : (
                   <div className="flex items-center space-x-2">
                     <CheckCircle className="h-4 w-4" />
-                    <span>Confirmar Solicitud</span>
+                    <span>{t('employee.confirmRequest') || 'Confirm Request'}</span>
                   </div>
                 )}
               </Button>

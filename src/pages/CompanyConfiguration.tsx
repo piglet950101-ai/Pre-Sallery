@@ -448,7 +448,7 @@ const CompanyConfiguration = () => {
                       </div>
                     </div>
                     <div className="flex items-center space-x-3">
-                      <Badge variant="outline">No Conectado</Badge>
+                      <Badge variant="outline">{t('config.integrations.notConnected')}</Badge>
                       <Button variant="outline" size="sm">{t('config.integrations.connect')}</Button>
                     </div>
                   </div>
@@ -480,8 +480,8 @@ const CompanyConfiguration = () => {
                       </div>
                     </div>
                     <div className="flex items-center space-x-3">
-                      <Badge variant="outline">Configurar</Badge>
-                      <Button variant="outline" size="sm">Gestionar</Button>
+                      <Badge variant="outline">{t('config.integrations.configure')}</Badge>
+                      <Button variant="outline" size="sm">{t('config.integrations.manage')}</Button>
                     </div>
                   </div>
                 </div>
@@ -492,12 +492,12 @@ const CompanyConfiguration = () => {
                   <div className="flex items-start space-x-3">
                     <AlertCircle className="h-5 w-5 text-primary mt-0.5" />
                     <div className="space-y-1">
-                      <div className="font-medium text-primary">¿Necesitas una integración personalizada?</div>
+                      <div className="font-medium text-primary">{t('config.integrations.customIntegrationTitle')}</div>
                       <div className="text-sm text-muted-foreground">
-                        Nuestro equipo puede ayudarte a conectar con tus sistemas existentes.
+                        {t('config.integrations.customIntegrationDesc')}
                       </div>
                       <Button variant="outline" size="sm" className="mt-2">
-                        Contactar Soporte
+                        {t('config.integrations.contactSupport')}
                       </Button>
                     </div>
                   </div>
