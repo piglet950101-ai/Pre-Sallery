@@ -116,6 +116,18 @@ const CompanyDashboard = () => {
   const [invoices, setInvoices] = useState<any[]>([]);
   const [isLoadingInvoices, setIsLoadingInvoices] = useState(false);
   const [billingPeriod, setBillingPeriod] = useState('current');
+  
+  // Payment states
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState('bank_transfer');
+  const [paymentDetails, setPaymentDetails] = useState('');
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  
+  // Billing state management
+  const [paymentHistory, setPaymentHistory] = useState<any[]>([]);
+  const [totalOutstanding, setTotalOutstanding] = useState(0);
+  const [lastPaymentDate, setLastPaymentDate] = useState('2024-01-15');
+  const [isLoadingPayments, setIsLoadingPayments] = useState(false);
   // Export confirmation modal state
   const [isExportConfirmOpen, setIsExportConfirmOpen] = useState(false);
   const [pendingExportType, setPendingExportType] = useState<string | null>(null);
@@ -204,35 +216,230 @@ const CompanyDashboard = () => {
     monthlyGrowth: monthlyChangePercent
   };
 
+  // Calculate initial total outstanding amount
+  const getInitialTotalOutstanding = () => {
+    if (companyData) {
+      return companyData.monthlyAdvances + companyData.totalEmployeeRegistrationFees;
+    }
+    return 0;
+  };
+
+  // Calculate real-time total outstanding from actual data
+  const calculateRealTotalOutstanding = () => {
+    if (companyData) {
+      const advancesTotal = companyData.monthlyAdvances || 0;
+      const feesTotal = companyData.totalEmployeeRegistrationFees || 0;
+      return advancesTotal + feesTotal;
+    }
+    return 0;
+  };
+
+  // Manual refresh function to reload company data
+  const refreshCompanyData = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      
+      const { data: companyData, error: companyError } = await supabase
+        .from("companies")
+        .select("*")
+        .eq("auth_user_id", user.id)
+        .single();
+      
+      if (companyError || !companyData) {
+        console.error('Error refreshing company data:', companyError);
+        return;
+      }
+      
+      setCompany(companyData);
+      console.log('Company data manually refreshed:', companyData);
+      
+      toast({
+        title: "Datos actualizados",
+        description: "Los datos de la empresa se han actualizado",
+      });
+    } catch (error) {
+      console.error('Error in refreshCompanyData:', error);
+    }
+  };
+
+  // Safe date formatting helper
+  const safeFormatDate = (date: any, formatStr: string, fallback: string = '--') => {
+    try {
+      if (!date) return fallback;
+      const dateObj = new Date(date);
+      if (isNaN(dateObj.getTime())) return fallback;
+      return format(dateObj, formatStr);
+    } catch (error) {
+      console.warn('Date formatting error:', error);
+      return fallback;
+    }
+  };
+
+  // Fetch payment history from Supabase
+  const fetchPaymentHistory = async () => {
+    try {
+      setIsLoadingPayments(true);
+      
+      // Get current company user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error("Usuario no autenticado");
+      }
+      
+      // Get company ID
+      const { data: companyData, error: companyError } = await supabase
+        .from("companies")
+        .select("id")
+        .eq("auth_user_id", user.id)
+        .single();
+      
+      if (companyError || !companyData) {
+        throw new Error("No se pudo obtener la información de la empresa");
+      }
+      
+      // Fetch payments for this company
+      const { data: payments, error: paymentsError } = await supabase
+        .from("company_payments")
+        .select("*")
+        .eq("company_id", companyData.id)
+        .order("created_at", { ascending: false });
+      
+      if (paymentsError) {
+        throw new Error("Error al cargar el historial de pagos");
+      }
+      
+      // Transform data for UI
+      const transformedPayments = payments.map(payment => ({
+        id: payment.id,
+        invoiceNumber: payment.invoice_number,
+        amount: payment.amount,
+        status: payment.status,
+        dueDate: payment.due_date,
+        paidDate: payment.paid_date,
+        period: payment.period,
+        paymentMethod: payment.payment_method,
+        paymentDetails: payment.payment_details
+      }));
+      
+      setPaymentHistory(transformedPayments);
+      
+      // Calculate total outstanding
+      const pendingPayments = transformedPayments.filter(p => p.status === 'pending');
+      const totalPending = pendingPayments.reduce((sum, p) => sum + p.amount, 0);
+      setTotalOutstanding(totalPending);
+      
+      // Set last payment date
+      const lastPaidPayment = transformedPayments.find(p => p.status === 'paid');
+      if (lastPaidPayment && lastPaidPayment.paidDate) {
+        try {
+          // Validate the date before setting
+          const date = new Date(lastPaidPayment.paidDate);
+          if (!isNaN(date.getTime())) {
+            setLastPaymentDate(lastPaidPayment.paidDate);
+          }
+        } catch (error) {
+          console.warn('Invalid date format for lastPaymentDate:', lastPaidPayment.paidDate);
+        }
+      }
+      
+    } catch (error: any) {
+      console.error('Error fetching payment history:', error);
+      toast({
+        title: "Error",
+        description: "No se pudo cargar el historial de pagos",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoadingPayments(false);
+    }
+  };
+
   // Billing data calculations
   const billingData = {
     currentMonthFees: companyData.monthlyFees,
     currentMonthAdvances: companyData.monthlyAdvances,
     currentMonthRegistrationFees: companyData.totalEmployeeRegistrationFees,
-    totalOutstanding: companyData.monthlyFees + companyData.totalEmployeeRegistrationFees,
-    lastPaymentDate: '2024-01-15', // This would come from actual payment data
+    totalOutstanding: calculateRealTotalOutstanding(),
+    lastPaymentDate: lastPaymentDate || '2024-01-15',
     nextDueDate: '2024-02-15', // This would be calculated
-    paymentHistory: [
-      {
-        id: '1',
-        invoiceNumber: 'INV-2024-001',
-        amount: 1250.00,
-        status: 'paid',
-        dueDate: '2024-01-15',
-        paidDate: '2024-01-14',
-        period: '1-15 Enero, 2024'
-      },
-      {
-        id: '2',
-        invoiceNumber: 'INV-2024-002',
-        amount: 1180.00,
-        status: 'pending',
-        dueDate: '2024-02-01',
-        paidDate: null,
-        period: '16-31 Enero, 2024'
-      }
-    ]
+    paymentHistory: paymentHistory
   };
+
+  // Initialize totalOutstanding only once when component mounts
+  useEffect(() => {
+    if (totalOutstanding === 0) {
+      setTotalOutstanding(getInitialTotalOutstanding());
+    }
+  }, []); // Empty dependency array - only run once
+
+  // Create initial payment records for testing
+  const createInitialPayments = async () => {
+    try {
+      // Get current company user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      
+      // Get company ID
+      const { data: companyData, error: companyError } = await supabase
+        .from("companies")
+        .select("id")
+        .eq("auth_user_id", user.id)
+        .single();
+      
+      if (companyError || !companyData) return;
+      
+      // Check if payments already exist
+      const { data: existingPayments } = await supabase
+        .from("company_payments")
+        .select("id")
+        .eq("company_id", companyData.id)
+        .limit(1);
+      
+      if (existingPayments && existingPayments.length > 0) return; // Payments already exist
+      
+      // Create sample payment records
+      const { error: insertError } = await supabase
+        .from("company_payments")
+        .insert([
+          {
+            company_id: companyData.id,
+            amount: 1250.00,
+            status: 'paid',
+            payment_method: 'bank_transfer',
+            payment_details: '0102-1234-5678-9012',
+            paid_date: '2024-01-14',
+            invoice_number: 'INV-2024-001',
+            period: '1-15 Enero, 2024',
+            due_date: '2024-01-15'
+          },
+          {
+            company_id: companyData.id,
+            amount: 1180.00,
+            status: 'pending',
+            payment_method: null,
+            payment_details: null,
+            paid_date: null,
+            invoice_number: 'INV-2024-002',
+            period: '16-31 Enero, 2024',
+            due_date: '2024-02-01'
+          }
+        ]);
+      
+      if (insertError) {
+        console.error('Error creating initial payments:', insertError);
+      }
+    } catch (error) {
+      console.error('Error in createInitialPayments:', error);
+    }
+  };
+
+  // Fetch payment history when component mounts
+  useEffect(() => {
+    createInitialPayments().then(() => {
+      fetchPaymentHistory();
+    });
+  }, []); // Empty dependency array - only run once
 
   // Fetch employees from Supabase and set up real-time subscription
   useEffect(() => {
@@ -1557,42 +1764,265 @@ const CompanyDashboard = () => {
     return pdf;
   };
 
+  // Process payment
+  const processPayment = async () => {
+    try {
+      console.log('Starting payment process...');
+      console.log('Payment method:', paymentMethod);
+      console.log('Payment details:', paymentDetails);
+      console.log('Current totalOutstanding:', totalOutstanding);
+      
+      setIsProcessingPayment(true);
+      
+      // Get current company user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error("Usuario no autenticado");
+      }
+      
+      // Get company ID
+      const { data: companyData, error: companyError } = await supabase
+        .from("companies")
+        .select("id")
+        .eq("auth_user_id", user.id)
+        .single();
+      
+      if (companyError || !companyData) {
+        throw new Error("No se pudo obtener la información de la empresa");
+      }
+      
+      const currentAmount = calculateRealTotalOutstanding();
+      const today = new Date().toISOString().split('T')[0];
+      
+      console.log('Payment Processing - Before:');
+      console.log('Current Amount:', currentAmount);
+      console.log('Company Data Before:', {
+        monthlyAdvances: company?.monthlyAdvances,
+        totalEmployeeRegistrationFees: company?.totalEmployeeRegistrationFees
+      });
+      console.log('Full Company Data Keys:', Object.keys(companyData || {}));
+      
+      // Create payment record in Supabase
+      const { data: paymentData, error: paymentError } = await supabase
+        .from("company_payments")
+        .insert([{
+          company_id: companyData.id,
+          amount: currentAmount,
+          status: 'paid',
+          payment_method: paymentMethod,
+          payment_details: paymentDetails,
+          paid_date: today,
+          invoice_number: `INV-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`,
+          period: `${new Date().toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}`,
+          due_date: billingData.nextDueDate
+        }])
+        .select()
+        .single();
+      
+      if (paymentError) {
+        throw new Error("Error al procesar el pago en la base de datos");
+      }
+      
+      // Update all pending payments to paid status
+      const { error: updateError } = await supabase
+        .from("company_payments")
+        .update({ 
+          status: 'paid',
+          paid_date: today,
+          payment_method: paymentMethod,
+          payment_details: paymentDetails
+        })
+        .eq("company_id", companyData.id)
+        .eq("status", "pending");
+      
+      if (updateError) {
+        console.warn('Warning: Could not update pending payments:', updateError);
+      }
+      
+      // Update company data in Supabase to reflect payment
+      if (companyData) {
+        console.log('Updating company data in Supabase...');
+        const { error: companyUpdateError } = await supabase
+          .from("companies")
+          .update({
+            monthlyAdvances: 0,
+            totalEmployeeRegistrationFees: 0,
+            lastPaymentDate: today
+          })
+          .eq("id", companyData.id);
+        
+        if (companyUpdateError) {
+          console.error('Error updating company data in Supabase:', companyUpdateError);
+          console.error('Error details:', {
+            message: companyUpdateError.message,
+            details: companyUpdateError.details,
+            hint: companyUpdateError.hint,
+            code: companyUpdateError.code
+          });
+          toast({
+            title: "Advertencia",
+            description: `El pago se procesó pero no se pudo actualizar los datos de la empresa: ${companyUpdateError.message}`,
+            variant: "destructive"
+          });
+        } else {
+          console.log('Company data updated successfully in Supabase');
+        }
+        
+        // Update local company data immediately
+        const updatedCompanyData = {
+          ...companyData,
+          monthlyAdvances: 0,
+          totalEmployeeRegistrationFees: 0,
+          lastPaymentDate: today
+        };
+        setCompany(updatedCompanyData);
+        console.log('Local company data updated:', updatedCompanyData);
+      }
+      
+      // Update local state
+      setTotalOutstanding(0);
+      setLastPaymentDate(today);
+      
+      console.log('Payment Processing - After:');
+      console.log('Total Outstanding Reset to:', 0);
+      console.log('Last Payment Date Updated to:', today);
+      console.log('New Company Data:', {
+        monthlyAdvances: 0,
+        totalEmployeeRegistrationFees: 0
+      });
+      
+      // Refresh company data from Supabase to ensure we have the latest values
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: updatedCompanyData, error: refreshError } = await supabase
+            .from("companies")
+            .select("*")
+            .eq("auth_user_id", user.id)
+            .single();
+          
+          if (!refreshError && updatedCompanyData) {
+            setCompany(updatedCompanyData);
+            console.log('Company data refreshed from Supabase:', updatedCompanyData);
+          }
+        }
+      } catch (error) {
+        console.warn('Could not refresh company data:', error);
+      }
+      
+      // Refresh payment history
+      await fetchPaymentHistory();
+      
+      toast({
+        title: "Pago procesado exitosamente",
+        description: `Se ha procesado el pago de $${currentAmount.toFixed(2)}. El total pendiente se ha actualizado a $0.00.`,
+      });
+      
+      setShowPaymentModal(false);
+      setPaymentDetails('');
+      
+    } catch (error: any) {
+      console.error('Error processing payment:', error);
+      toast({
+        title: "Error en el pago",
+        description: error.message || "No se pudo procesar el pago. Inténtalo de nuevo.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsProcessingPayment(false);
+    }
+  };
+
   // Generate invoice
   const generateInvoice = async (invoiceData: any) => {
     try {
-      // This would typically call a backend service to generate a proper invoice
-      const invoiceContent = `
-        FACTURA #${invoiceData.invoiceNumber}
-        
-        Empresa: ${company?.name || 'N/A'}
-        RIF: ${company?.rif || 'N/A'}
-        Período: ${invoiceData.period}
-        Fecha de Vencimiento: ${invoiceData.dueDate}
-        
-        DETALLES:
-        - Comisiones por adelantos: $${invoiceData.advanceFees.toFixed(2)}
-        - Tarifas de registro: $${invoiceData.registrationFees.toFixed(2)}
-        
-        TOTAL: $${invoiceData.amount.toFixed(2)}
-      `;
+      console.log('Generating invoice with data:', invoiceData);
+      console.log('Report data:', reportData);
+      console.log('Employee fees:', employeeFees);
+      console.log('Company data:', companyData);
       
-      const blob = new Blob([invoiceContent], { type: 'text/plain' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `Factura_${invoiceData.invoiceNumber}.txt`;
-      a.click();
-      window.URL.revokeObjectURL(url);
+      const doc = new jsPDF();
+      
+      // Set up the PDF document
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      
+      // Header
+      doc.setFontSize(24);
+      doc.setFont('helvetica', 'bold');
+      doc.text('FACTURA', pageWidth - 60, 30);
+      
+      // Company info
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Pre-Sallery', 20, 50);
+      doc.text('Sistema de Adelantos de Salario', 20, 60);
+      
+      // Invoice details
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`Factura #${invoiceData.invoiceNumber}`, pageWidth - 60, 50);
+      
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Fecha: ${format(new Date(), 'dd/MM/yyyy')}`, pageWidth - 60, 60);
+      doc.text(`Período: ${invoiceData.period}`, pageWidth - 60, 70);
+      doc.text(`Vence: ${invoiceData.dueDate}`, pageWidth - 60, 80);
+      
+      // Client info
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Datos del Cliente:', 20, 100);
+      
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Empresa: ${company?.name || 'N/A'}`, 20, 110);
+      doc.text(`RIF: ${company?.rif || 'N/A'}`, 20, 120);
+      doc.text(`Empleados activos: ${companyData.activeEmployees}`, 20, 130);
+      
+      // Invoice items - simplified version
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('DETALLES DE FACTURACIÓN:', 20, 150);
+      
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Adelantos procesados: ${reportData?.approvedAdvances || 0}`, 20, 165);
+      doc.text(`Monto total adelantos: $${invoiceData.advanceFees.toFixed(2)}`, 20, 175);
+      doc.text(`Empleados registrados: ${employeeFees?.length || 0}`, 20, 185);
+      doc.text(`Tarifas de registro: $${invoiceData.registrationFees.toFixed(2)}`, 20, 195);
+      
+      // Total
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`TOTAL A PAGAR: $${invoiceData.amount.toFixed(2)}`, pageWidth - 60, 220);
+      
+      // Footer
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Gracias por su confianza en Pre-Sallery', pageWidth / 2, pageHeight - 20, { align: 'center' });
+      doc.text('Sistema de Adelantos de Salario', pageWidth / 2, pageHeight - 15, { align: 'center' });
+      
+      // Save the PDF
+      doc.save(`Factura_${invoiceData.invoiceNumber}.pdf`);
       
       toast({
         title: "Factura generada",
-        description: `Se ha generado la factura ${invoiceData.invoiceNumber}`,
+        description: `Se ha generado la factura ${invoiceData.invoiceNumber} en formato PDF`,
       });
     } catch (error: any) {
       console.error("Error generating invoice:", error);
+      console.error("Error details:", {
+        message: error.message,
+        stack: error.stack,
+        invoiceData,
+        reportData,
+        employeeFees,
+        companyData
+      });
       toast({
         title: "Error",
-        description: "No se pudo generar la factura",
+        description: `No se pudo generar la factura: ${error.message}`,
         variant: "destructive"
       });
     }
@@ -1910,9 +2340,7 @@ const CompanyDashboard = () => {
                               <Badge variant="outline" className="text-orange-600 border-orange-200 bg-orange-50">Pendiente</Badge>
                           )}
                           {advance.status === 'approved' && (
-                            // <Badge className="text-blue-800"></Badge>
-                            <span className="text-green-900 font-bold border-l-2 border-green-900  w-[100px] inline-block text-center"> {t('company.approved')}</span>
-                          
+                            <Badge className="bg-blue-100 text-blue-800">{t('company.approved') ?? 'Aprobado'}</Badge>
                           )}
                           {advance.status === 'completed' && (
                             <Badge className="bg-green-100 text-green-800">{t('employee.completed')}</Badge>
@@ -1924,8 +2352,7 @@ const CompanyDashboard = () => {
                               <Badge variant="outline" className="text-muted-foreground">Cancelado</Badge>
                             )}
                             {advance.status === 'failed' && (
-                              // <Badge variant="destructive">Fallido</Badge>
-                              <span className="text-red-900 w-[100px] border-l-2 border-green-900 inline-block text-center"> Fallido</span>
+                              <Badge variant="destructive">Fallido</Badge>
                           )}
                         </div>
                       </div>
@@ -2409,7 +2836,7 @@ const CompanyDashboard = () => {
                         <div className="flex items-center space-x-2">
                           <div className="text-right">
                             <div className="text-sm text-muted-foreground">
-                              {format(new Date(report.createdAt), 'dd/MM/yyyy HH:mm')}
+                              {safeFormatDate(report.createdAt, 'dd/MM/yyyy HH:mm')}
                             </div>
                             <div className="text-xs text-muted-foreground">
                               {report.size}
@@ -2447,12 +2874,12 @@ const CompanyDashboard = () => {
 
               <Card className="border-none shadow-card">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Comisiones del Mes</CardTitle>
+                  <CardTitle className="text-sm font-medium">Adelantos del Mes</CardTitle>
                   <TrendingUp className="h-4 w-4 text-secondary" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">
-                    ${billingData.currentMonthFees.toFixed(2)}
+                    ${billingData.currentMonthAdvances.toFixed(2)}
                   </div>
                   <p className="text-xs text-muted-foreground">
                     {companyData.activeEmployees} empleados activos
@@ -2482,10 +2909,10 @@ const CompanyDashboard = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">
-                    {format(new Date(billingData.lastPaymentDate), 'dd/MM')}
+                    {safeFormatDate(billingData.lastPaymentDate, 'dd/MM')}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {format(new Date(billingData.lastPaymentDate), 'yyyy')}
+                    {safeFormatDate(billingData.lastPaymentDate, 'yyyy')}
                   </p>
                 </CardContent>
               </Card>
@@ -2494,9 +2921,20 @@ const CompanyDashboard = () => {
             {/* Billing Details */}
             <Card className="border-none shadow-elegant">
               <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <DollarSign className="h-5 w-5" />
-                  <span>Detalles de Facturación</span>
+                <CardTitle className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <DollarSign className="h-5 w-5" />
+                    <span>Detalles de Facturación</span>
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={refreshCompanyData}
+                    className="h-8"
+                  >
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Actualizar
+                  </Button>
                 </CardTitle>
                 <CardDescription>
                   Desglose de comisiones y tarifas del período actual
@@ -2520,8 +2958,8 @@ const CompanyDashboard = () => {
                         <span className="font-medium">{reportData.averageFeeRate.toFixed(1)}%</span>
                       </div>
                       <div className="flex justify-between items-center border-t pt-2">
-                        <span className="text-sm font-medium">Total comisiones:</span>
-                        <span className="font-bold text-lg">${billingData.currentMonthFees.toFixed(2)}</span>
+                        <span className="text-sm font-medium">Total billing:</span>
+                        <span className="font-bold text-lg">${billingData.currentMonthAdvances.toFixed(2)}</span>
                       </div>
                     </div>
                   </div>
@@ -2563,7 +3001,7 @@ const CompanyDashboard = () => {
                           invoiceNumber: 'INV-2024-003',
                           period: 'Enero 2024',
                           dueDate: billingData.nextDueDate,
-                          advanceFees: billingData.currentMonthFees,
+                          advanceFees: billingData.currentMonthAdvances,
                           registrationFees: billingData.currentMonthRegistrationFees,
                           amount: billingData.totalOutstanding
                         })}
@@ -2571,7 +3009,18 @@ const CompanyDashboard = () => {
                         <Download className="h-4 w-4 mr-2" />
                         Descargar Factura
                       </Button>
-                      <Button variant="premium">
+                      <Button 
+                        variant="premium"
+                        onClick={() => {
+                          console.log('Pagar Ahora button clicked');
+                          console.log('Real Total Outstanding:', calculateRealTotalOutstanding());
+                          console.log('Company Data:', {
+                            monthlyAdvances: companyData?.monthlyAdvances,
+                            totalEmployeeRegistrationFees: companyData?.totalEmployeeRegistrationFees
+                          });
+                          setShowPaymentModal(true);
+                        }}
+                      >
                         <DollarSign className="h-4 w-4 mr-2" />
                         Pagar Ahora
                       </Button>
@@ -2593,26 +3042,28 @@ const CompanyDashboard = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3">
+                <div className="space-y-4">
                   {billingData.paymentHistory.map((invoice) => (
-                    <div key={invoice.id} className="flex items-center justify-between p-4 border rounded-lg">
+                    <div key={invoice.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors">
                       <div className="flex items-center space-x-4">
-                        <div className="h-10 w-10 bg-gradient-primary rounded-full flex items-center justify-center">
-                          <FileText className="h-5 w-5 text-white" />
+                        <div className="h-12 w-12 bg-blue-100 rounded-full flex items-center justify-center">
+                          <FileText className="h-6 w-6 text-blue-600" />
                         </div>
                         <div>
-                          <div className="font-medium">{invoice.invoiceNumber}</div>
+                          <div className="font-semibold text-lg">{invoice.invoiceNumber}</div>
                           <div className="text-sm text-muted-foreground">{invoice.period}</div>
                         </div>
                       </div>
-                      <div className="flex items-center space-x-4">
+                      <div className="flex items-center space-x-6">
                         <div className="text-right">
-                          <div className="font-semibold">${invoice.amount.toFixed(2)}</div>
+                          <div className="font-bold text-xl">${invoice.amount.toFixed(2)}</div>
                           <Badge 
-                            className={invoice.status === 'paid' 
-                              ? 'bg-green-100 text-green-800' 
-                              : 'bg-orange-100 text-orange-800'
-                            }
+                            className={`mt-1 ${
+                              invoice.status === 'paid' 
+                                ? 'bg-green-100 text-green-700 border-green-200' 
+                                : 'bg-orange-100 text-orange-700 border-orange-200'
+                            }`}
+                            variant="outline"
                           >
                             {invoice.status === 'paid' ? 'Pagado' : 'Pendiente'}
                           </Badge>
@@ -2622,11 +3073,17 @@ const CompanyDashboard = () => {
                             variant="outline" 
                             size="sm"
                             onClick={() => generateInvoice(invoice)}
+                            className="h-8 w-8 p-0"
                           >
                             <Download className="h-4 w-4" />
                           </Button>
                           {invoice.status === 'pending' && (
-                            <Button variant="premium" size="sm">
+                            <Button 
+                              variant="default" 
+                              size="sm"
+                              className="bg-blue-600 hover:bg-blue-700 text-white"
+                              onClick={() => setShowPaymentModal(true)}
+                            >
                               Pagar
                             </Button>
                           )}
@@ -2831,6 +3288,112 @@ const CompanyDashboard = () => {
             >
               <X className="h-4 w-4 mr-2" />
               Sí, rechazar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Payment Modal */}
+      <Dialog open={showPaymentModal} onOpenChange={(open) => {
+        console.log('Payment modal open state changed:', open);
+        setShowPaymentModal(open);
+      }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center space-x-2">
+              <DollarSign className="h-5 w-5" />
+              <span>Procesar Pago</span>
+            </DialogTitle>
+            <DialogDescription>
+              Completa los datos para procesar el pago de ${billingData.totalOutstanding.toFixed(2)}
+              <br />
+              <span className="text-xs text-muted-foreground">
+                Modal State: {showPaymentModal ? 'Open' : 'Closed'} | 
+                Real Total: ${calculateRealTotalOutstanding().toFixed(2)} | 
+                Advances: ${companyData?.monthlyAdvances?.toFixed(2) || '0.00'} | 
+                Fees: ${companyData?.totalEmployeeRegistrationFees?.toFixed(2) || '0.00'}
+              </span>
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="payment-method">Método de Pago</Label>
+              <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecciona un método de pago" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="bank_transfer">Transferencia Bancaria</SelectItem>
+                  <SelectItem value="pagomovil">PagoMóvil</SelectItem>
+                  <SelectItem value="credit_card">Tarjeta de Crédito</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="payment-details">
+                {paymentMethod === 'bank_transfer' ? 'Número de Cuenta' : 
+                 paymentMethod === 'pagomovil' ? 'Número de Teléfono' : 
+                 'Número de Tarjeta'}
+              </Label>
+              <Input
+                id="payment-details"
+                placeholder={
+                  paymentMethod === 'bank_transfer' ? 'Ej: 0102-1234-5678-9012' :
+                  paymentMethod === 'pagomovil' ? 'Ej: 0412-1234567' :
+                  'Ej: 1234-5678-9012-3456'
+                }
+                value={paymentDetails}
+                onChange={(e) => setPaymentDetails(e.target.value)}
+              />
+            </div>
+            
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="font-medium">Adelantos:</span>
+                  <span className="font-bold">${companyData?.monthlyAdvances?.toFixed(2) || '0.00'}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="font-medium">Tarifas de Registro:</span>
+                  <span className="font-bold">${companyData?.totalEmployeeRegistrationFees?.toFixed(2) || '0.00'}</span>
+                </div>
+                <div className="border-t pt-2 flex justify-between items-center">
+                  <span className="font-medium">Total a Pagar:</span>
+                  <span className="text-xl font-bold">${calculateRealTotalOutstanding().toFixed(2)}</span>
+                </div>
+              </div>
+              <div className="text-sm text-muted-foreground mt-2">
+                Vence: {billingData.nextDueDate}
+              </div>
+            </div>
+          </div>
+          
+          <DialogFooter className="flex space-x-2">
+            <Button 
+              variant="outline" 
+              onClick={() => setShowPaymentModal(false)}
+              disabled={isProcessingPayment}
+            >
+              Cancelar
+            </Button>
+            <Button 
+              onClick={processPayment}
+              disabled={!paymentDetails.trim() || isProcessingPayment}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              {isProcessingPayment ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Procesando...
+                </>
+              ) : (
+                <>
+                  <DollarSign className="h-4 w-4 mr-2" />
+                  Procesar Pago
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -134,7 +134,7 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
       const feeAmount = calculateFee(requestAmount);
       const netAmount = requestAmount - feeAmount;
 
-      // Create advance request
+      // Create advance request (pre-approved if within available amount)
       const { error: requestError } = await supabase
         .from("advance_transactions")
         .insert({
@@ -149,7 +149,7 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
           total_days: employeeData.totalDays,
           payment_method: employee.phone ? 'pagomovil' : 'bank_transfer',
           payment_details: employee.phone || employee.account_number,
-          status: 'pending'
+          status: 'approved'
         });
 
       if (requestError) {
@@ -157,8 +157,8 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
       }
 
       toast({
-        title: "Solicitud enviada",
-        description: "Tu adelanto será procesado en el próximo lote (11:00 AM o 3:00 PM)",
+        title: "Solicitud pre-aprobada",
+        description: "Tu adelanto ha sido aprobado y será procesado en el próximo lote (11:00 AM o 3:00 PM)",
       });
 
       // Reset form
