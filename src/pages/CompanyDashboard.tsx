@@ -1352,11 +1352,11 @@ const CompanyDashboard = () => {
             'Monto Solicitado': advance.requested_amount,
             'Comisión': advance.fee_amount,
             'Monto Neto': advance.net_amount,
-            'Estado': advance.status === 'completed' ? 'Completado' : 
-                      advance.status === 'pending' ? 'Pendiente' :
-                      advance.status === 'processing' ? 'Procesando' :
-                      advance.status === 'approved' ? 'Aprobado' :
-                      advance.status === 'failed' ? 'Fallido' : advance.status,
+            'Estado': advance.status === 'completed' ? t('employee.completed') : 
+                      advance.status === 'pending' ? t('employee.pending') :
+                      advance.status === 'processing' ? t('common.processing') :
+                      advance.status === 'approved' ? t('company.approved') :
+                      advance.status === 'failed' ? t('common.failed') : advance.status,
             'Método de Pago': advance.payment_method === 'pagomovil' ? 'PagoMóvil' : 'Transferencia Bancaria',
             'Detalles de Pago': advance.payment_details,
             'Lote': advance.batch_id || 'N/A'
@@ -1402,11 +1402,11 @@ const CompanyDashboard = () => {
             'Monto Solicitado': advance.requested_amount,
             'Comisión': advance.fee_amount,
             'Monto Neto': advance.net_amount,
-            'Estado': advance.status === 'completed' ? 'Completado' : 
-                      advance.status === 'pending' ? 'Pendiente' :
-                      advance.status === 'processing' ? 'Procesando' :
-                      advance.status === 'approved' ? 'Aprobado' :
-                      advance.status === 'failed' ? 'Fallido' : advance.status,
+            'Estado': advance.status === 'completed' ? t('employee.completed') : 
+                      advance.status === 'pending' ? t('employee.pending') :
+                      advance.status === 'processing' ? t('common.processing') :
+                      advance.status === 'approved' ? t('company.approved') :
+                      advance.status === 'failed' ? t('common.failed') : advance.status,
             'Método de Pago': advance.payment_method === 'pagomovil' ? 'PagoMóvil' : 'Transferencia Bancaria',
             'Detalles de Pago': advance.payment_details,
             'Lote': advance.batch_id || 'N/A',
@@ -1876,7 +1876,7 @@ const CompanyDashboard = () => {
             payment_details: paymentDetails,
             paid_date: today,
             invoice_number: `INV-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`,
-            period: `${new Date().toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}`,
+            period: `${new Date().toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}`,
             due_date: billingData.nextDueDate
           }])
           .select()
@@ -2226,7 +2226,7 @@ const CompanyDashboard = () => {
                 {isLoadingAdvances ? '...' : companyData.pendingAdvances}
               </div>
               <p className="text-xs text-muted-foreground">
-                {isLoadingAdvances ? '...' : (companyData.pendingAdvances === 1 ? 'Adelanto esperando aprobación' : 'Adelantos esperando aprobación')}
+                {isLoadingAdvances ? '...' : (companyData.pendingAdvances === 1 ? t('company.pendingApprovalOne') : t('company.pendingApprovalMany'))}
               </p>
             </CardContent>
           </Card>
@@ -2241,14 +2241,14 @@ const CompanyDashboard = () => {
                 ${isLoadingAdvances ? '...' : companyData.weeklyBilling.toFixed(2)}
               </div>
               <p className="text-xs text-muted-foreground">
-                {t('company.nextBill')} {new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
+                {t('company.nextBill')} {new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
               </p>
             </CardContent>
           </Card>
 
           <Card className="border-none shadow-card">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Tarifas de Registro</CardTitle>
+              <CardTitle className="text-sm font-medium">{t('company.billing.registrationFees')}</CardTitle>
               <Users className="h-4 w-4 text-green-600" />
             </CardHeader>
             <CardContent>
@@ -2256,7 +2256,7 @@ const CompanyDashboard = () => {
                 ${isLoadingEmployeeFees ? '...' : companyData.totalEmployeeRegistrationFees.toFixed(2)}
               </div>
               <p className="text-xs text-muted-foreground">
-                {isLoadingEmployeeFees ? '...' : `${employeeFees.length} empleados registrados`}
+                {isLoadingEmployeeFees ? '...' : `${employeeFees.length} ${t('company.billing.registeredEmployees')}`}
               </p>
             </CardContent>
           </Card>
@@ -2277,7 +2277,7 @@ const CompanyDashboard = () => {
                   <div className="flex items-center space-x-2">
                     <CardTitle>{t('company.recentAdvances')}</CardTitle>
                     <Badge variant="secondary" className="ml-2">
-                      {filteredAdvances.length} adelantos
+                      {filteredAdvances.length} {t('company.requests')}
                     </Badge>
                   </div>
                   <div className="flex items-center space-x-2">
@@ -2360,7 +2360,7 @@ const CompanyDashboard = () => {
                       className="text-muted-foreground"
                     >
                       <X className="h-4 w-4 mr-1" />
-                      Limpiar
+                      {t('common.clear')}
                     </Button>
                   )}
                 </div>
@@ -2370,15 +2370,15 @@ const CompanyDashboard = () => {
                   {isLoadingAdvances ? (
                     <div className="text-center py-8">
                       <RefreshCw className="h-8 w-8 text-muted-foreground mx-auto mb-3 animate-spin" />
-                      <p className="text-muted-foreground">Cargando adelantos...</p>
+                      <p className="text-muted-foreground">{t('common.loading')}</p>
                     </div>
                   ) : filteredAdvances.length === 0 ? (
                     <div className="text-center py-8">
                       <DollarSign className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
                       <p className="text-muted-foreground">
                         {activeAdvances.length === 0 
-                          ? "No hay solicitudes de adelanto" 
-                          : "No hay adelantos en el rango seleccionado"
+                          ? t('common.noData') 
+                          : t('company.reports.filtersDesc')
                         }
                       </p>
                       <p className="text-sm text-muted-foreground mt-1">
@@ -2394,8 +2394,8 @@ const CompanyDashboard = () => {
                       const advanceDate = new Date(advance.created_at);
                       const isToday = advanceDate.toDateString() === new Date().toDateString();
                       const formattedDate = isToday 
-                        ? `Hoy, ${advanceDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`
-                        : advanceDate.toLocaleDateString('es-ES', { 
+                        ? `${t('employee.today')}, ${advanceDate.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`
+                        : advanceDate.toLocaleDateString(undefined, { 
                             day: 'numeric', 
                             month: 'long', 
                             hour: '2-digit', 
@@ -2450,7 +2450,7 @@ const CompanyDashboard = () => {
                           {/* Status badge on the right */}
                           <div className="ml-auto">
                           {advance.status === 'pending' && (
-                              <Badge variant="outline" className="text-orange-600 border-orange-200 bg-orange-50">Pendiente</Badge>
+                              <Badge variant="outline" className="text-orange-600 border-orange-200 bg-orange-50">{t('employee.pending')}</Badge>
                           )}
                           {advance.status === 'approved' && (
                             <Badge className="bg-blue-100 text-blue-800">{t('company.approved') ?? 'Aprobado'}</Badge>
@@ -2459,10 +2459,10 @@ const CompanyDashboard = () => {
                             <Badge className="bg-green-100 text-green-800">{t('employee.completed')}</Badge>
                           )}
                             {advance.status === 'processing' && (
-                              <Badge className="bg-orange-100 text-orange-800">Procesando</Badge>
+                              <Badge className="bg-orange-100 text-orange-800">{t('common.processing')}</Badge>
                             )}
                             {advance.status === 'cancelled' && (
-                              <Badge variant="outline" className="text-muted-foreground">Cancelado</Badge>
+                              <Badge variant="outline" className="text-muted-foreground">{t('common.cancelled')}</Badge>
                             )}
                             {advance.status === 'failed' && (
                               <Badge variant="destructive">{t('common.failed')}</Badge>
@@ -2481,7 +2481,7 @@ const CompanyDashboard = () => {
                   <div className="flex items-center justify-between mt-4 pt-4 border-t border-muted/30">
                     <div className="flex items-center space-x-2 text-sm text-muted-foreground">
                       <span>
-                        Mostrando {startIndex + 1} - {Math.min(endIndex, filteredAdvances.length)} de {filteredAdvances.length} adelantos
+                        {t('common.showing')} {startIndex + 1} - {Math.min(endIndex, filteredAdvances.length)} {t('common.of')} {filteredAdvances.length} {t('company.requests')}
                       </span>
                     </div>
                     
@@ -2561,7 +2561,7 @@ const CompanyDashboard = () => {
                       disabled={isLoadingEmployees}
                     >
                       <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingEmployees ? 'animate-spin' : ''}`} />
-                      Actualizar
+                      {t('company.billing.refresh')}
                     </Button>
                     <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                       <DialogTrigger asChild>
@@ -2645,7 +2645,7 @@ const CompanyDashboard = () => {
                         <div className="text-right">
                             <div className="font-medium">${employee.monthly_salary}{t('company.month')}</div>
                             <div className="text-sm text-muted-foreground">
-                              {employee.is_verified ? 'Verificado' : 'Pendiente de verificación'}
+                              {employee.is_verified ? t('company.billing.employeeVerified') : t('employee.pending')}
                             </div>
                         </div>
                         <div className="flex items-center space-x-2">
@@ -2666,7 +2666,7 @@ const CompanyDashboard = () => {
                               size="sm"
                               onClick={() => openDeleteEmployee(employee)}
                             >
-                              Eliminar
+                              {t('common.delete')}
                             </Button>
                         </div>
                       </div>
@@ -3273,7 +3273,7 @@ const CompanyDashboard = () => {
           <DialogHeader>
             <DialogTitle className="flex items-center space-x-2">
               <Users className="h-5 w-5" />
-              <span>Editar Empleado</span>
+              <span>{t('common.edit')} {t('common.employee')}</span>
             </DialogTitle>
             <DialogDescription>
               Modifica la información del empleado {editingEmployee?.first_name} {editingEmployee?.last_name}.
@@ -3380,7 +3380,7 @@ const CompanyDashboard = () => {
               <br />
               <br />
               <span className="text-destructive font-medium">
-                Esta acción cambiará el estado del adelanto a "Fallido" y no se puede deshacer.
+                {t('common.failed')} - {t('permission.denied.contactAdmin') || 'This action cannot be undone.'}
               </span>
             </DialogDescription>
           </DialogHeader>
