@@ -21,6 +21,7 @@ import { useAuth, getUserRole, getActualUserRole } from "@/contexts/AuthContext"
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
+import { log } from "console";
 
 interface HeaderProps {
   showNavigation?: boolean;

@@ -26,13 +26,14 @@ import {
   CheckCircle
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import Pagination from "@/components/Pagination";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Link } from "react-router-dom";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
 import * as XLSX from 'xlsx';
@@ -85,6 +86,105 @@ interface Employee {
 const CompanyDashboard = () => {
   const { t } = useLanguage();
   const { toast } = useToast();
+  // Format bytes to a short label
+  const formatBytes = (bytes: number): string => {
+    if (!bytes || isNaN(bytes)) return '';
+    const kb = bytes / 1024;
+    if (kb < 1024) return `${Math.round(kb)} KB`;
+    const mb = kb / 1024;
+    return `${mb.toFixed(1)} MB`;
+  };
+
+  // Load recent reports from Supabase Storage
+  const loadRecentReportsFromStorage = async (companyId: string) => {
+    try {
+      const basePaths = [`${companyId}`, 'company'];
+      let aggregated: any[] = [];
+      for (const basePath of basePaths) {
+        const { data, error } = await supabase.storage.from('reports').list(basePath, {
+        limit: 100,
+        sortBy: { column: 'updated_at', order: 'desc' }
+        });
+        if (error) {
+          console.warn('Could not list reports at', basePath, error);
+          continue;
+        }
+        const mapped = (data || [])
+          .filter((f: any) => /\.(xlsx|csv|pdf)$/i.test(f.name))
+          .map((f: any) => {
+            const match = f.name.match(/^report_([^_]+)_([^_]+)_([0-9\-]+)\.(xlsx|csv|pdf)$/i);
+            const type = match?.[1] || 'unknown';
+            const period = match?.[2] || 'unknown';
+            const ext = (match?.[4] || '').toLowerCase();
+            const format = ext === 'xlsx' ? 'excel' : (ext || 'pdf');
+            const { data: pub } = supabase.storage.from('reports').getPublicUrl(`${basePath}/${f.name}`);
+            return {
+              name: f.name.replace(/\.(xlsx|csv|pdf)$/i, ''),
+              type,
+              period,
+              format,
+              createdAt: f.updated_at || new Date().toISOString(),
+              size: formatBytes((f as any).metadata?.size || (f as any).size || 0),
+              url: pub.publicUrl,
+            } as any;
+          });
+        aggregated = aggregated.concat(mapped);
+      }
+      // De-duplicate by name+format (in case file exists in both paths)
+      const uniqueMap = new Map<string, any>();
+      for (const r of aggregated) {
+        uniqueMap.set(`${r.name}.${r.format}`, r);
+      }
+      const unique = Array.from(uniqueMap.values()).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+      setRecentReports(unique);
+    } catch (e) {
+      console.warn('Error loading recent reports:', e);
+    }
+  };
+  // Upload a Blob to Supabase Storage and return public URL
+  const uploadReportToStorage = async (blob: Blob, filePath: string, contentType: string): Promise<string | null> => {
+    try {
+      const bucket = 'reports';
+      const { error: upErr } = await supabase.storage.from(bucket).upload(filePath, blob, {
+        cacheControl: '3600',
+        upsert: true,
+        contentType,
+      });
+      if (upErr) {
+        console.error('Upload error:', upErr);
+        toast({ title: t('common.error'), description: upErr.message || 'Could not upload report to storage', variant: 'destructive' });
+        return null;
+      }
+      // Try public URL
+      const { data: pub } = supabase.storage.from(bucket).getPublicUrl(filePath);
+      if (pub?.publicUrl) return pub.publicUrl;
+      // Fallback: signed URL (if bucket is private)
+      const { data: signed, error: signErr } = await supabase.storage.from(bucket).createSignedUrl(filePath, 60 * 60 * 24 * 7); // 7 days
+      if (signErr) {
+        console.warn('Could not create signed URL:', signErr);
+        return null;
+      }
+      return signed?.signedUrl ?? null;
+    } catch (e: any) {
+      console.error('Upload exception:', e);
+      toast({ title: t('common.error'), description: e?.message || 'Upload exception', variant: 'destructive' });
+      return null;
+    }
+  };
+  // Auto-fit Excel column widths based on content
+  const autoFitColumns = (worksheet: XLSX.WorkSheet, rows: any[]) => {
+    const headers = Object.keys(rows?.[0] || {});
+    const cols = headers.map((key) => {
+      const headerLen = String(key).length;
+      const maxLen = rows.reduce((acc, row) => {
+        const cell = row[key];
+        const cellLen = String(cell ?? '').length;
+        return Math.max(acc, cellLen);
+      }, headerLen);
+      return { wch: Math.min(50, Math.max(12, maxLen + 2)) };
+    });
+    (worksheet as any)['!cols'] = cols;
+  };
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
@@ -137,9 +237,14 @@ const CompanyDashboard = () => {
   // Delete employee modal state
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null);
+  const [employeeSearch, setEmployeeSearch] = useState<string>("");
+  const [employeeCurrentPage, setEmployeeCurrentPage] = useState<number>(1);
+  const [employeeItemsPerPage, setEmployeeItemsPerPage] = useState<number>(10);
 
-  // Filter out cancelled advances
-  const activeAdvances = advances.filter(advance => advance.status !== 'cancelled');
+  // Filter out cancelled advances (memoized to avoid re-creating on every render)
+  const activeAdvances = useMemo(() => (
+    advances.filter(advance => advance.status !== 'cancelled')
+  ), [advances]);
 
   // Company data (will be calculated from real data, excluding cancelled advances)
   const companyData = {
@@ -446,37 +551,8 @@ const CompanyDashboard = () => {
   // Calculate monthly employee fees ($1 per active employee per month)
   const activeEmployeesCount = employees.filter(emp => emp.is_active).length;
   const monthlyEmployeeFees = activeEmployeesCount * 1.00; // $1 per employee per month
-  
-  if (currentBillingPeriod.period === 'second') {
-    // Second billing period: charge remaining monthly employee fees + advances fees
-    // For second period, charge the remaining half of monthly employee fees
-    const remainingEmployeeFees = monthlyEmployeeFees / 2; // Half of monthly fee
-    currentPeriodUnpaidFees = remainingEmployeeFees;
-    
-    // Add advances fees for this period
-    const advancesFees = unpaidAdvances
-      .filter(advance => {
-        const advanceDate = new Date(advance.created_at);
-        return advanceDate >= currentBillingPeriod.startDate && advanceDate <= currentBillingPeriod.endDate;
-      })
-      .reduce((sum, advance) => sum + (advance.fee_amount || 0), 0);
-    
-    currentPeriodUnpaidFees += advancesFees;
-  } else {
-    // First billing period: charge first half of monthly employee fees + advances fees
-    const firstHalfEmployeeFees = monthlyEmployeeFees / 2; // Half of monthly fee
-    currentPeriodUnpaidFees = firstHalfEmployeeFees;
-    
-    // Add advances fees for this period
-    const advancesFees = unpaidAdvances
-      .filter(advance => {
-        const advanceDate = new Date(advance.created_at);
-        return advanceDate >= currentBillingPeriod.startDate && advanceDate <= currentBillingPeriod.endDate;
-      })
-      .reduce((sum, advance) => sum + (advance.fee_amount || 0), 0);
-    
-    currentPeriodUnpaidFees += advancesFees;
-  }
+  // Charge full monthly employee fee at once per month (no half periods, no advances fees here)
+  currentPeriodUnpaidFees = monthlyEmployeeFees;
 
   // Legacy calculations for backward compatibility
   const currentMonthUnpaidAdvances = unpaidAdvances
@@ -616,6 +692,8 @@ const CompanyDashboard = () => {
         
         companyId = companyData.id;
         setCompany(companyData);
+        // Load persisted recent reports for this company
+        loadRecentReportsFromStorage(companyId);
         
         // Fetch employees for this company
         const { data: employeesData, error: employeesError } = await supabase
@@ -1229,6 +1307,27 @@ const CompanyDashboard = () => {
   const endIndex = startIndex + itemsPerPage;
   const paginatedAdvances = filteredAdvances.slice(startIndex, endIndex);
 
+  // Filter employees by search
+  const filteredEmployees = useMemo(() => {
+    if (!employeeSearch.trim()) return employees;
+    const term = employeeSearch.trim().toLowerCase();
+    return employees.filter(e =>
+      `${e.first_name} ${e.last_name}`.toLowerCase().includes(term) ||
+      (e.email?.toLowerCase().includes(term)) ||
+      (e.cedula?.toLowerCase().includes(term))
+    );
+  }, [employees, employeeSearch]);
+
+  // Reset to first page when search changes
+  useEffect(() => {
+    setEmployeeCurrentPage(1);
+  }, [employeeSearch]);
+
+  const employeeTotalPages = Math.max(1, Math.ceil(filteredEmployees.length / employeeItemsPerPage));
+  const employeeStartIndex = (employeeCurrentPage - 1) * employeeItemsPerPage;
+  const employeeEndIndex = employeeStartIndex + employeeItemsPerPage;
+  const paginatedEmployees = filteredEmployees.slice(employeeStartIndex, employeeEndIndex);
+
   // Reset to first page when filters change
   useEffect(() => {
     setCurrentPage(1);
@@ -1409,6 +1508,7 @@ const CompanyDashboard = () => {
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(exportData);
+    autoFitColumns(worksheet, exportData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, t('company.reports.advancesReport'));
 
@@ -1421,92 +1521,97 @@ const CompanyDashboard = () => {
     });
   };
 
-  // Generate comprehensive report
-  const generateReport = async () => {
+  // Generate report with explicit params (used by recent reports download)
+  const generateReportWithParams = async (
+    type: string,
+    period: string,
+    formatChoice: 'excel' | 'csv' | 'pdf',
+    options?: { addToRecent?: boolean; uploadToStorage?: boolean }
+  ) => {
     try {
       setIsGeneratingReport(true);
       
-      const reportName = `Reporte_${reportType}_${reportPeriod}_${format(new Date(), 'yyyy-MM-dd')}`;
+      const reportName = `report_${type}_${period}_${format(new Date(), 'yyyy-MM-dd')}`;
       
       // Create report data based on type
       let reportData = [];
       
-      switch (reportType) {
+      switch (type) {
         case 'advances':
           reportData = activeAdvances.map(advance => ({
-            'Fecha': format(new Date(advance.created_at), 'dd/MM/yyyy HH:mm'),
-            'Empleado': `${advance.employees.first_name} ${advance.employees.last_name}`,
-            'Email': advance.employees.email,
-            'Monto Solicitado': advance.requested_amount,
-            'Comisión': advance.fee_amount,
-            'Monto Neto': advance.net_amount,
-            'Estado': advance.status === 'completed' ? t('employee.completed') : 
+            [t('common.date')]: format(new Date(advance.created_at), 'dd/MM/yyyy HH:mm'),
+            [t('common.employee')]: `${advance.employees.first_name} ${advance.employees.last_name}`,
+            Email: advance.employees.email,
+            [t('common.requestedAmount')]: advance.requested_amount,
+            [t('common.fee')]: advance.fee_amount,
+            [t('common.netAmount')]: advance.net_amount,
+            [t('common.status')]: advance.status === 'completed' ? t('employee.completed') : 
                       advance.status === 'pending' ? t('employee.pending') :
                       advance.status === 'processing' ? t('common.processing') :
                       advance.status === 'approved' ? t('company.approved') :
                       advance.status === 'failed' ? t('common.failed') : advance.status,
-            'Método de Pago': advance.payment_method === 'pagomovil' ? 'PagoMóvil' : 'Transferencia Bancaria',
-            'Detalles de Pago': advance.payment_details,
-            'Lote': advance.batch_id || 'N/A'
+            [t('common.paymentMethod')]: advance.payment_method === 'pagomovil' ? 'PagoMóvil' : 'Bank Transfer',
+            [t('common.paymentDetails')]: advance.payment_details,
+            [t('common.batch')]: advance.batch_id || 'N/A'
           }));
           break;
           
         case 'fees':
           reportData = activeAdvances.map(advance => ({
-            'Fecha': format(new Date(advance.created_at), 'dd/MM/yyyy'),
-            'Empleado': `${advance.employees.first_name} ${advance.employees.last_name}`,
-            'Monto Adelanto': advance.requested_amount,
-            'Comisión': advance.fee_amount,
-            'Porcentaje Comisión': ((advance.fee_amount / advance.requested_amount) * 100).toFixed(2) + '%',
-            'Estado': advance.status,
-            'Fecha Procesamiento': advance.processed_at ? format(new Date(advance.processed_at), 'dd/MM/yyyy') : 'N/A'
+            [t('common.date')]: format(new Date(advance.created_at), 'dd/MM/yyyy'),
+            [t('common.employee')]: `${advance.employees.first_name} ${advance.employees.last_name}`,
+            [t('company.reports.advances')]: advance.requested_amount,
+            [t('common.fee')]: advance.fee_amount,
+            'Fee %': ((advance.fee_amount / advance.requested_amount) * 100).toFixed(2) + '%',
+            [t('common.status')]: advance.status,
+            'Processed At': advance.processed_at ? format(new Date(advance.processed_at), 'dd/MM/yyyy') : 'N/A'
           }));
           break;
           
         case 'employees':
           reportData = employees.map(employee => ({
-            'Nombre': `${employee.first_name} ${employee.last_name}`,
-            'Email': employee.email,
-            'Cédula': employee.cedula || 'N/A',
-            'Posición': employee.position,
-            'Departamento': employee.department || 'N/A',
-            'Salario Mensual': employee.monthly_salary,
-            'Estado': employee.is_active ? 'Activo' : 'Inactivo',
-            'Verificado': employee.is_verified ? 'Sí' : 'No',
-            'Fecha Registro': format(new Date(employee.created_at), 'dd/MM/yyyy'),
-            'Adelantos Solicitados': activeAdvances.filter(adv => adv.employee_id === employee.id).length,
-            'Total Adelantos': activeAdvances.filter(adv => adv.employee_id === employee.id)
+            [t('common.employee')]: `${employee.first_name} ${employee.last_name}`,
+            Email: employee.email,
+            ID: employee.cedula || 'N/A',
+            Position: employee.position || 'N/A',
+            Department: employee.department || 'N/A',
+            'Monthly Salary': employee.monthly_salary,
+            Status: employee.is_active ? t('company.active') : t('common.pending'),
+            Verified: employee.is_verified ? 'Yes' : 'No',
+            'Registered At': format(new Date(employee.created_at), 'dd/MM/yyyy'),
+            'Advances Count': activeAdvances.filter(adv => adv.employee_id === employee.id).length,
+            'Total Advances': activeAdvances.filter(adv => adv.employee_id === employee.id)
               .reduce((sum, adv) => sum + adv.requested_amount, 0)
           }));
           break;
           
         case 'comprehensive':
           reportData = activeAdvances.map(advance => ({
-            'Fecha': format(new Date(advance.created_at), 'dd/MM/yyyy HH:mm'),
-            'Empleado': `${advance.employees.first_name} ${advance.employees.last_name}`,
-            'Email': advance.employees.email,
-            'Cédula': advance.employees.cedula || 'N/A',
-            'Posición': advance.employees.position || 'N/A',
-            'Monto Solicitado': advance.requested_amount,
-            'Comisión': advance.fee_amount,
-            'Monto Neto': advance.net_amount,
-            'Estado': advance.status === 'completed' ? t('employee.completed') : 
+            [t('common.date')]: format(new Date(advance.created_at), 'dd/MM/yyyy HH:mm'),
+            [t('common.employee')]: `${advance.employees.first_name} ${advance.employees.last_name}`,
+            Email: advance.employees.email,
+            ID: advance.employees.cedula || 'N/A',
+            Position: advance.employees.position || 'N/A',
+            [t('common.requestedAmount')]: advance.requested_amount,
+            [t('common.fee')]: advance.fee_amount,
+            [t('common.netAmount')]: advance.net_amount,
+            [t('common.status')]: advance.status === 'completed' ? t('employee.completed') : 
                       advance.status === 'pending' ? t('employee.pending') :
                       advance.status === 'processing' ? t('common.processing') :
                       advance.status === 'approved' ? t('company.approved') :
                       advance.status === 'failed' ? t('common.failed') : advance.status,
-            'Método de Pago': advance.payment_method === 'pagomovil' ? 'PagoMóvil' : 'Transferencia Bancaria',
-            'Detalles de Pago': advance.payment_details,
-            'Lote': advance.batch_id || 'N/A',
-            'Fecha de Procesamiento': advance.processed_at ? format(new Date(advance.processed_at), 'dd/MM/yyyy HH:mm') : 'N/A'
+            [t('common.paymentMethod')]: advance.payment_method === 'pagomovil' ? 'PagoMóvil' : 'Bank Transfer',
+            [t('common.paymentDetails')]: advance.payment_details,
+            [t('common.batch')]: advance.batch_id || 'N/A',
+            'Processed At': advance.processed_at ? format(new Date(advance.processed_at), 'dd/MM/yyyy HH:mm') : 'N/A'
           }));
           break;
       }
       
       if (reportData.length === 0) {
         toast({
-          title: "No hay datos",
-          description: "No hay datos para generar el reporte en el período seleccionado",
+          title: t('common.noData'),
+          description: t('common.noDataToExport'),
           variant: "destructive"
         });
         return;
@@ -1515,16 +1620,33 @@ const CompanyDashboard = () => {
       // Generate file based on format
       let fileName = '';
       let fileSize = '';
+      const shouldUpload = options?.uploadToStorage !== false;
+      const shouldAddRecent = options?.addToRecent !== false;
+      let publicUrl: string | null = null;
       
-      if (reportFormat === 'excel') {
+      if (formatChoice === 'excel') {
         const worksheet = XLSX.utils.json_to_sheet(reportData);
+        autoFitColumns(worksheet, reportData);
         const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, 'Reporte');
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Report');
         
         fileName = `${reportName}.xlsx`;
-        XLSX.writeFile(workbook, fileName);
+        const wbout = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+        const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        // Trigger local download
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = fileName;
+        a.click();
+        URL.revokeObjectURL(a.href);
+        // Upload to storage
+        if (shouldUpload) {
+          const storagePath = `${company?.id || 'company'}/${fileName}`;
+          publicUrl = await uploadReportToStorage(blob, storagePath, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        }
         fileSize = `${Math.round(JSON.stringify(reportData).length / 1024)} KB`;
-      } else if (reportFormat === 'csv') {
+        toast({ title: t('common.exportSuccess'), description: fileName });
+      } else if (formatChoice === 'csv') {
         const csv = XLSX.utils.sheet_to_csv(XLSX.utils.json_to_sheet(reportData));
         const blob = new Blob([csv], { type: 'text/csv' });
         const url = window.URL.createObjectURL(blob);
@@ -1534,47 +1656,67 @@ const CompanyDashboard = () => {
         a.download = fileName;
         a.click();
         window.URL.revokeObjectURL(url);
+        if (shouldUpload) {
+          const storagePath = `${company?.id || 'company'}/${fileName}`;
+          publicUrl = await uploadReportToStorage(blob, storagePath, 'text/csv');
+        }
         fileSize = `${Math.round(csv.length / 1024)} KB`;
-      } else if (reportFormat === 'pdf') {
+        toast({ title: t('common.exportSuccess'), description: fileName });
+      } else if (formatChoice === 'pdf') {
         // Generate PDF using jsPDF
-        const pdf = generatePDFReport(reportData, reportType, reportName);
+        const pdf = generatePDFReport(reportData, type, reportName);
         fileName = `${reportName}.pdf`;
-        pdf.save(fileName);
+        const blob = pdf.output('blob');
+        // Trigger local download
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = fileName;
+        a.click();
+        URL.revokeObjectURL(a.href);
+        // Upload to storage
+        if (shouldUpload) {
+          const storagePath = `${company?.id || 'company'}/${fileName}`;
+          publicUrl = await uploadReportToStorage(blob, storagePath, 'application/pdf');
+        }
         fileSize = `${Math.round(JSON.stringify(reportData).length / 1024)} KB`;
         
-        toast({
-          title: "PDF generado exitosamente",
-          description: `Se ha generado el reporte PDF ${fileName}`,
-        });
+        toast({ title: t('common.exportSuccess'), description: fileName });
       }
       
       // Add to recent reports
-      const newReport = {
-        name: reportName,
-        type: reportType,
-        period: reportPeriod,
-        format: reportFormat,
-        createdAt: new Date().toISOString(),
-        size: fileSize
-      };
-      
-      setRecentReports(prev => [newReport, ...prev.slice(0, 9)]); // Keep only last 10
+      if (shouldAddRecent) {
+        const newReport = {
+          name: reportName,
+          type,
+          period,
+          format: formatChoice,
+          createdAt: new Date().toISOString(),
+          size: fileSize,
+          url: publicUrl || ''
+        };
+        setRecentReports(prev => [newReport, ...prev.slice(0, 9)]); // Keep only last 10
+      }
       
       toast({
-        title: "Reporte generado exitosamente",
-        description: `Se ha generado el reporte ${fileName} con ${reportData.length} registros`,
+        title: t('common.exportSuccess'),
+        description: `${fileName} - ${reportData.length} ${t('company.requests')}`,
       });
       
     } catch (error: any) {
       console.error("Error generating report:", error);
       toast({
-        title: "Error",
-        description: error?.message ?? "No se pudo generar el reporte",
+        title: t('common.error'),
+        description: error?.message || t('register.tryAgain'),
         variant: "destructive"
       });
     } finally {
       setIsGeneratingReport(false);
     }
+  };
+
+  // Backwards-compatible: use current UI selections
+  const generateReport = async () => {
+    return generateReportWithParams(reportType, reportPeriod, reportFormat as 'excel'|'csv'|'pdf');
   };
 
   // Export specific report type
@@ -1636,7 +1778,7 @@ const CompanyDashboard = () => {
     return pdf;
   };
 
-  // Export a PDF mirroring the on-screen "Análisis de Uso" summary section
+  // Export a PDF mirroring the on-screen Usage Analysis summary section (localized)
   const generateAnalyticsSectionPDF = () => {
     const pdf = new jsPDF('p', 'mm', 'a4');
     const marginX = 20;
@@ -1644,14 +1786,14 @@ const CompanyDashboard = () => {
 
     pdf.setFont('helvetica', 'bold');
     pdf.setFontSize(16);
-    pdf.text('Análisis de Uso', marginX, y);
+    pdf.text(t('company.reports.usageAnalysis'), marginX, y);
     y += 8;
 
     pdf.setFont('helvetica', 'normal');
     pdf.setFontSize(10);
-    pdf.text('Estadísticas de participación y tendencias', marginX, y);
+    pdf.text(t('company.reports.usageAnalysisDesc'), marginX, y);
     y += 6;
-    pdf.text(`Fecha de exportación: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, marginX, y);
+    pdf.text(`${t('company.reports.filters')}: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, marginX, y);
     y += 8;
 
     const analytics = {
@@ -1663,11 +1805,11 @@ const CompanyDashboard = () => {
     };
 
     const rows: Array<[string, string]> = [
-      ['Tasa de participación:', analytics.participation],
-      ['Empleados más activos:', analytics.mostActiveEmployees],
-      ['Día más activo:', analytics.mostActiveDay],
-      ['Horario pico:', analytics.peakHour],
-      ['Crecimiento mensual:', analytics.monthlyGrowth],
+      [t('company.participationRate') + ':', analytics.participation],
+      [t('company.mostActiveEmployees') + ':', analytics.mostActiveEmployees],
+      [t('company.mostActiveDay') + ':', analytics.mostActiveDay],
+      [t('company.peakHour') + ':', analytics.peakHour],
+      [t('company.monthlyGrowth') + ':', analytics.monthlyGrowth],
     ];
 
     pdf.setFontSize(11);
@@ -1695,7 +1837,7 @@ const CompanyDashboard = () => {
     // For advances button: export a PDF summary matching the on-screen section format
     if (pendingExportType === 'advances') {
       setIsExportConfirmOpen(false);
-      const fileName = `Reporte_Adelantos_${format(new Date(), 'yyyy-MM-dd')}.pdf`;
+      const fileName = `Advances_Report_${format(new Date(), 'yyyy-MM-dd')}.pdf`;
       const pdf = generateAdvancesSectionPDF();
       pdf.save(fileName);
       setPendingExportType(null);
@@ -1703,7 +1845,7 @@ const CompanyDashboard = () => {
     }
     if (pendingExportType === 'analytics') {
       setIsExportConfirmOpen(false);
-      const fileName = `Analisis_de_Uso_${format(new Date(), 'yyyy-MM-dd')}.pdf`;
+      const fileName = `Usage_Analysis_${format(new Date(), 'yyyy-MM-dd')}.pdf`;
       const pdf = generateAnalyticsSectionPDF();
       pdf.save(fileName);
       setPendingExportType(null);
@@ -2523,8 +2665,8 @@ const CompanyDashboard = () => {
                               </Button>
                             )}
                             
-                            {/* Show approve button for pending and failed advances */}
-                            {(advance.status === 'pending' || advance.status === 'failed') && (
+                            {/* Show approve button only for pending advances (cannot re-approve rejected/cancelled) */}
+                            {advance.status === 'pending' && (
                               <Button 
                                 size="sm" 
                                 variant="premium"
@@ -2638,9 +2780,14 @@ const CompanyDashboard = () => {
                     </CardDescription>
                   </div>
                   <div className="flex space-x-2">
-                    <div className="relative">
+                  <div className="relative">
                       <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input placeholder={t('company.searchEmployee')} className="pl-10 w-64" />
+                      <Input
+                        placeholder={t('company.searchEmployee')}
+                        className="pl-10 w-64"
+                        value={employeeSearch}
+                        onChange={(e) => setEmployeeSearch(e.target.value)}
+                      />
                     </div>
                     <Button 
                       variant="outline" 
@@ -2716,7 +2863,7 @@ const CompanyDashboard = () => {
                   </div>
                 ) : (
                 <div className="space-y-4">
-                  {employees.map((employee) => (
+                  {paginatedEmployees.map((employee) => (
                     <div key={employee.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
                       <div className="flex items-center space-x-4">
                         <div className="h-10 w-10 bg-gradient-secondary rounded-full flex items-center justify-center">
@@ -2760,6 +2907,14 @@ const CompanyDashboard = () => {
                       </div>
                     </div>
                   ))}
+                  <Pagination
+                    className="pt-4 border-t"
+                    currentPage={employeeCurrentPage}
+                    totalItems={filteredEmployees.length}
+                    itemsPerPage={employeeItemsPerPage}
+                    onPageChange={(p) => setEmployeeCurrentPage(Math.max(1, Math.min(p, employeeTotalPages)))}
+                    onItemsPerPageChange={(n) => { setEmployeeItemsPerPage(n); setEmployeeCurrentPage(1); }}
+                  />
                 </div>
                 )}
               </CardContent>
@@ -2792,7 +2947,7 @@ const CompanyDashboard = () => {
                         <SelectItem value="last3Months">{t('company.last3Months')}</SelectItem>
                         <SelectItem value="last6Months">{t('company.last6Months')}</SelectItem>
                         <SelectItem value="thisYear">{t('company.thisYear')}</SelectItem>
-                        <SelectItem value="custom">{t('company.custom')}</SelectItem>
+                        {/** custom period option removed as requested */}
                       </SelectContent>
                     </Select>
                   </div>
@@ -3043,9 +3198,17 @@ const CompanyDashboard = () => {
                               {report.size}
                             </div>
                           </div>
-                          <Button variant="outline" size="sm">
-                            <Download className="h-4 w-4" />
-                          </Button>
+                          {report.url ? (
+                            <a href={report.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
+                              <Button variant="outline" size="sm">
+                                <Download className="h-4 w-4" />
+                              </Button>
+                            </a>
+                          ) : (
+                            <Button variant="outline" size="sm" onClick={() => generateReportWithParams(report.type, report.period, report.format, { addToRecent: false, uploadToStorage: false })}>
+                              <Download className="h-4 w-4" />
+                            </Button>
+                          )}
                         </div>
                       </div>
                     ))
@@ -3167,7 +3330,7 @@ const CompanyDashboard = () => {
 
                   <div className="space-y-4">
                     <h4 className="font-semibold">
-                      {t('company.billing.employeeFees')} & {t('company.billing.advancesFees')}
+                      {t('company.billing.employeeFees')}
                     </h4>
                     <div className="space-y-3">
                       <div className="flex justify-between items-center">
@@ -3179,30 +3342,12 @@ const CompanyDashboard = () => {
                         <span className="font-medium">$1.00/month</span>
                       </div>
                       <div className="flex justify-between items-center">
-                        <span className="text-sm text-muted-foreground">
-                          {billingData.billingPeriod.period === 'first' 
-                            ? t('company.billing.firstHalf')
-                            : t('company.billing.secondHalf')}
-                        </span>
-                        <span className="font-medium">
-                          ${(activeEmployeesCount * 1.00 / 2).toFixed(2)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-muted-foreground">{t('company.billing.advancesFees')}:</span>
-                        <span className="font-medium">
-                          ${unpaidAdvances
-                            .filter(advance => {
-                              const advanceDate = new Date(advance.created_at);
-                              return advanceDate >= billingData.billingPeriod.startDate && advanceDate <= billingData.billingPeriod.endDate;
-                            })
-                            .reduce((sum, advance) => sum + (advance.fee_amount || 0), 0)
-                            .toFixed(2)}
-                        </span>
+                        <span className="text-sm text-muted-foreground">{t('company.billing.monthlyFee')}:</span>
+                        <span className="font-medium">${(activeEmployeesCount * 1.00).toFixed(2)}</span>
                       </div>
                       <div className="flex justify-between items-center border-t pt-2">
                         <span className="text-sm font-medium">{t('company.billing.totalFees')}:</span>
-                        <span className="font-bold text-lg">${billingData.currentMonthRegistrationFees.toFixed(2)}</span>
+                        <span className="font-bold text-lg">${(activeEmployeesCount * 1.00).toFixed(2)}</span>
                       </div>
                     </div>
                   </div>
@@ -3509,17 +3654,19 @@ const CompanyDashboard = () => {
               {t('company.approveAdvanceTitle')}
             </DialogTitle>
             <DialogDescription>
-              ¿Estás seguro de que quieres aprobar este adelanto de{" "}
+              {t('company.approveAdvanceDescPrefix')} {" "}
               <span className="font-semibold">
                 ${advanceToAction?.requested_amount.toFixed(2)}
               </span>{" "}
-              para{" "}
+              {t('common.for') || 'for'} {" "}
               <span className="font-semibold">
-                {advanceToAction?.employees ? `${advanceToAction.employees.first_name} ${advanceToAction.employees.last_name}` : 'el empleado'}
-              </span>?
+                {advanceToAction?.employees ? `${advanceToAction.employees.first_name} ${advanceToAction.employees.last_name}` : (t('common.employee') || 'employee')}
+              </span>.
               <br />
               <br />
-              Esta acción cambiará el estado del adelanto a "Aprobado".
+              {t('company.approveAdvanceDescF')}
+              <br />
+              <span className="text-muted-foreground">{t('company.approveAdvanceNoteApproved')}</span>
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex gap-2 sm:gap-0">
@@ -3550,18 +3697,18 @@ const CompanyDashboard = () => {
               {t('company.reject')}
             </DialogTitle>
             <DialogDescription>
-              ¿Estás seguro de que quieres rechazar este adelanto de{" "}
+              {t('company.rejectAdvanceDescPrefix') || 'Are you sure you want to reject this advance of'} {" "}
               <span className="font-semibold">
                 ${advanceToAction?.requested_amount.toFixed(2)}
               </span>{" "}
-              para{" "}
+              {t('common.for') || 'for'} {" "}
               <span className="font-semibold">
-                {advanceToAction?.employees ? `${advanceToAction.employees.first_name} ${advanceToAction.employees.last_name}` : 'el empleado'}
+                {advanceToAction?.employees ? `${advanceToAction.employees.first_name} ${advanceToAction.employees.last_name}` : (t('common.employee') || 'employee')}
               </span>?
               <br />
               <br />
               <span className="text-destructive font-medium">
-                {t('common.failed')} - {t('permission.denied.contactAdmin') || 'This action cannot be undone.'}
+                {t('common.actionCannotBeUndone') || 'This action cannot be undone.'}
               </span>
             </DialogDescription>
           </DialogHeader>
@@ -3571,7 +3718,7 @@ const CompanyDashboard = () => {
               onClick={cancelRejectAction}
               className="flex-1 sm:flex-none"
             >
-              Cancelar
+              {t('common.cancel')}
             </Button>
             <Button
               variant="destructive"
@@ -3579,7 +3726,7 @@ const CompanyDashboard = () => {
               className="flex-1 sm:flex-none"
             >
               <X className="h-4 w-4 mr-2" />
-              Sí, rechazar
+              {t('company.reject')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -3687,3 +3834,4 @@ const CompanyDashboard = () => {
 };
 
 export default CompanyDashboard;
+

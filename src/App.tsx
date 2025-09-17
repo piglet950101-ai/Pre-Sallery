@@ -32,7 +32,7 @@ const App = () => (
       <TooltipProvider>
         <Toaster />
         <Sonner />
-        <BrowserRouter>
+        <BrowserRouter future={{ v7_startTransition: true }}>
           <AuthProvider>
             <Routes>
               <Route path="/" element={<Landing />} />

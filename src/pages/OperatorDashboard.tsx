@@ -6,14 +6,14 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { 
-  DollarSign, 
-  Clock, 
-  Users, 
-  CheckCircle, 
+import {
+  DollarSign,
+  Clock,
+  Users,
+  CheckCircle,
   AlertCircle,
   Upload,
-  Download, 
+  Download,
   Filter,
   Search,
   Calendar,
@@ -52,19 +52,19 @@ const OperatorDashboard = () => {
   const [selectedBatch, setSelectedBatch] = useState<any>(null);
   const [batchAdvances, setBatchAdvances] = useState<any[]>([]);
   const [isLoadingBatchAdvances, setIsLoadingBatchAdvances] = useState(false);
-  
+
   // Pagination state
   const [pendingPage, setPendingPage] = useState(1);
   const [batchesPage, setBatchesPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(5); // Dynamic items per page
-  
+
   // Confirmations state
   const [confirmations, setConfirmations] = useState<any[]>([]);
   const [isLoadingConfirmations, setIsLoadingConfirmations] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [uploadingFiles, setUploadingFiles] = useState(false);
-  
+
   // Confirmations management state
   const [confirmationsPage, setConfirmationsPage] = useState(1);
   const [confirmationsSearch, setConfirmationsSearch] = useState("");
@@ -72,7 +72,7 @@ const OperatorDashboard = () => {
   const [confirmationToDelete, setConfirmationToDelete] = useState<any>(null);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [previewFile, setPreviewFile] = useState<any>(null);
-  
+
   // Employee fees state
   const [employeeFees, setEmployeeFees] = useState<any[]>([]);
   const [isLoadingEmployeeFees, setIsLoadingEmployeeFees] = useState(false);
@@ -80,7 +80,7 @@ const OperatorDashboard = () => {
   // Calculate totals from real data
   const totalPendingAmount = pendingAdvances.reduce((sum, advance) => sum + (advance.requested_amount || 0), 0);
   const totalPendingFees = pendingAdvances.reduce((sum, advance) => sum + (advance.fee_amount || 0), 0);
-  
+
   // Calculate employee registration fees
   const totalEmployeeRegistrationFees = employeeFees.reduce((sum, fee) => sum + (fee.fee_amount || 0), 0);
   const pendingEmployeeFees = employeeFees.filter(fee => fee.status === 'pending').length;
@@ -118,24 +118,24 @@ const OperatorDashboard = () => {
   // Pagination calculations
   const totalPendingPages = Math.ceil(pendingAdvances.length / itemsPerPage);
   const totalBatchesPages = Math.ceil(processedBatches.length / itemsPerPage);
-  
+
   const paginatedPendingAdvances = pendingAdvances.slice(
     (pendingPage - 1) * itemsPerPage,
     pendingPage * itemsPerPage
   );
-  
+
   const paginatedProcessedBatches = processedBatches.slice(
     (batchesPage - 1) * itemsPerPage,
     batchesPage * itemsPerPage
   );
 
   // Confirmations search and pagination
-  const filteredConfirmations = confirmations.filter(confirmation => 
+  const filteredConfirmations = confirmations.filter(confirmation =>
     confirmation.file_name?.toLowerCase().includes(confirmationsSearch.toLowerCase()) ||
     confirmation.processing_batches?.batch_name?.toLowerCase().includes(confirmationsSearch.toLowerCase()) ||
     confirmation.status?.toLowerCase().includes(confirmationsSearch.toLowerCase())
   );
-  
+
   const totalConfirmationsPages = Math.ceil(filteredConfirmations.length / itemsPerPage);
   const paginatedConfirmations = filteredConfirmations.slice(
     (confirmationsPage - 1) * itemsPerPage,
@@ -164,16 +164,16 @@ const OperatorDashboard = () => {
   };
 
   // Pagination component
-  const Pagination = ({ 
-    currentPage, 
-    totalPages, 
-    onPageChange, 
+  const Pagination = ({
+    currentPage,
+    totalPages,
+    onPageChange,
     itemsPerPage,
     onItemsPerPageChange,
-    className = "" 
-  }: { 
-    currentPage: number; 
-    totalPages: number; 
+    className = ""
+  }: {
+    currentPage: number;
+    totalPages: number;
     onPageChange: (page: number) => void;
     itemsPerPage: number;
     onItemsPerPageChange: (value: string) => void;
@@ -243,7 +243,7 @@ const OperatorDashboard = () => {
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          
+
           {getVisiblePages().map((page, index) => (
             <Button
               key={index}
@@ -256,7 +256,7 @@ const OperatorDashboard = () => {
               {page}
             </Button>
           ))}
-          
+
           <Button
             variant="outline"
             size="sm"
@@ -280,7 +280,7 @@ const OperatorDashboard = () => {
   const fetchBatchAdvances = async (batchId: string) => {
     try {
       setIsLoadingBatchAdvances(true);
-      
+
       const { data, error } = await supabase
         .from("advance_transactions")
         .select(`
@@ -318,8 +318,8 @@ const OperatorDashboard = () => {
   const fetchPendingAdvances = async () => {
     try {
       setIsLoadingAdvances(true);
-      console.log("Fetching pending advances...");
-      
+
+
       const { data, error } = await supabase
         .from("advance_transactions")
         .select(`
@@ -336,7 +336,6 @@ const OperatorDashboard = () => {
         .eq("status", "approved")
         .order("created_at", { ascending: true });
 
-      console.log("Pending advances query result:", { data, error });
 
       if (error) {
         console.error("Supabase error:", error);
@@ -352,7 +351,6 @@ const OperatorDashboard = () => {
         return;
       }
 
-      console.log("Setting pending advances:", data);
       setPendingAdvances(data || []);
     } catch (error: any) {
       console.error("Error fetching pending advances:", error);
@@ -370,15 +368,14 @@ const OperatorDashboard = () => {
   const fetchProcessedBatches = async () => {
     try {
       setIsLoadingBatches(true);
-      console.log("Fetching processed batches...");
-      
+
       const { data, error } = await supabase
         .from("processing_batches")
         .select("*")
         .order("created_at", { ascending: false })
         .limit(10);
 
-      console.log("Processed batches query result:", { data, error });
+
 
       if (error) {
         console.error("Supabase error:", error);
@@ -394,7 +391,7 @@ const OperatorDashboard = () => {
         return;
       }
 
-      console.log("Setting processed batches:", data);
+
       setProcessedBatches(data || []);
     } catch (error: any) {
       console.error("Error fetching processed batches:", error);
@@ -443,7 +440,7 @@ const OperatorDashboard = () => {
     }
 
     setIsProcessing(true);
-    
+
     try {
       // Create a new processing batch
       const { data: batchData, error: batchError } = await supabase
@@ -466,7 +463,7 @@ const OperatorDashboard = () => {
       const advanceIds = Array.from(selectedAdvances);
       const { error: updateError } = await supabase
         .from("advance_transactions")
-        .update({ 
+        .update({
           status: 'processing',
           batch_id: batchData.id,
           updated_at: new Date().toISOString()
@@ -480,7 +477,7 @@ const OperatorDashboard = () => {
       // Update batch status to completed
       const { error: completeError } = await supabase
         .from("processing_batches")
-        .update({ 
+        .update({
           status: 'completed',
           completed_at: new Date().toISOString()
         })
@@ -493,7 +490,7 @@ const OperatorDashboard = () => {
       // Update all advances in the batch to completed status
       const { error: completeAdvancesError } = await supabase
         .from("advance_transactions")
-        .update({ 
+        .update({
           status: 'completed',
           processed_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
@@ -530,8 +527,7 @@ const OperatorDashboard = () => {
   const fetchEmployeeFees = async () => {
     try {
       setIsLoadingEmployeeFees(true);
-      console.log("🔍 Fetching employee fees...");
-      
+
       const { data, error } = await supabase
         .from("employee_fees")
         .select(`
@@ -548,11 +544,9 @@ const OperatorDashboard = () => {
         `)
         .order("created_at", { ascending: false });
 
-      console.log("📊 Employee fees fetch result:", { data, error });
 
       if (error) {
         if (error.message.includes("Could not find the table")) {
-          console.log("❌ Employee fees table not found, showing empty state");
           setEmployeeFees([]);
           return;
         }
@@ -560,7 +554,6 @@ const OperatorDashboard = () => {
         throw new Error(`Error al cargar tarifas de empleados: ${error.message}`);
       }
 
-      console.log("✅ Employee fees loaded:", data?.length || 0, "items");
       setEmployeeFees(data || []);
     } catch (error: any) {
       console.error("❌ Error fetching employee fees:", error);
@@ -581,8 +574,7 @@ const OperatorDashboard = () => {
   const fetchConfirmations = async () => {
     try {
       setIsLoadingConfirmations(true);
-      console.log("🔍 Fetching confirmations...");
-      
+
       // Try to fetch from transfer_confirmations table
       const { data, error } = await supabase
         .from("transfer_confirmations")
@@ -595,12 +587,10 @@ const OperatorDashboard = () => {
         `)
         .order("created_at", { ascending: false });
 
-      console.log("📊 Confirmations fetch result:", { data, error });
 
       if (error) {
         // If table doesn't exist, show empty state instead of error
         if (error.message.includes("Could not find the table")) {
-          console.log("❌ Transfer confirmations table not found, showing empty state");
           setConfirmations([]);
           return;
         }
@@ -608,8 +598,6 @@ const OperatorDashboard = () => {
         throw new Error(`Error al cargar confirmaciones: ${error.message}`);
       }
 
-      console.log("✅ Confirmations loaded:", data?.length || 0, "items");
-      console.log("📊 Sample confirmation data:", data?.[0]);
       setConfirmations(data || []);
     } catch (error: any) {
       console.error("❌ Error fetching confirmations:", error);
@@ -645,18 +633,17 @@ const OperatorDashboard = () => {
     }
 
     setUploadingFiles(true);
-    
+
     try {
       const uploadedFiles = [];
-      
+
       // Upload each file to Supabase Storage
       for (const file of selectedFiles) {
         const fileExt = file.name.split('.').pop();
         const fileName = `${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`;
         const filePath = `confirmations/${fileName}`;
-        
-        console.log("📤 Uploading file to Supabase Storage:", filePath);
-        
+
+
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from('transfer-confirmations')
           .upload(filePath, file, {
@@ -669,8 +656,6 @@ const OperatorDashboard = () => {
           throw new Error(`Error al subir ${file.name}: ${uploadError.message}`);
         }
 
-        console.log("✅ File uploaded successfully:", uploadData);
-        
         // Get public URL for the uploaded file
         const { data: urlData } = supabase.storage
           .from('transfer-confirmations')
@@ -686,10 +671,9 @@ const OperatorDashboard = () => {
           status: 'uploaded'
         });
       }
-      
+
       // Insert confirmations into database
       try {
-        console.log("💾 Inserting confirmations:", uploadedFiles);
 
         const { data: insertData, error: insertError } = await supabase
           .from("transfer_confirmations")
@@ -697,20 +681,17 @@ const OperatorDashboard = () => {
           .select();
 
         if (insertError) {
-          console.log("❌ Could not insert into transfer_confirmations table:", insertError.message);
           throw new Error(`Error al guardar en base de datos: ${insertError.message}`);
         } else {
-          console.log("✅ Confirmations inserted successfully:", insertData);
         }
       } catch (dbError: any) {
-        console.log("❌ Database error during upload:", dbError);
         throw new Error(`Error al guardar en base de datos: ${dbError.message}`);
       }
-      
-    toast({
-      title: t('common.success'),
-      description: `${selectedFiles.length} uploaded`,
-    });
+
+      toast({
+        title: t('common.success'),
+        description: `${selectedFiles.length} uploaded`,
+      });
 
       setSelectedFiles([]);
       setShowUploadModal(false);
@@ -743,7 +724,6 @@ const OperatorDashboard = () => {
 
       // Delete file from Supabase Storage
       if (confirmation.file_path) {
-        console.log("🗑️ Deleting file from storage:", confirmation.file_path);
         const { error: storageError } = await supabase.storage
           .from('transfer-confirmations')
           .remove([confirmation.file_path]);
@@ -752,7 +732,6 @@ const OperatorDashboard = () => {
           console.warn("⚠️ Could not delete file from storage:", storageError.message);
           // Continue with database deletion even if storage deletion fails
         } else {
-          console.log("✅ File deleted from storage successfully");
         }
       }
 
@@ -887,15 +866,13 @@ const OperatorDashboard = () => {
   // Debug user info
   useEffect(() => {
     if (user) {
-      console.log("Current user:", user);
-      console.log("User metadata:", user.user_metadata);
-      console.log("App metadata:", user.app_metadata);
+
     }
   }, [user]);
 
   return (
     <div className="min-h-screen bg-background">
-     
+
       {/* Header */}
       <Header />
 
@@ -906,8 +883,8 @@ const OperatorDashboard = () => {
             <h1 className="text-3xl font-bold text-foreground">{t('operator.operatorPanel')}</h1>
             <p className="text-muted-foreground">{t('operator.approvedTransfers')}</p>
           </div>
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             size="sm"
             onClick={refreshData}
             disabled={isLoadingAdvances || isLoadingBatches || isLoadingConfirmations || isLoadingEmployeeFees}
@@ -1016,8 +993,8 @@ const OperatorDashboard = () => {
                     </CardDescription>
                     {selectedAdvances.size > 0 && (
                       <div className="mt-2 text-sm text-muted-foreground">
-                        {selectedAdvances.size} {t('common.of')} {pendingAdvances.length} {t('operator.pendingAdvances').toLowerCase()} • 
-                        Total: ${selectedAmount.toFixed(2)} • 
+                        {selectedAdvances.size} {t('common.of')} {pendingAdvances.length} {t('operator.pendingAdvances').toLowerCase()} •
+                        Total: ${selectedAmount.toFixed(2)} •
                         {t('company.reports.commissions')}: ${selectedFees.toFixed(2)}
                       </div>
                     )}
@@ -1031,8 +1008,8 @@ const OperatorDashboard = () => {
                       <Download className="h-4 w-4 mr-2" />
                       {t('operator.exportCSV')}
                     </Button>
-                    <Button 
-                      variant="hero" 
+                    <Button
+                      variant="hero"
                       onClick={processBatch}
                       disabled={isProcessing || selectedAdvances.size === 0}
                     >
@@ -1080,25 +1057,24 @@ const OperatorDashboard = () => {
                     </div>
                   ) : (
                     paginatedPendingAdvances.map((advance) => {
-                      const employeeName = advance.employees 
+                      const employeeName = advance.employees
                         ? `${advance.employees.first_name || ''} ${advance.employees.last_name || ''}`.trim()
                         : t('operator.unknownEmployee');
                       const companyName = advance.companies?.name || t('operator.unknownCompany');
                       const advanceDate = new Date(advance.created_at);
                       const formattedTime = advanceDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-                      
+
                       const isSelected = selectedAdvances.has(advance.id);
-                      
+
                       return (
                         <div key={advance.id} className={`flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors ${isSelected ? 'bg-primary/5 border-primary/20' : ''}`}>
-                      <div className="flex items-center space-x-4">
+                          <div className="flex items-center space-x-4">
                             <button
                               onClick={() => toggleAdvanceSelection(advance.id)}
-                              className={`flex items-center justify-center w-5 h-5 border-2 rounded transition-colors ${
-                                isSelected 
-                                  ? 'bg-primary border-primary' 
+                              className={`flex items-center justify-center w-5 h-5 border-2 rounded transition-colors ${isSelected
+                                  ? 'bg-primary border-primary'
                                   : 'border-muted-foreground bg-transparent'
-                              }`}
+                                }`}
                             >
                               {isSelected && <Check className="h-3 w-3 text-white" />}
                             </button>
@@ -1106,36 +1082,36 @@ const OperatorDashboard = () => {
                               <span className="text-white text-sm font-medium">
                                 {employeeName.split(' ').map(n => n[0]).join('')}
                               </span>
-                        </div>
-                        <div>
+                            </div>
+                            <div>
                               <div className="font-medium">{employeeName}</div>
                               <div className="text-sm text-muted-foreground">{companyName}</div>
                               <div className="text-xs text-muted-foreground">
                                 {advance.payment_method === 'pagomovil' ? 'PagoMóvil' : 'Bank Transfer'}: {advance.payment_details}
                               </div>
-                        </div>
-                      </div>
-                          <div className="flex items-center space-x-6">
-                        <div className="text-right">
-                              <div className="font-semibold">${advance.requested_amount.toFixed(2)}</div>
-                          <div className="text-sm text-muted-foreground">
-                                {t('company.reports.commissions')}: ${advance.fee_amount.toFixed(2)}
+                            </div>
                           </div>
+                          <div className="flex items-center space-x-6">
+                            <div className="text-right">
+                              <div className="font-semibold">${advance.requested_amount.toFixed(2)}</div>
+                              <div className="text-sm text-muted-foreground">
+                                {t('company.reports.commissions')}: ${advance.fee_amount.toFixed(2)}
+                              </div>
                               <div className="text-sm text-primary font-medium">
                                 {t('common.netAmount')}: ${advance.net_amount.toFixed(2)}
                               </div>
-                    </div>
+                            </div>
                             <div className="text-right">
                               <div className="text-sm text-muted-foreground">{formattedTime}</div>
                               <Badge variant="secondary">{t('company.approved')}</Badge>
-                      </div>
-                    </div>
-                  </div>
+                            </div>
+                          </div>
+                        </div>
                       );
                     })
                   )}
                 </div>
-                
+
                 {/* Pagination for Pending Advances */}
                 {pendingAdvances.length > 0 && (
                   <div className="pt-4 border-t">
@@ -1176,43 +1152,43 @@ const OperatorDashboard = () => {
                   ) : (
                     paginatedProcessedBatches.map((batch) => {
                       const batchDate = batch.created_at ? new Date(batch.created_at) : new Date();
-                      const formattedDate = batchDate.toLocaleDateString('es-ES', { 
-                        day: 'numeric', 
-                        month: 'short' 
+                      const formattedDate = batchDate.toLocaleDateString('es-ES', {
+                        day: 'numeric',
+                        month: 'short'
                       });
-                      const formattedTime = batchDate.toLocaleTimeString('es-ES', { 
-                        hour: '2-digit', 
-                        minute: '2-digit' 
+                      const formattedTime = batchDate.toLocaleTimeString('es-ES', {
+                        hour: '2-digit',
+                        minute: '2-digit'
                       });
-                      
+
                       return (
-                        <div 
-                          key={batch.id} 
+                        <div
+                          key={batch.id}
                           className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
                           onClick={() => handleBatchClick(batch)}
                         >
-                      <div className="flex items-center space-x-4">
+                          <div className="flex items-center space-x-4">
                             <div className="h-10 w-10 bg-gradient-secondary rounded-full flex items-center justify-center">
                               <CheckCircle className="h-5 w-5 text-white" />
-                        </div>
-                        <div>
+                            </div>
+                            <div>
                               <div className="font-medium">{batch.batch_name || t('operator.unnamedBatch')}</div>
                               <div className="text-sm text-muted-foreground">
                                 {formattedDate} - {formattedTime}
                               </div>
-                        </div>
-                      </div>
+                            </div>
+                          </div>
                           <div className="flex items-center space-x-6">
-                        <div className="text-right">
+                            <div className="text-right">
                               <div className="font-semibold">{batch.advance_count || 0} adelantos</div>
                               <div className="text-sm text-muted-foreground">
                                 Total: ${(batch.total_amount || 0).toFixed(2)}
                               </div>
-                        </div>
+                            </div>
                             <div className="flex items-center space-x-2">
-                            <Badge className="bg-green-100 text-green-800">
-                              {batch.status === 'completed' ? t('employee.completed') : batch.status || 'Unknown'}
-                            </Badge>
+                              <Badge className="bg-green-100 text-green-800">
+                                {batch.status === 'completed' ? t('employee.completed') : batch.status || 'Unknown'}
+                              </Badge>
                               <Button variant="outline" size="sm" onClick={(e) => {
                                 e.stopPropagation();
                                 handleBatchClick(batch);
@@ -1221,13 +1197,13 @@ const OperatorDashboard = () => {
                                 {t('operator.viewDetails')}
                               </Button>
                             </div>
+                          </div>
                         </div>
-                      </div>
                       );
                     })
                   )}
                 </div>
-                
+
                 {/* Pagination for Processed Batches */}
                 {processedBatches.length > 0 && (
                   <div className="pt-4 border-t">
@@ -1255,8 +1231,8 @@ const OperatorDashboard = () => {
                       {t('operator.uploadSectionDesc')}
                     </CardDescription>
                   </div>
-                  <Button 
-                    variant="hero" 
+                  <Button
+                    variant="hero"
                     onClick={() => setShowUploadModal(true)}
                     disabled={uploadingFiles}
                   >
@@ -1267,9 +1243,9 @@ const OperatorDashboard = () => {
               </CardHeader>
               <CardContent>
                 <div className="text-center py-8">
-                    <Upload className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold mb-2">{t('operator.uploadCTATitle')}</h3>
-                    <p className="text-muted-foreground mb-4">
+                  <Upload className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">{t('operator.uploadCTATitle')}</h3>
+                  <p className="text-muted-foreground mb-4">
                     {t('operator.uploadCTADesc')}
                   </p>
                 </div>
@@ -1328,7 +1304,7 @@ const OperatorDashboard = () => {
                               <div className="font-medium flex items-center space-x-2">
                                 <span>{confirmation.file_name || t('operator.unnamedFile')}</span>
                                 <Badge variant="outline" className="text-xs">
-                                  {confirmation.file_size && confirmation.file_size > 0 
+                                  {confirmation.file_size && confirmation.file_size > 0
                                     ? `${(confirmation.file_size / 1024 / 1024).toFixed(1)} MB`
                                     : t('operator.unknownSize')
                                   }
@@ -1346,36 +1322,36 @@ const OperatorDashboard = () => {
                             <Badge className="bg-green-100 text-green-800">
                               {confirmation.status === 'uploaded' ? 'Subido' : confirmation.status || 'Desconocido'}
                             </Badge>
-                            <Button 
-                              variant="outline" 
+                            <Button
+                              variant="outline"
                               size="sm"
                               onClick={() => handlePreviewClick(confirmation)}
                             >
                               <FileText className="h-4 w-4 mr-1" />
                               {t('common.view')}
                             </Button>
-                            <Button 
-                              variant="outline" 
+                            <Button
+                              variant="outline"
                               size="sm"
                               onClick={() => handleDownloadClick(confirmation)}
                             >
                               <Download className="h-4 w-4 mr-1" />
                               {t('common.download')}
                             </Button>
-                            <Button 
-                              variant="outline" 
+                            <Button
+                              variant="outline"
                               size="sm"
                               onClick={() => handleDeleteClick(confirmation)}
                               className="text-red-600 hover:text-red-700 hover:bg-red-50"
                             >
                               <Trash2 className="h-4 w-4" />
-                    </Button>
+                            </Button>
                           </div>
                         </div>
                       ))}
                     </div>
                   )}
-                  </div>
+                </div>
 
                 {/* Pagination for Confirmations */}
                 {filteredConfirmations.length > 0 && (
@@ -1441,7 +1417,7 @@ const OperatorDashboard = () => {
                           <div className="text-xs text-muted-foreground mb-1">
                             {t('operator.monthlyFee') || 'Monthly fee'}
                           </div>
-                          <Badge 
+                          <Badge
                             variant={fee.status === 'paid' ? 'default' : fee.status === 'overdue' ? 'destructive' : 'secondary'}
                             className="text-xs"
                           >
@@ -1472,7 +1448,7 @@ const OperatorDashboard = () => {
                 {selectedBatch?.batch_name || 'Lote sin nombre'} - {selectedBatch?.created_at ? new Date(selectedBatch.created_at).toLocaleString('es-ES') : ''}
               </DialogDescription>
             </DialogHeader>
-            
+
             {selectedBatch && (
               <div className="space-y-6">
                 {/* Batch Summary */}
@@ -1507,13 +1483,13 @@ const OperatorDashboard = () => {
                   ) : (
                     <div className="space-y-3">
                       {batchAdvances.map((advance) => {
-                        const employeeName = advance.employees 
+                        const employeeName = advance.employees
                           ? `${advance.employees.first_name || ''} ${advance.employees.last_name || ''}`.trim()
                           : 'Empleado desconocido';
                         const companyName = advance.companies?.name || 'Empresa desconocida';
                         const advanceDate = new Date(advance.created_at);
                         const formattedTime = advanceDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-                        
+
                         return (
                           <div key={advance.id} className="flex items-center justify-between p-3 border rounded-lg">
                             <div className="flex items-center space-x-3">
@@ -1570,18 +1546,18 @@ const OperatorDashboard = () => {
                 Selecciona los archivos de comprobantes de transferencia
               </DialogDescription>
             </DialogHeader>
-            
+
             <div className="space-y-4">
               {/* Instructions */}
-                  <div className="bg-muted/50 p-4 rounded-lg">
-                    <h4 className="font-semibold mb-2">Instrucciones:</h4>
-                    <ul className="text-sm text-muted-foreground space-y-1">
-                      <li>• Sube comprobantes de PagoMóvil o transferencias bancarias</li>
-                      <li>• Los archivos deben estar en formato PDF o imagen</li>
-                      <li>• Cada comprobante debe corresponder a un adelanto específico</li>
-                      <li>• El sistema marcará automáticamente los adelantos como completados</li>
-                    </ul>
-                  </div>
+              <div className="bg-muted/50 p-4 rounded-lg">
+                <h4 className="font-semibold mb-2">Instrucciones:</h4>
+                <ul className="text-sm text-muted-foreground space-y-1">
+                  <li>• Sube comprobantes de PagoMóvil o transferencias bancarias</li>
+                  <li>• Los archivos deben estar en formato PDF o imagen</li>
+                  <li>• Cada comprobante debe corresponder a un adelanto específico</li>
+                  <li>• El sistema marcará automáticamente los adelantos como completados</li>
+                </ul>
+              </div>
 
               {/* File Input */}
               <div>
@@ -1599,7 +1575,7 @@ const OperatorDashboard = () => {
                 <p className="text-xs text-muted-foreground mt-1">
                   Formatos permitidos: PDF, JPG, PNG (máx. 10MB por archivo)
                 </p>
-                </div>
+              </div>
 
               {/* Selected Files */}
               {selectedFiles.length > 0 && (
@@ -1620,8 +1596,8 @@ const OperatorDashboard = () => {
 
               {/* Action Buttons */}
               <div className="flex space-x-3 pt-4">
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   onClick={() => {
                     setShowUploadModal(false);
                     setSelectedFiles([]);
@@ -1632,7 +1608,7 @@ const OperatorDashboard = () => {
                   <X className="h-4 w-4 mr-2" />
                   Cancelar
                 </Button>
-                <Button 
+                <Button
                   onClick={uploadConfirmation}
                   disabled={uploadingFiles || selectedFiles.length === 0}
                   className="flex-1"
@@ -1667,7 +1643,7 @@ const OperatorDashboard = () => {
                 {t('operator.deleteConfirmationDesc')}
               </DialogDescription>
             </DialogHeader>
-            
+
             <div className="space-y-4">
               {confirmationToDelete && (
                 <div className="p-4 bg-muted/50 rounded-lg">
@@ -1682,15 +1658,15 @@ const OperatorDashboard = () => {
               )}
 
               <div className="flex space-x-3">
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   onClick={cancelDelete}
                   className="flex-1"
                 >
                   <X className="h-4 w-4 mr-2" />
                   Cancelar
                 </Button>
-                <Button 
+                <Button
                   onClick={confirmDelete}
                   className="flex-1 bg-red-600 hover:bg-red-700"
                 >
@@ -1714,7 +1690,7 @@ const OperatorDashboard = () => {
                 {t('operator.previewDesc')}
               </DialogDescription>
             </DialogHeader>
-            
+
             <div className="space-y-4">
               {previewFile && (
                 <div className="space-y-4">
@@ -1738,8 +1714,8 @@ const OperatorDashboard = () => {
                       <div className="space-y-4">
                         {previewFile.file_url ? (
                           <div className="text-center">
-                            <img 
-                              src={previewFile.file_url} 
+                            <img
+                              src={previewFile.file_url}
                               alt={previewFile.file_name}
                               className="max-w-full max-h-96 mx-auto rounded-lg shadow-lg"
                               onError={(e) => {
@@ -1756,9 +1732,9 @@ const OperatorDashboard = () => {
                               <div>
                                 <div className="font-medium">{t('operator.previewUnavailable')}</div>
                                 <div className="text-sm text-muted-foreground">
-                                  <a 
-                                    href={previewFile.file_url} 
-                                    target="_blank" 
+                                  <a
+                                    href={previewFile.file_url}
+                                    target="_blank"
                                     rel="noopener noreferrer"
                                     className="text-blue-600 hover:underline"
                                   >
@@ -1792,15 +1768,15 @@ const OperatorDashboard = () => {
                               </div>
                             </div>
                             <div className="space-x-2">
-                              <Button 
-                                variant="outline" 
+                              <Button
+                                variant="outline"
                                 onClick={() => window.open(previewFile.file_url, '_blank')}
                               >
                                 <FileText className="h-4 w-4 mr-2" />
                                 {t('operator.openNewTab')}
                               </Button>
-                              <Button 
-                                variant="outline" 
+                              <Button
+                                variant="outline"
                                 onClick={() => handleDownloadClick(previewFile)}
                               >
                                 <Download className="h-4 w-4 mr-2" />

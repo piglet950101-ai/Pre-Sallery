@@ -306,6 +306,8 @@ const translations: Translations = {
   'common.cancelled': { en: 'Cancelled', es: 'Cancelado' },
   'common.processing': { en: 'Processing', es: 'Procesando' },
   'common.failed': { en: 'Failed', es: 'Fallido' },
+  'common.unknown': { en: 'Unknown', es: 'Desconocido' },
+  'common.for': { en: 'for', es: 'para' },
 
 
 
@@ -634,7 +636,7 @@ const translations: Translations = {
   'employeeForm.stepOf': { en: 'Step {current} of {total}', es: 'Paso {current} de {total}' },
   'employeeForm.detailSubtitle': { en: 'Detailed employee information', es: 'Información detallada del empleado' },
   'employeeForm.registrationFeeTitle': { en: 'Employee Registration Fee', es: 'Tarifa de Registro por Empleado' },
-  'employeeForm.registrationFeeDesc': { en: 'A one-time fee of $1 USD applies for each registered employee. This fee is charged only at registration time and billed together with advance commissions.', es: 'Se aplicará una tarifa única de $1 USD por cada empleado registrado. Esta tarifa se cobra una sola vez al momento del registro y se factura junto con las comisiones de adelantos.' },
+  'employeeForm.registrationFeeDesc': { en: 'A fee of $1 USD per employee per month applies for each registered employee. This monthly fee is billed together with advance commissions.', es: 'Se aplica una tarifa de $1 USD por empleado por mes para cada empleado registrado. Esta tarifa mensual se factura junto con las comisiones de adelantos.' },
   // Common errors
   'common.incompleteInfo': { en: 'Incomplete information', es: 'Información incompleta' },
   'common.fillRequired': { en: 'Please complete all required fields', es: 'Por favor completa todos los campos requeridos' },
@@ -895,6 +897,7 @@ const translations: Translations = {
   'company.billing.totalAdvancesAmount': { en: 'Total advances amount', es: 'Monto total adelantos' },
   'company.billing.averageCommission': { en: 'Average commission', es: 'Comisión promedio' },
   'company.billing.feePerEmployee': { en: 'Fee per employee', es: 'Tarifa por empleado' },
+  'company.billing.monthlyFee': { en: 'Monthly fee', es: 'Tarifa mensual' },
   'company.billing.activeEmployees': { en: 'Active employees', es: 'Empleados activos' },
   'company.billing.totalFees': { en: 'Total fees', es: 'Total tarifas' },
   'company.billing.dataUpdated': { en: 'Data Updated', es: 'Datos Actualizados' },
@@ -973,6 +976,13 @@ const translations: Translations = {
   'company.reports.historyDesc': { en: 'History of generated reports', es: 'Historial de reportes generados' },
   'company.reports.noReports': { en: 'No reports generated yet', es: 'No hay reportes generados aún' },
   'company.approveAdvanceTitle': { en: 'Approve Advance', es: 'Aprobar Adelanto' },
+  'company.rejectAdvanceDescPrefix': { en: 'Are you sure you want to reject this advance of', es: '¿Estás seguro de que quieres rechazar este adelanto de' },
+  'common.actionCannotBeUndone': { en: 'This action cannot be undone.', es: 'Esta acción no se puede deshacer.' },
+  'company.approveAdvanceDescPrefix': { en: 'Do you want to approve this advance?', es: '¿Deseas aprobar este adelanto?' },
+  'company.approveAdvanceDescF': { en: 'This action will mark the advance as approved.', es: 'Esta acción marcará el adelanto como aprobado.' },
+  'company.approveAdvanceNoteApproved': { en: 'Note: Once approved, it will be included in the next batch.', es: 'Nota: Una vez aprobado, se incluirá en el próximo lote.' },
+  'company.confirmCancelAdvance': { en: 'Confirm cancellation', es: 'Confirmar cancelación' },
+  'company.cancelAdvanceDescPrefix': { en: 'Are you sure you want to cancel this advance?', es: '¿Seguro que deseas cancelar este adelanto?' },
 };
 
 export const LanguageProvider = ({ children }: LanguageProviderProps) => {
