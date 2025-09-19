@@ -1,12 +1,13 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { 
-  CheckCircle, 
-  Clock, 
-  DollarSign, 
-  Shield, 
-  Users, 
+import React, { Fragment } from "react";
+import {
+  CheckCircle,
+  Clock,
+  DollarSign,
+  Shield,
+  Users,
   Zap,
   ArrowRight,
   Building2,
@@ -27,7 +28,7 @@ import featuresBgPattern from "@/assets/features-bg-pattern.jpg";
 
 const Landing = () => {
   const { t } = useLanguage();
-  
+
   return (
     <div className="min-h-screen bg-background">
       {/* Navigation */}
@@ -35,7 +36,7 @@ const Landing = () => {
 
       {/* Hero Section */}
       <section className="relative py-24 px-4 bg-gradient-hero overflow-hidden">
-        <div 
+        <div
           className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-40"
           style={{ backgroundImage: `url(${heroBgVenezuela})` }}
         ></div>
@@ -48,7 +49,7 @@ const Landing = () => {
                   {t('landing.badge')}
                 </Badge>
                 <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold text-foreground leading-tight">
-                  {t('landing.heroTitle1')} 
+                  {t('landing.heroTitle1')}
                   <span className="block bg-gradient-primary bg-clip-text text-transparent">
                     {t('landing.heroTitle2')}
                   </span>
@@ -57,17 +58,21 @@ const Landing = () => {
                   </span>
                 </h1>
                 <p className="text-xl md:text-2xl text-muted-foreground max-w-xl">
-                  {t('landing.heroDescription').split('80%').map((part, index, arr) => (
-                    index < arr.length - 1 ? (
-                      <>
-                        {part}
-                        <span className="font-semibold text-primary">80%</span>
-                      </>
-                    ) : part
-                  ))}
+                  {t("landing.heroDescription")
+                    .split("80%")
+                    .map((part, index, arr) =>
+                      index < arr.length - 1 ? (
+                        <React.Fragment key={index}>
+                          {part}
+                          <span className="font-semibold text-primary">80%</span>
+                        </React.Fragment>
+                      ) : (
+                        <React.Fragment key={index}>{part}</React.Fragment>
+                      )
+                    )}
                 </p>
               </div>
-              
+
               <div className="flex flex-col sm:flex-row gap-4">
                 <Button size="lg" variant="hero" className="text-lg px-8 py-6 group" asChild>
                   <Link to="/register">
@@ -115,13 +120,13 @@ const Landing = () => {
                     </div>
                     <Badge className="bg-green-100 text-green-800">{t('landing.sampleApproved')}</Badge>
                   </div>
-                  
+
                   <div className="space-y-4">
                     <div className="bg-muted/50 rounded-lg p-4">
                       <div className="text-2xl font-bold text-primary">$240.00</div>
                       <div className="text-sm text-muted-foreground">{t('landing.availableForAdvance')}</div>
                     </div>
-                    
+
                     <div className="space-y-2 text-sm">
                       <div className="flex justify-between">
                         <span>{t('landing.earnedSalary15')}</span>
@@ -132,14 +137,14 @@ const Landing = () => {
                         <span className="font-semibold text-primary">$240.00</span>
                       </div>
                     </div>
-                    
+
                     <Button className="w-full" variant="premium">
                       {t('landing.requestAdvanceNow')}
                     </Button>
                   </div>
                 </div>
               </div>
-              
+
               {/* Floating elements */}
               <div className="absolute -top-4 -right-4 bg-secondary text-secondary-foreground px-3 py-2 rounded-lg shadow-card text-sm font-medium animate-pulse-glow">
                 {t('landing.instantBadge')}
@@ -287,7 +292,7 @@ const Landing = () => {
 
       {/* Features Section */}
       <section id="features" className="py-20 px-4 relative">
-        <div 
+        <div
           className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-25"
           style={{ backgroundImage: `url(${featuresBgPattern})` }}
         ></div>
@@ -499,7 +504,7 @@ const Landing = () => {
                     <span>{t('landing.pricing.company.b6')}</span>
                   </div>
                 </div>
-                
+
                 <div className="pt-4 border-t">
                   <div className="text-sm text-muted-foreground mb-4">
                     <strong>{t('landing.pricing.companyExampleLabel') || 'Example:'}</strong> {t('landing.pricing.company.example')}
@@ -551,7 +556,7 @@ const Landing = () => {
                     <span>{t('landing.pricing.employee.b6')}</span>
                   </div>
                 </div>
-                
+
                 <div className="pt-4 border-t">
                   <div className="text-sm text-muted-foreground mb-4">
                     <strong>{t('landing.pricing.employeeExampleLabel') || 'Example:'}</strong> {t('landing.pricing.employee.example')}
@@ -584,7 +589,7 @@ const Landing = () => {
             <h2 className="text-4xl md:text-5xl font-bold text-foreground">{t('landing.cta.title')}</h2>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">{t('landing.cta.subtitle')}</p>
           </div>
-          
+
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button size="lg" variant="hero" className="text-lg px-12 py-6 group" asChild>
               <Link to="/register">
@@ -596,7 +601,7 @@ const Landing = () => {
               <Link to="/login">{t('landing.cta.haveAccount')}</Link>
             </Button>
           </div>
-          
+
           <div className="grid md:grid-cols-3 gap-8 pt-8">
             <div className="text-center space-y-2">
               <div className="text-2xl font-bold text-primary">{t('landing.cta.metric30')}</div>
@@ -635,7 +640,7 @@ const Landing = () => {
                 <Button variant="outline" size="sm">Twitter</Button>
               </div>
             </div>
-            
+
             <div className="space-y-4">
               <h4 className="font-semibold text-foreground">{t('footer.product')}</h4>
               <div className="space-y-3 text-muted-foreground">
@@ -646,7 +651,7 @@ const Landing = () => {
                 <div className="hover:text-foreground cursor-pointer transition-colors">API</div>
               </div>
             </div>
-            
+
             <div className="space-y-4">
               <h4 className="font-semibold text-foreground">{t('footer.company')}</h4>
               <div className="space-y-3 text-muted-foreground">
@@ -657,7 +662,7 @@ const Landing = () => {
                 <div className="hover:text-foreground cursor-pointer transition-colors">{t('footer.company.press')}</div>
               </div>
             </div>
-            
+
             <div className="space-y-4">
               <h4 className="font-semibold text-foreground">{t('footer.support')}</h4>
               <div className="space-y-3 text-muted-foreground">
@@ -669,7 +674,7 @@ const Landing = () => {
               </div>
             </div>
           </div>
-          
+
           <div className="border-t mt-12 pt-8 flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
             <div className="text-muted-foreground text-sm">
               &copy; 2024 AvancePay Venezuela. {t('footer.copyright')} | RIF: J-12345678-9
