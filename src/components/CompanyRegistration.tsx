@@ -234,7 +234,7 @@ export const CompanyRegistration = () => {
                       value={formData.phone}
                       onChange={(e) => updateFormData('phone', e.target.value)}
                       placeholder="+58 212 123-4567"
-                      className="h-12"
+                      className="h-13"
                     />
                   </div>
                 </div>

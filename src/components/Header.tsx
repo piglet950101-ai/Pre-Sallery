@@ -13,7 +13,8 @@ import {
   Building, 
   Shield, 
   LogOut, 
-  Settings
+  Settings,
+  UserCircle
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -35,30 +36,55 @@ const Header = ({ showNavigation = true, className = "" }: HeaderProps) => {
   const [actualUserRole, setActualUserRole] = useState<string | null>(null);
   const [isCheckingRole, setIsCheckingRole] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [employeeName, setEmployeeName] = useState<string | null>(null);
 
-  // Get actual user role from database
+  // Get actual user role and employee name from database
   useEffect(() => {
-    const fetchActualRole = async () => {
+    const fetchUserData = async () => {
       if (user && !isLoading) {
         setIsCheckingRole(true);
         try {
           const roleFromDb = await getActualUserRole(user.id);
           setActualUserRole(roleFromDb);
+          
+          // If user is an employee, fetch their name
+          if (roleFromDb === 'employee') {
+            const { data: employee, error } = await supabase
+              .from('employees')
+              .select('first_name, last_name')
+              .eq('auth_user_id', user.id)
+              .single();
+            
+            if (employee && !error) {
+              setEmployeeName(`${employee.first_name} ${employee.last_name}`);
+            }
+          }
         } catch (error) {
-          console.error("Error fetching actual user role:", error);
+          console.error("Error fetching user data:", error);
         } finally {
           setIsCheckingRole(false);
         }
       }
     };
 
-    fetchActualRole();
+    fetchUserData();
   }, [user, isLoading]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
     navigate('/');
     setIsMobileMenuOpen(false);
+  };
+
+  const handleProfile = () => {
+    // Navigate to profile page based on user role
+    if (actualUserRole === 'employee') {
+      navigate('/profile');
+    } else if (actualUserRole === 'company') {
+      navigate('/company');
+    } else if (actualUserRole === 'operator') {
+      navigate('/operator');
+    }
   };
 
   const getRoleIcon = (role: string | null) => {
@@ -210,14 +236,6 @@ const Header = ({ showNavigation = true, className = "" }: HeaderProps) => {
             )}
             
             {/* Role-specific navigation items */}
-            {actualUserRole === 'employee' && (
-              <Link 
-                to="/employee/request-advance" 
-                className="text-muted-foreground hover:text-foreground transition-colors"
-              >
-                {t('employee.requestAdvance') ?? 'Request Advance'}
-              </Link>
-            )}
             
             {actualUserRole === 'company' && (
               <Link 
@@ -240,17 +258,21 @@ const Header = ({ showNavigation = true, className = "" }: HeaderProps) => {
                 <Button variant="outline" className="flex items-center space-x-2">
                   {getRoleIcon(actualUserRole)}
                   <span className="hidden sm:inline-block">
-                    {user?.email?.split('@')[0] || 'User'}
+                    {employeeName || user?.email?.split('@')[0] || 'User'}
                   </span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
                 <div className="px-3 py-2">
-                  <p className="text-sm font-medium">{user?.email?.split('@')[0] || 'User'}</p>
+                  <p className="text-sm font-medium">{employeeName || user?.email?.split('@')[0] || 'User'}</p>
                   <p className="text-xs text-muted-foreground">{user?.email}</p>
                   <p className="text-xs text-muted-foreground">{getRoleDisplayName(actualUserRole)}</p>
                 </div>
                 <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleProfile} className="flex items-center space-x-2">
+                  <UserCircle className="h-4 w-4" />
+                  <span>{t('nav.profile')}</span>
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleLogout} className="flex items-center space-x-2 text-red-600">
                   <LogOut className="h-4 w-4" />
                   <span>{t('nav.logout')}</span>

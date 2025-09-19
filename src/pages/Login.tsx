@@ -27,18 +27,14 @@ const Login = () => {
   const signIn = async (email: string, password: string, fallbackRedirect: string, roleToSet?: string) => {
     try {
       setIsLoading(true);
-      console.log("Login attempt:", { email, roleToSet, fallbackRedirect });
       
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
 
-      console.log("Login successful, session:", data.session);
 
       // Only set metadata if a session exists (email may require confirmation)
       if (roleToSet && data.session) {
-        console.log("Setting role:", roleToSet);
         const updateResult = await supabase.auth.updateUser({ data: { role: roleToSet } });
-        console.log("Role update result:", updateResult);
         
         // best-effort company record ensure
         const userId = data.session.user.id;
@@ -60,14 +56,26 @@ const Login = () => {
 
       // Resolve redirect by role if available
       const role = (data.session.user.app_metadata as any)?.role ?? (data.session.user.user_metadata as any)?.role;
-      console.log("Final role check:", { 
-        app_metadata_role: (data.session.user.app_metadata as any)?.role,
-        user_metadata_role: (data.session.user.user_metadata as any)?.role,
-        final_role: role 
-      });
       
+      // If the user is an employee, check if they're active
+      if (role === 'employee') {
+        const { data: employeeData, error: employeeError } = await supabase
+          .from('employees')
+          .select('is_active')
+          .eq('auth_user_id', data.session.user.id)
+          .single();
+          
+        if (employeeError) {
+          console.error("Error checking employee status:", employeeError);
+        } else if (!employeeData.is_active) {
+          // If employee is not active, redirect to pending approval page
+          navigate('/pending-approval');
+          toast({ title: t('login.success') ?? 'Inicio de sesión exitoso' });
+          return;
+        }
+      }
+     
       const pathByRole = role === 'company' ? '/company' : role === 'employee' ? '/employee' : role === 'operator' ? '/operator' : fallbackRedirect;
-      console.log("Redirecting to:", pathByRole);
       navigate(pathByRole);
       toast({ title: t('login.success') ?? 'Inicio de sesión exitoso' });
     } catch (err: any) {
@@ -109,29 +117,26 @@ const Login = () => {
   };
   
   return (
-    <div className="min-h-screen bg-gradient-hero flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="absolute top-4 right-4">
         <LanguageSwitcher />
       </div>
       
-      <div className="w-full max-w-md space-y-6">
+      <div className="w-full max-w-md space-y-8">
         {/* Logo */}
-        <div className="text-center space-y-2">
-          <Link to="/" className="flex items-center justify-center space-x-2">
-            <div className="h-12 w-12 bg-gradient-primary rounded-lg flex items-center justify-center">
-              <DollarSign className="h-7 w-7 text-white" />
+        <div className="text-center space-y-3">
+          <Link to="/" className="flex items-center justify-center space-x-3">
+            <div className="h-16 w-16 bg-blue-500 rounded-2xl flex items-center justify-center shadow-lg">
+              <DollarSign className="h-8 w-8 text-white" />
             </div>
-            <span className="text-2xl font-bold text-foreground">AvancePay</span>
+            <span className="text-3xl font-bold text-gray-800">AvancePay</span>
           </Link>
-          <p className="text-muted-foreground">{t('login.subtitle')}</p>
+          <p className="text-gray-600 text-lg">{t('login.subtitle')}</p>
         </div>
 
-        <Card className="shadow-elegant border-0">
-          <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl text-center">{t('login.title')}</CardTitle>
-            <CardDescription className="text-center">
-              {t('login.subtitle')}
-            </CardDescription>
+        <Card className="shadow-lg border-0 bg-white/90 backdrop-blur-sm">
+          <CardHeader className="space-y-1 pb-4">
+            <CardTitle className="text-2xl text-center text-gray-800 font-semibold">{t('login.title')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <Tabs defaultValue="employee" className="w-full">

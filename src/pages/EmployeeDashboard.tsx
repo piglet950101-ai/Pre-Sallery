@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { AdvanceRequestForm } from "@/components/AdvanceRequestForm";
 import { 
   DollarSign, 
@@ -16,7 +17,14 @@ import {
   RefreshCw,
   X,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  User,
+  Edit,
+  Save,
+  Eye,
+  EyeOff,
+  Filter,
+  Search
 } from "lucide-react";
 import {
   Dialog,
@@ -80,7 +88,7 @@ interface AdvanceRequest {
 // };
 
 const EmployeeDashboard = () => {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { toast } = useToast();
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [advanceRequests, setAdvanceRequests] = useState<AdvanceRequest[]>([]);
@@ -93,17 +101,49 @@ const EmployeeDashboard = () => {
   const [filteredAdvanceRequests, setFilteredAdvanceRequests] = useState<AdvanceRequest[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(5);
+  
+  
 
   // Calculate derived data
   const currentDate = new Date();
   const currentMonth = currentDate.getMonth();
   const currentYear = currentDate.getFullYear();
   const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-  const workedDays = Math.min(22, daysInMonth); // Assuming 22 working days per month
+  
+  // Calculate actual working days from start of month to current date (excluding weekends)
+  const getWorkingDaysInMonth = (year: number, month: number, currentDay: number) => {
+    let workingDays = 0;
+    for (let day = 1; day <= currentDay; day++) {
+      const date = new Date(year, month, day);
+      const dayOfWeek = date.getDay();
+      // Count Monday (1) through Friday (5) as working days
+      if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+        workingDays++;
+      }
+    }
+    return workingDays;
+  };
+  
+  const getTotalWorkingDaysInMonth = (year: number, month: number) => {
+    let workingDays = 0;
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    for (let day = 1; day <= daysInMonth; day++) {
+      const date = new Date(year, month, day);
+      const dayOfWeek = date.getDay();
+      // Count Monday (1) through Friday (5) as working days
+      if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+        workingDays++;
+      }
+    }
+    return workingDays;
+  };
+  
+  const workedDays = getWorkingDaysInMonth(currentYear, currentMonth, currentDate.getDate());
+  const totalWorkingDays = getTotalWorkingDaysInMonth(currentYear, currentMonth);
   const totalDays = daysInMonth;
   
   const monthlySalary = employee?.monthly_salary || 0;
-  const earnedAmount = Math.round(((monthlySalary / totalDays) * workedDays) * 100) / 100;
+  const earnedAmount = Math.round(((monthlySalary / totalWorkingDays) * workedDays) * 100) / 100;
   
   // Calculate used amount from all non-cancelled advances (completed, pending, processing, approved)
   const usedAmount = Math.round(advanceRequests
@@ -117,7 +157,16 @@ const EmployeeDashboard = () => {
     req.status === 'pending' || req.status === 'processing'
   ).length;
 
-  const progressPercentage = (workedDays / totalDays) * 100;
+  const progressPercentage = (workedDays / totalWorkingDays) * 100;
+
+  // Check if today is a billing date (15th or last day of month)
+  const isBillingDate = () => {
+    const now = new Date();
+    const dayOfMonth = now.getDate();
+    const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    
+    return dayOfMonth === 15 || dayOfMonth === lastDayOfMonth;
+  };
 
   // Fetch employee data and advance requests
   useEffect(() => {
@@ -128,7 +177,7 @@ const EmployeeDashboard = () => {
         // Get current user
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
-          throw new Error("Usuario no autenticado");
+          throw new Error(t('employee.error.unauthenticated'));
         }
 
         // Get employee data
@@ -139,7 +188,7 @@ const EmployeeDashboard = () => {
           .single();
 
         if (employeeError) {
-          throw new Error(`Error al cargar datos del empleado: ${employeeError.message}`);
+          throw new Error(`${t('employee.error.loadEmployeeData')}: ${employeeError.message}`);
         }
 
         setEmployee(employeeData);
@@ -171,7 +220,7 @@ const EmployeeDashboard = () => {
     };
 
     fetchEmployeeData();
-  }, [toast]);
+  }, []);
 
   const refreshData = async () => {
     try {
@@ -238,7 +287,7 @@ const EmployeeDashboard = () => {
         .eq("id", advanceToCancel.id);
 
       if (updateError) {
-        throw new Error(`Error al cancelar el adelanto: ${updateError.message}`);
+        throw new Error(`${t('employee.error.cancelAdvance')}: ${updateError.message}`);
       }
 
       toast({
@@ -264,6 +313,8 @@ const EmployeeDashboard = () => {
     setShowCancelModal(false);
     setAdvanceToCancel(null);
   };
+
+
 
 
   // Filter advance requests by date range
@@ -312,13 +363,28 @@ const EmployeeDashboard = () => {
       [t('common.fee')]: `$${request.fee_amount.toFixed(2)}`,
       [t('common.netAmount')]: `$${request.net_amount.toFixed(2)}`,
       [t('common.status')]: request.status,
-      [t('common.paymentMethod')]: request.payment_method === 'pagomovil' ? 'PagoMóvil' : 'Bank Transfer',
+      [t('common.paymentMethod')]: request.payment_method === 'pagomovil' ? t('employee.paymentMethod.pagomovil') : t('employee.paymentMethod.bankTransfer'),
       [t('common.paymentDetails')]: request.payment_details,
       [t('common.batch')]: request.batch_id || 'N/A',
       [t('common.processedAt')]: request.processed_at ? format(new Date(request.processed_at), 'dd/MM/yyyy HH:mm') : 'N/A'
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(exportData);
+    
+    // Set column widths to ensure all content is visible
+    const columnWidths = [
+      { wch: 20 }, // Date
+      { wch: 15 }, // Requested Amount
+      { wch: 12 }, // Fee
+      { wch: 15 }, // Net Amount
+      { wch: 12 }, // Status
+      { wch: 15 }, // Payment Method
+      { wch: 25 }, // Payment Details
+      { wch: 15 }, // Batch
+      { wch: 20 }  // Processed At
+    ];
+    worksheet['!cols'] = columnWidths;
+    
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Advance History');
 
@@ -336,6 +402,7 @@ const EmployeeDashboard = () => {
     setDateFrom(undefined);
     setDateTo(undefined);
   };
+
 
   // Pagination calculations
   const totalPages = Math.ceil(filteredAdvanceRequests.length / itemsPerPage);
@@ -405,6 +472,21 @@ const EmployeeDashboard = () => {
       <Header />
 
       <div className="container mx-auto px-4 py-8 space-y-8">
+        {/* Employee Header */}
+        <div className="flex items-center justify-between">
+
+          <Button 
+            onClick={refreshData} 
+            disabled={isRefreshing}
+            variant="outline"
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+            {t('employee.refresh')}
+          </Button>
+        </div>
+
+        {/* Main Dashboard Content */}
+        <div className="space-y-8">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <Card className="border-none shadow-card">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -427,7 +509,7 @@ const EmployeeDashboard = () => {
             <CardContent>
               <div className="text-2xl font-bold">${monthlySalary.toFixed(2)}</div>
               <p className="text-xs text-muted-foreground">
-                {t('employee.daysWorked').replace('{worked}', workedDays.toString()).replace('{total}', totalDays.toString())}
+                {t('employee.daysWorked').replace('{worked}', workedDays.toString()).replace('{total}', totalWorkingDays.toString())}
               </p>
             </CardContent>
           </Card>
@@ -479,7 +561,7 @@ const EmployeeDashboard = () => {
                   <div>
                     <div className="flex justify-between text-sm mb-2">
                       <span>{t('employee.daysWorkedMonth')}</span>
-                      <span>{workedDays} / {totalDays} {t('employee.days')}</span>
+                      <span>{workedDays} / {totalWorkingDays} {t('employee.days')}</span>
                     </div>
                     <Progress value={progressPercentage} className="h-2" />
                   </div>
@@ -493,20 +575,45 @@ const EmployeeDashboard = () => {
                   </div>
                 </div>
 
+                {/* Billing Date Warning */}
+                {isBillingDate() && (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="h-5 w-5 text-yellow-600" />
+                      <div>
+                        <h4 className="font-semibold text-yellow-800">{t('employee.billing.advanceNotAvailable')}</h4>
+                        <p className="text-sm text-yellow-700">
+                          {t('employee.billing.advanceRestrictionMessage')}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Request Form */}
-                <AdvanceRequestForm 
-                  employeeData={{
-                    name: employeeName,
-                    monthlySalary,
-                    earnedAmount,
-                    availableAmount,
-                    usedAmount,
-                    workedDays,
-                    totalDays
-                  }}
-                  onAdvanceSubmitted={refreshData}
-                  existingAdvanceRequests={advanceRequests}
-                />
+                {!isBillingDate() ? (
+                  <AdvanceRequestForm 
+                    employeeData={{
+                      name: employeeName,
+                      monthlySalary,
+                      earnedAmount,
+                      availableAmount,
+                      usedAmount,
+                      workedDays,
+                      totalDays
+                    }}
+                    onAdvanceSubmitted={refreshData}
+                    existingAdvanceRequests={advanceRequests}
+                  />
+                ) : (
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
+                    <AlertCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold text-gray-600 mb-2">{t('employee.billing.formNotAvailable')}</h3>
+                    <p className="text-gray-500">
+                      {t('employee.billing.formDisabledMessage')}
+                    </p>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -517,7 +624,7 @@ const EmployeeDashboard = () => {
                     <Clock className="h-5 w-5 text-primary" />
                   <span>{t('employee.advanceHistory')}</span>
                     <Badge variant="secondary" className="ml-2">
-                      {filteredAdvanceRequests.length} solicitudes
+                      {filteredAdvanceRequests.length} {t('employee.solicitudes')}
                     </Badge>
                   </span>
                   <div className="flex items-center space-x-2">
@@ -545,7 +652,7 @@ const EmployeeDashboard = () => {
                 {/* Date Filters */}
                 <div className="flex items-center space-x-4 mt-4">
                   <div className="flex items-center space-x-2">
-                    <Label className="text-sm font-medium">Desde:</Label>
+                    <Label className="text-sm font-medium">{t('employee.desde')}</Label>
                     <Popover>
                       <PopoverTrigger asChild>
                         <Button
@@ -679,7 +786,7 @@ const EmployeeDashboard = () => {
                       };
 
                       const getPaymentMethodText = () => {
-                        return request.payment_method === 'pagomovil' ? 'PagoMóvil' : 'Bank Transfer';
+                        return request.payment_method === 'pagomovil' ? t('employee.paymentMethod.pagomovil') : t('employee.paymentMethod.bankTransfer');
                       };
 
                       return (
@@ -693,8 +800,8 @@ const EmployeeDashboard = () => {
                                 <div className="font-semibold text-base">${request.requested_amount.toFixed(2)}</div>
                                 <div className="text-xs text-muted-foreground">
                                   {isToday 
-                                    ? `${t('employee.today')}, ${requestDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`
-                                    : requestDate.toLocaleDateString('es-ES', { 
+                                    ? `${t('employee.today')}, ${requestDate.toLocaleTimeString(language === 'en' ? 'en-US' : 'es-ES', { hour: '2-digit', minute: '2-digit' })}`
+                                    : requestDate.toLocaleDateString(language === 'en' ? 'en-US' : 'es-ES', { 
                                         day: 'numeric', 
                                         month: 'short', 
                                         hour: '2-digit', 
@@ -727,7 +834,7 @@ const EmployeeDashboard = () => {
                                 <span className="text-destructive">-${request.fee_amount.toFixed(2)}</span> {t('common.fee')}
                               </span>
                               <span>
-                                <span className="text-primary font-medium">${request.net_amount.toFixed(2)}</span> neto
+                                <span className="text-primary font-medium">${request.net_amount.toFixed(2)}</span> {t('employee.neto')}
                               </span>
                               <span>{getPaymentMethodText()}</span>
                       </div>
@@ -745,11 +852,11 @@ const EmployeeDashboard = () => {
                           {(request.batch_id || request.processed_at) && (
                             <div className="flex items-center justify-between text-xs text-muted-foreground mt-1 pt-1 border-t border-muted/30">
                               {request.batch_id && (
-                                <span>Lote: {request.batch_id}</span>
+                                <span>{t('employee.lote')} {request.batch_id}</span>
                               )}
                               {request.processed_at && (
                                 <span>
-                                  Procesado: {new Date(request.processed_at).toLocaleDateString('es-ES', {
+                                  {t('employee.procesado')} {new Date(request.processed_at).toLocaleDateString(language === 'en' ? 'en-US' : 'es-ES', {
                                     day: 'numeric',
                                     month: 'short',
                                     hour: '2-digit',
@@ -852,7 +959,7 @@ const EmployeeDashboard = () => {
                 {employee.phone && (
                 <div className="flex items-center justify-between p-3 border rounded-lg">
                   <div>
-                      <div className="font-medium">PagoMóvil</div>
+                      <div className="font-medium">{t('employee.paymentMethod.pagomovil')}</div>
                       <div className="text-sm text-muted-foreground">{employee.phone}</div>
                   </div>
                   <Badge variant="outline">{t('employee.backup')}</Badge>
@@ -879,7 +986,7 @@ const EmployeeDashboard = () => {
                     {new Date(currentYear, currentMonth + 1, 0).getDate()} {t('employee.daysCount')}
                   </div>
                   <div className="text-sm text-muted-foreground">
-                    {new Date(currentYear, currentMonth + 1, 0).toLocaleDateString('es-ES', { 
+                    {new Date(currentYear, currentMonth + 1, 0).toLocaleDateString(language === 'en' ? 'en-US' : 'es-ES', { 
                       day: 'numeric', 
                       month: 'long', 
                       year: 'numeric' 
@@ -911,6 +1018,7 @@ const EmployeeDashboard = () => {
             </Card>
           </div>
         </div>
+        </div>
       </div>
 
       {/* Cancel Confirmation Modal */}
@@ -931,14 +1039,13 @@ const EmployeeDashboard = () => {
               onClick={cancelCancelAction}
               className="flex-1 sm:flex-none"
             >
-              {t('employee.keep')}
+              {t('common.cancel')}
             </Button>
             <Button
               variant="destructive"
               onClick={confirmCancelAdvance}
               className="flex-1 sm:flex-none"
             >
-              <X className="h-4 w-4 mr-2" />
               {t('employee.yesCancel')}
             </Button>
           </DialogFooter>

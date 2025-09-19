@@ -1,0 +1,454 @@
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
+import { DollarSign, Building, User, CheckCircle } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import { useState } from "react";
+import { supabase } from "@/lib/supabase";
+import { useToast } from "@/hooks/use-toast";
+import { ensureCompanyRecord } from "@/lib/profile";
+import { CompanySelector } from "@/components/CompanySelector";
+
+const Register = () => {
+  const { t, language } = useLanguage();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  
+  // Company signup state
+  const [companyEmail, setCompanyEmail] = useState("");
+  const [companyPassword, setCompanyPassword] = useState("");
+  const [companyName, setCompanyName] = useState("");
+  const [companyRif, setCompanyRif] = useState("");
+  const [companyAddress, setCompanyAddress] = useState("");
+  const [companyPhone, setCompanyPhone] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  
+  // Employee signup state
+  const [employeeEmail, setEmployeeEmail] = useState("");
+  const [employeePhone, setEmployeePhone] = useState("");
+  const [employeePassword, setEmployeePassword] = useState("");
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
+  const [employeeFirstName, setEmployeeFirstName] = useState("");
+  const [employeeLastName, setEmployeeLastName] = useState("");
+  const [isLoadingEmployee, setIsLoadingEmployee] = useState(false);
+
+  const signUpCompany = async () => {
+    try {
+      setIsLoading(true);
+      
+      const { data, error } = await supabase.auth.signUp({
+        email: companyEmail,
+        password: companyPassword,
+        options: {
+          emailRedirectTo: `${window.location.origin}/login`,
+          data: {
+            role: 'company',
+            company_name: companyName,
+            company_rif: companyRif
+          }
+        }
+      });
+      
+      if (error) throw error;
+      
+      if (data.user) {
+        // Create company record
+        const { error: companyError } = await ensureCompanyRecord(data.user.id, {
+          name: companyName,
+          rif: companyRif,
+          address: companyAddress,
+          phone: companyPhone,
+          email: companyEmail,
+        });
+      }
+      toast({ title: t('register.successTitle') });
+      navigate('/login');
+    } catch (err: any) {
+      toast({
+        title: t('register.errorTitle'),
+        description: err?.message ?? t('register.tryAgain'),
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const signUpEmployee = async () => {
+    try {
+      setIsLoadingEmployee(true);
+      
+      // Validate inputs
+      if (!selectedCompanyId) {
+        throw new Error(t('register.selectCompanyRequired'));
+      }
+      
+      if (!employeeFirstName || !employeeLastName) {
+        throw new Error(t('register.nameRequired'));
+      }
+      
+      // Clean and normalize email
+      const cleanEmail = employeeEmail.trim().toLowerCase();
+      
+      // Validate email format
+      if (!cleanEmail.includes('@') || !cleanEmail.includes('.')) {
+        throw new Error(t('register.invalidEmailFormat').replace('{email}', employeeEmail));
+      }
+      
+      // Additional check: make sure there's at least one character before @ and after .
+      const emailParts = cleanEmail.split('@');
+      if (emailParts.length !== 2 || emailParts[0].length === 0 || !emailParts[1].includes('.')) {
+        throw new Error(t('register.invalidEmailFormat').replace('{email}', employeeEmail));
+      }
+      
+      // Check if email already exists in employees table
+      const { data: existingEmployee, error: checkError } = await supabase
+        .from("employees")
+        .select("id")
+        .eq("email", cleanEmail)
+        .maybeSingle();
+      
+      if (checkError) {
+        console.error("Error checking existing employee:", checkError);
+        throw new Error(`Error checking data: ${checkError.message}`);
+      }
+      
+      if (existingEmployee) {
+        throw new Error(t('register.emailAlreadyExists'));
+      }
+      
+      // Create Supabase auth user
+      const { data, error } = await supabase.auth.signUp({
+        email: cleanEmail,
+        password: employeePassword,
+        options: {
+          emailRedirectTo: `${window.location.origin}/login`,
+          data: {
+            role: 'employee',
+            first_name: employeeFirstName,
+            last_name: employeeLastName,
+            company_id: selectedCompanyId
+          }
+        }
+      });
+      
+      if (error) throw error;
+      
+      // Create a placeholder employee record with minimal information
+      // The company will need to complete the rest of the information
+      const { data: newEmployee, error: insertError } = await supabase
+        .from("employees")
+        .insert({
+          company_id: selectedCompanyId,
+          first_name: employeeFirstName,
+          last_name: employeeLastName,
+          email: cleanEmail,
+          phone: employeePhone || null,
+          // Required fields with placeholder values that satisfy check constraints
+          year_of_employment: new Date().getFullYear(),
+          position: 'Pending',
+          employment_start_date: new Date().toISOString().split('T')[0],
+          employment_type: 'full-time', // Must be one of: 'full-time', 'part-time', 'contract'
+          weekly_hours: 40, // Must be > 0 and <= 80
+          monthly_salary: 1, // Must be > 0
+          living_expenses: 0, // Must be >= 0
+          dependents: 0, // Must be >= 0
+          emergency_contact: 'Pending',
+          emergency_phone: 'Pending',
+          address: 'Pending',
+          city: 'Pending',
+          state: 'Pending',
+          bank_name: 'Pending',
+          account_number: 'Pending',
+          account_type: 'savings', // Must be one of: 'savings', 'checking'
+          // Set is_active to false until company approves
+          is_active: false,
+          // Generate a random activation code (not used in new flow but required by schema)
+          activation_code: Math.floor(100000 + Math.random() * 900000).toString(),
+          auth_user_id: data.user?.id
+        })
+        .select()
+        .single();
+      
+      if (insertError) {
+        console.error("Error creating employee record:", insertError);
+        
+        // Check for specific constraint violations
+        if (insertError.message.includes('check constraint')) {
+          if (insertError.message.includes('monthly_salary')) {
+            throw new Error(t('register.monthlySalaryError'));
+          } else if (insertError.message.includes('weekly_hours')) {
+            throw new Error(t('register.weeklyHoursError'));
+          } else if (insertError.message.includes('employment_type')) {
+            throw new Error(t('register.employmentTypeError'));
+          } else if (insertError.message.includes('account_type')) {
+            throw new Error(t('register.accountTypeError'));
+          }
+        }
+        
+        // Generic error if no specific constraint is identified
+        throw new Error(`${t('register.employeeCreationError')}: ${insertError.message}`);
+      }
+      
+      toast({ 
+        title: t('register.employeeSuccess'),
+        description: t('register.pendingApproval')
+      });
+      navigate('/login');
+    } catch (err: any) {
+      toast({
+        title: t('register.errorTitle'),
+        description: err?.message ?? t('register.tryAgain'),
+      });
+    } finally {
+      setIsLoadingEmployee(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-hero flex items-center justify-center p-4">
+      <div className="absolute top-4 right-4">
+        <LanguageSwitcher />
+      </div>
+      
+      <div className="w-full max-w-xl space-y-6">
+        {/* Logo */}
+        {/* <div className="text-center space-y-2">
+          <Link to="/" className="flex items-center justify-center space-x-2">
+            <DollarSign className="h-8 w-8 text-white" />
+            <span className="text-2xl font-bold text-white">AvancePay</span>
+          </Link>
+          <h1 className="text-3xl font-bold text-white">{t('register.title')}</h1>
+          <p className="text-white/80">{t('register.subtitle')}</p>
+        </div> */}
+        
+
+        <div className="text-center space-y-2">
+          <Link to="/" className="flex items-center justify-center space-x-2">
+            <div className="h-16 w-16 bg-blue-500 rounded-2xl flex items-center justify-center shadow-lg">
+              <DollarSign className="h-8 w-8 text-white" />
+            </div>
+            <span className="text-3xl font-bold text-gray-800">AvancePay</span>
+          </Link>
+          <p className="text-gray-600 text-lg">{t('register.subtitle')}</p>
+        </div>
+
+
+        <Card className="shadow-elegant border-0">
+          <CardHeader className="pb-6 items-center ">
+            <CardTitle className="text-2xl ">{t('register.createAccount')}</CardTitle>
+            <CardDescription className="text-base">{t('register.chooseAccountType')}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Tabs defaultValue="company" className="space-y-8">
+              <TabsList className="grid grid-cols-2 h-14">
+                <TabsTrigger value="company" className="flex items-center space-x-3 text-base">
+                  <Building className="h-5 w-5" />
+                  <span>{t('register.companyTab')}</span>
+                </TabsTrigger>
+                <TabsTrigger value="employee" className="flex items-center space-x-3 text-base">
+                  <User className="h-5 w-5" />
+                  <span>{t('register.employeeTab')}</span>
+                </TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="company" className="space-y-6">
+                <div className="space-y-3">
+                  <Label htmlFor="company-name" className="text-base">{t('register.companyNameLabel')}</Label>
+                  <Input
+                    id="company-name"
+                    placeholder={t('register.companyNamePlaceholder')}
+                    className="h-12 text-base"
+                    value={companyName}
+                    onChange={(e) => setCompanyName(e.target.value)}
+                  />
+                </div>
+                
+                <div className="space-y-3">
+                  <Label htmlFor="company-rif" className="text-base">{t('register.companyRifLabel')}</Label>
+                  <Input
+                    id="company-rif"
+                    placeholder="J-12345678-9"
+                    className="h-12 text-base"
+                    value={companyRif}
+                    onChange={(e) => setCompanyRif(e.target.value)}
+                  />
+                </div>
+                
+                <div className="space-y-3">
+                  <Label htmlFor="company-address" className="text-base">{t('register.companyAddressLabel')}</Label>
+                  <Textarea
+                    id="company-address"
+                    placeholder={t('register.companyAddressPlaceholder')}
+                    className="min-h-[80px] text-base"
+                    value={companyAddress}
+                    onChange={(e) => setCompanyAddress(e.target.value)}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-3">
+                    <Label htmlFor="company-email" className="text-base">{t('register.companyEmailLabel')}</Label>
+                    <Input
+                      id="company-email"
+                      type="email"
+                      placeholder={t('register.companyEmailPlaceholder')}
+                      className="h-12 text-base"
+                      value={companyEmail}
+                      onChange={(e) => setCompanyEmail(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-3">
+                    <Label htmlFor="company-phone" className="text-base">{t('register.companyPhoneLabel')}</Label>
+                    <Input
+                      id="company-phone"
+                      placeholder={t('register.companyPhonePlaceholder')}
+                      className="h-12 text-base"
+                      value={companyPhone}
+                      onChange={(e) => setCompanyPhone(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <Label htmlFor="company-password" className="text-base">{t('register.companyPasswordLabel')}</Label>
+                  <Input
+                    id="company-password"
+                    type="password"
+                    className="h-12 text-base"
+                    value={companyPassword}
+                    onChange={(e) => setCompanyPassword(e.target.value)}
+                  />
+                </div>
+
+                <div className="bg-muted/50 p-5 rounded-lg space-y-4">
+                  <h4 className="font-semibold text-base">{t('register.benefitsTitle')}</h4>
+                  <div className="space-y-3">
+                    <div className="flex items-center space-x-3 text-base">
+                      <CheckCircle className="h-5 w-5 text-primary" />
+                      <span>{t('register.benefit1')}</span>
+                    </div>
+                    <div className="flex items-center space-x-3 text-base">
+                      <CheckCircle className="h-5 w-5 text-primary" />
+                      <span>{t('register.benefit2')}</span>
+                    </div>
+                    <div className="flex items-center space-x-3 text-base">
+                      <CheckCircle className="h-5 w-5 text-primary" />
+                      <span>{t('register.benefit3')}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <Button
+                  className="w-full h-14 text-base mt-2"
+                  variant="hero"
+                  disabled={isLoading}
+                  onClick={signUpCompany}
+                >
+                  {t('register.createCompanyButton')}
+                </Button>
+              </TabsContent>
+
+              <TabsContent value="employee" className="space-y-6">
+                <div className="bg-secondary/20 border border-secondary/30 p-5 rounded-lg text-center">
+                  <User className="h-10 w-10 text-secondary mx-auto mb-3" />
+                  <h4 className="font-semibold text-lg text-secondary-foreground">{t('register.employeeTitle')}</h4>
+                  <p className="text-muted-foreground mt-2">
+                    {t('register.employeeDescription')}
+                  </p>
+                </div>
+
+                <div className="space-y-6">
+                  <CompanySelector 
+                    onCompanySelect={setSelectedCompanyId}
+                    selectedCompanyId={selectedCompanyId}
+                  />
+                  
+                  <div className="grid grid-cols-2 gap-6">
+                    <div className="space-y-3">
+                      <Label htmlFor="employee-first-name" className="text-base">{t('common.firstName')}</Label>
+                      <Input
+                        id="employee-first-name"
+                        className="h-12 text-base"
+                        value={employeeFirstName}
+                        onChange={(e) => setEmployeeFirstName(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-3">
+                      <Label htmlFor="employee-last-name" className="text-base">{t('common.lastName')}</Label>
+                      <Input
+                        id="employee-last-name"
+                        className="h-12 text-base"
+                        value={employeeLastName}
+                        onChange={(e) => setEmployeeLastName(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-6">
+                    <div className="space-y-3">
+                      <Label htmlFor="employee-email" className="text-base">{t('register.employeeEmailLabel')}</Label>
+                      <Input
+                        id="employee-email"
+                        type="email"
+                        placeholder={t('register.employeeEmailPlaceholder')}
+                        className="h-12 text-base"
+                        value={employeeEmail}
+                        onChange={(e) => setEmployeeEmail(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-3">
+                      <Label htmlFor="employee-phone" className="text-base">{t('register.employeePhoneLabel')}</Label>
+                      <Input
+                        id="employee-phone"
+                        placeholder={t('register.employeePhonePlaceholder')}
+                        className="h-12 text-base"
+                        value={employeePhone}
+                        onChange={(e) => setEmployeePhone(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <Label htmlFor="employee-password" className="text-base">{t('register.employeePasswordLabel')}</Label>
+                    <Input
+                      id="employee-password"
+                      type="password"
+                      className="h-12 text-base"
+                      value={employeePassword}
+                      onChange={(e) => setEmployeePassword(e.target.value)}
+                    />
+                  </div>
+
+                  <Button 
+                    className="w-full h-14 text-base mt-2" 
+                    variant="premium"
+                    disabled={isLoadingEmployee}
+                    onClick={signUpEmployee}
+                  >
+                    {isLoadingEmployee ? t('common.saving') : t('register.createEmployeeButton')}
+                  </Button>
+                </div>
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
+
+        <div className="text-center">
+          <p className="text-muted-foreground">
+            {t('register.haveAccount')} {" "}
+            <Button variant="link" className="p-0 text-base font-semibold" asChild>
+              <Link to="/login">{t('register.loginLink')}</Link>
+            </Button>
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default Register;

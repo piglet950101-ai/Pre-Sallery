@@ -1,0 +1,16 @@
+firstname,lastname,email,phone,salary,hours,year,bank,account,type,cedula,address,city,state,postal,dependents,emergency_contact,emergency_phone,position
+John,Doe,john.doe@employee.com,1234567890,5000,40,2020,Mercantil,1234567890,checking,V-12345678,123 Main St,Caracas,Distrito Capital,1010,2,Jane Doe,1234567891,Manager
+Maria,Garcia,maria.garcia@employee.com,1234567892,4500,40,2019,Banco de Venezuela,9876543210,savings,V-87654321,456 Oak Ave,Valencia,Carabobo,2001,1,Carlos Garcia,1234567893,Developer
+Carlos,Rodriguez,carlos.rodriguez@employee.com,1234567894,6000,40,2021,Banco Provincial,5555666677,checking,V-11223344,789 Pine St,Maracaibo,Zulia,4001,3,Ana Rodriguez,1234567895,Senior Developer
+Ana,Martinez,ana.martinez@employee.com,1234567896,4200,35,2022,Banco Bicentenario,1111222233,savings,V-55667788,321 Elm St,Barquisimeto,Lara,3001,0,Luis Martinez,1234567897,Designer
+Luis,Hernandez,luis.hernandez@employee.com,1234567898,4800,40,2020,Banco de Venezuela,4444555566,checking,V-99887766,654 Maple Ave,San Cristobal,Tachira,5001,1,Carmen Hernandez,1234567899,Analyst
+Carmen,Lopez,carmen.lopez@employee.com,1234567800,5200,40,2021,Banco Mercantil,7777888899,savings,V-33445566,987 Cedar St,Merida,Merida,5101,2,Pedro Lopez,1234567801,Project Manager
+Pedro,Sanchez,pedro.sanchez@employee.com,1234567802,5500,40,2019,Banco Provincial,3333444455,checking,V-77889900,147 Birch St,Cumana,Sucre,6101,1,Isabel Sanchez,1234567803,Team Lead
+Isabel,Ramirez,isabel.ramirez@employee.com,1234567804,4600,35,2022,Banco Bicentenario,9999000011,savings,V-11223344,258 Spruce St,Maracay,Aragua,2101,0,Roberto Ramirez,1234567805,Developer
+Roberto,Flores,roberto.flores@employee.com,1234567806,5100,40,2020,Banco de Venezuela,6666777788,checking,V-55667788,369 Willow St,Valencia,Carabobo,2002,2,Patricia Flores,1234567807,QA Engineer
+Patricia,Morales,patricia.morales@employee.com,1234567808,4900,40,2021,Banco Mercantil,2222333344,savings,V-99887766,741 Poplar St,Barquisimeto,Lara,3002,1,Diego Morales,1234567809,Developer
+Diego,Castro,diego.castro@employee.com,1234567810,5300,40,2019,Banco Provincial,8888999900,checking,V-33445566,852 Ash St,San Cristobal,Tachira,5002,0,Elena Castro,1234567811,DevOps Engineer
+Elena,Vargas,elena.vargas@employee.com,1234567812,4700,35,2022,Banco Bicentenario,4444555566,savings,V-77889900,963 Hickory St,Merida,Merida,5102,1,Andres Vargas,1234567813,UI/UX Designer
+Andres,Jimenez,andres.jimenez@employee.com,1234567814,5000,40,2020,Banco de Venezuela,1111222233,checking,V-11223344,174 Chestnut St,Cumana,Sucre,6102,2,Monica Jimenez,1234567815,Backend Developer
+Monica,Ruiz,monica.ruiz@employee.com,1234567816,4400,35,2021,Banco Mercantil,7777888899,savings,V-55667788,285 Walnut St,Maracay,Aragua,2102,0,Fernando Ruiz,1234567817,Frontend Developer
+Fernando,Silva,fernando.silva@employee.com,1234567818,5200,40,2019,Banco Provincial,3333444455,checking,V-99887766,396 Cherry St,Valencia,Carabobo,2003,1,Adriana Silva,1234567819,Full Stack Developer

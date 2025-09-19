@@ -15,9 +15,11 @@ import { ensureCompanyRecord } from "@/lib/profile";
 import { CompanySelector } from "@/components/CompanySelector";
 
 const Register = () => {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const navigate = useNavigate();
   const { toast } = useToast();
+  
+  // Company signup state
   const [companyEmail, setCompanyEmail] = useState("");
   const [companyPassword, setCompanyPassword] = useState("");
   const [companyName, setCompanyName] = useState("");
@@ -34,44 +36,35 @@ const Register = () => {
   const [employeeFirstName, setEmployeeFirstName] = useState("");
   const [employeeLastName, setEmployeeLastName] = useState("");
   const [isLoadingEmployee, setIsLoadingEmployee] = useState(false);
-  const [activationCode, setActivationCode] = useState("");
 
   const signUpCompany = async () => {
     try {
       setIsLoading(true);
       
       const { data, error } = await supabase.auth.signUp({
-
         email: companyEmail,
         password: companyPassword,
         options: {
           emailRedirectTo: `${window.location.origin}/login`,
           data: {
             role: 'company',
-            company_name: companyName,     // required (NOT NULL)
-            company_rif: companyRif,       // required (UNIQUE, NOT NULL)
-            company_address: companyAddress,
-            company_phone: companyPhone,
+            company_name: companyName,
+            company_rif: companyRif
           }
         }
-        // options: {
-        // },
       });
+      
       if (error) throw error;
+      
       if (data.user) {
-        // attempt to create company row immediately if session present
-        const { data: sessionData } = await supabase.auth.getSession();
-        if (sessionData.session) {
-          // ensure the role is stored on the user metadata
-          await supabase.auth.updateUser({ data: { role: 'company' } });
-          await ensureCompanyRecord(data.user.id, {
-            name: companyName,
-            rif: companyRif,
-            address: companyAddress,
-            phone: companyPhone,
-            email: companyEmail,
-          });
-        }
+        // Create company record
+        const { error: companyError } = await ensureCompanyRecord(data.user.id, {
+          name: companyName,
+          rif: companyRif,
+          address: companyAddress,
+          phone: companyPhone,
+          email: companyEmail,
+        });
       }
       toast({ title: t('register.successTitle') });
       navigate('/login');
@@ -89,105 +82,43 @@ const Register = () => {
     try {
       setIsLoadingEmployee(true);
       
-      // Clean and normalize inputs
-      const cleanActivationCode = activationCode.trim().replace(/[^0-9]/g, ''); // Remove all non-numeric characters
-      const cleanEmail = employeeEmail.trim().toLowerCase();
-      
-      // Validate activation code format
-      if (cleanActivationCode.length !== 6) {
-        throw new Error(t('register.activationCode6Digits'));
+      // Validate inputs
+      if (!selectedCompanyId) {
+        throw new Error(t('register.selectCompanyRequired'));
       }
       
-      // Validate email format (very permissive - just check for @ and .)
-      console.log("🔍 Email validation check:", {
-        originalEmail: employeeEmail,
-        cleanedEmail: cleanEmail,
-        hasAt: cleanEmail.includes('@'),
-        hasDot: cleanEmail.includes('.')
-      });
+      if (!employeeFirstName || !employeeLastName) {
+        throw new Error(t('register.nameRequired'));
+      }
       
+      // Clean and normalize email
+      const cleanEmail = employeeEmail.trim().toLowerCase();
+      
+      // Validate email format
       if (!cleanEmail.includes('@') || !cleanEmail.includes('.')) {
-        console.error("❌ Email validation failed:", {
-          originalEmail: employeeEmail,
-          cleanedEmail: cleanEmail
-        });
         throw new Error(t('register.invalidEmailFormat').replace('{email}', employeeEmail));
       }
       
       // Additional check: make sure there's at least one character before @ and after .
       const emailParts = cleanEmail.split('@');
-      console.log("🔍 Email parts analysis:", {
-        emailParts: emailParts,
-        partsLength: emailParts.length,
-        beforeAtLength: emailParts[0]?.length || 0,
-        afterAtHasDot: emailParts[1]?.includes('.') || false
-      });
-      
       if (emailParts.length !== 2 || emailParts[0].length === 0 || !emailParts[1].includes('.')) {
-        console.error("❌ Email validation failed - invalid structure:", {
-          originalEmail: employeeEmail,
-          cleanedEmail: cleanEmail,
-          emailParts: emailParts
-        });
         throw new Error(t('register.invalidEmailFormat').replace('{email}', employeeEmail));
       }
       
-      // Debug: Log the inputs
-      console.log("Original Activation Code:", activationCode);
-      console.log("Cleaned Activation Code:", cleanActivationCode);
-      console.log("Original Employee Email:", employeeEmail);
-      console.log("Cleaned Employee Email:", cleanEmail);
-      
-      // Check activation code and email directly
-      console.log("🔍 Looking up employee with:", {
-        activationCode: cleanActivationCode,
-        employeeEmail: cleanEmail
-      });
-      
-      const { data: employeeData, error: employeeError } = await supabase
+      // Check if email already exists in employees table
+      const { data: existingEmployee, error: checkError } = await supabase
         .from("employees")
-        .select("id, company_id, first_name, last_name, email, activation_code, is_active")
-        .eq("activation_code", cleanActivationCode)
+        .select("id")
         .eq("email", cleanEmail)
-        .single();
+        .maybeSingle();
       
-      console.log("📊 Employee lookup result:", employeeData);
-      console.log("❌ Employee lookup error:", employeeError);
-      
-      // Additional debugging: check if employee exists with just email
-      if (employeeError && employeeError.code === 'PGRST116') {
-        console.log("🔍 No exact match found, checking if email exists...");
-        const { data: emailCheck, error: emailError } = await supabase
-          .from("employees")
-          .select("email, activation_code")
-          .eq("email", cleanEmail)
-          .single();
-        
-        console.log("📧 Email check result:", emailCheck);
-        console.log("📧 Email check error:", emailError);
-        
-        if (emailCheck) {
-          console.log("⚠️ Email exists but activation code doesn't match");
-          console.log("Expected code:", activationCode);
-          console.log("Actual code:", emailCheck.activation_code);
-        }
+      if (checkError) {
+        console.error("Error checking existing employee:", checkError);
+        throw new Error(`Error checking data: ${checkError.message}`);
       }
       
-      if (employeeError) {
-        if (employeeError.code === 'PGRST116') {
-          // No rows found
-          throw new Error(t('register.invalidActivationOrEmail'));
-        }
-        console.error("Error checking employee:", employeeError);
-        throw new Error(`Error checking data: ${employeeError.message}`);
-      }
-      
-      if (!employeeData) {
-        throw new Error(t('register.invalidActivationOrEmail'));
-      }
-      
-      if (employeeData.is_active) {
-        throw new Error(t('register.accountAlreadyActivated'));
+      if (existingEmployee) {
+        throw new Error(t('register.emailAlreadyExists'));
       }
       
       // Create Supabase auth user
@@ -198,80 +129,65 @@ const Register = () => {
           emailRedirectTo: `${window.location.origin}/login`,
           data: {
             role: 'employee',
-            employee_id: employeeData.id,
-            company_id: employeeData.company_id
+            first_name: employeeFirstName,
+            last_name: employeeLastName,
+            company_id: selectedCompanyId
           }
         }
       });
       
       if (error) throw error;
       
-      if (data.user) {
-        // Update employee record with auth_user_id and activate account
-        console.log("Updating employee record:", {
-          id: employeeData.id,
-          auth_user_id: data.user.id,
-          is_active: true,
-          phone: employeePhone
-        });
-        
-        // Try to update the employee record
-        const { error: updateError } = await supabase
-          .from("employees")
-          .update({
-            auth_user_id: data.user.id,
-            is_active: true,
-            phone: employeePhone,
-            updated_at: new Date().toISOString()
-          })
-          .eq("id", employeeData.id)
-          .select(); // Add select to get the updated record
-        
-        if (updateError) {
-          console.error("Error updating employee record:", updateError);
-          console.error("Update error details:", {
-            code: updateError.code,
-            message: updateError.message,
-            details: updateError.details,
-            hint: updateError.hint
-          });
-          
-          // Try alternative approach - call a function
-          try {
-            const { error: functionError } = await supabase.functions.invoke('activate-employee', {
-              body: {
-                employee_id: employeeData.id,
-                auth_user_id: data.user.id,
-                phone: employeePhone
-              }
-            });
-            
-            if (functionError) {
-              console.error("Function error:", functionError);
-              throw new Error('Could not activate employee account. Contact support.');
-            } else {
-              console.log("Employee activated via function");
-            }
-          } catch (funcErr) {
-            console.error("Function call failed:", funcErr);
-            throw new Error('Could not activate employee account. Contact support.');
-          }
-        } else {
-          console.log("Employee record updated successfully - is_active set to true");
-        }
+      // Create a placeholder employee record with minimal information
+      // The company will need to complete the rest of the information
+      const { data: newEmployee, error: insertError } = await supabase
+        .from("employees")
+        .insert({
+          company_id: selectedCompanyId,
+          first_name: employeeFirstName,
+          last_name: employeeLastName,
+          email: cleanEmail,
+          phone: employeePhone || null,
+          // Required fields with placeholder values
+          year_of_employment: new Date().getFullYear(),
+          position: 'Pending',
+          employment_start_date: new Date().toISOString().split('T')[0],
+          employment_type: 'full-time',
+          weekly_hours: 40,
+          monthly_salary: 0,
+          living_expenses: 0,
+          dependents: 0,
+          emergency_contact: 'Pending',
+          emergency_phone: 'Pending',
+          address: 'Pending',
+          city: 'Pending',
+          state: 'Pending',
+          bank_name: 'Pending',
+          account_number: 'Pending',
+          account_type: 'savings',
+          // Set is_active to false until company approves
+          is_active: false,
+          // Generate a random activation code (not used in new flow but required by schema)
+          activation_code: Math.floor(100000 + Math.random() * 900000).toString(),
+          auth_user_id: data.user?.id
+        })
+        .select()
+        .single();
+      
+      if (insertError) {
+        console.error("Error creating employee record:", insertError);
+        throw new Error(`Error creating employee record: ${insertError.message}`);
       }
       
-      toast({
-        title: t('register.employeeActivatedTitle'),
-        description: t('register.employeeActivatedDesc').replace('{name}', `${employeeData.first_name} ${employeeData.last_name}`),
+      toast({ 
+        title: t('register.employeeSuccess'),
+        description: t('register.pendingApproval')
       });
-      
       navigate('/login');
     } catch (err: any) {
       toast({
-        title: t('register.activateErrorTitle'),
+        title: t('register.errorTitle'),
         description: err?.message ?? t('register.tryAgain'),
-        variant: "destructive"
       });
     } finally {
       setIsLoadingEmployee(false);
@@ -279,30 +195,30 @@ const Register = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-hero flex items-center justify-center p-4">
       <div className="absolute top-4 right-4">
         <LanguageSwitcher />
       </div>
-
-      <div className="w-full max-w-md space-y-8">
+      
+      <div className="w-full max-w-md space-y-6">
         {/* Logo */}
-        <div className="text-center space-y-3">
-          <Link to="/" className="flex items-center justify-center space-x-3">
-            <div className="h-16 w-16 bg-blue-500 rounded-2xl flex items-center justify-center shadow-lg">
-              <DollarSign className="h-8 w-8 text-white" />
-            </div>
-            <span className="text-3xl font-bold text-gray-800">AvancePay</span>
+        <div className="text-center space-y-2">
+          <Link to="/" className="flex items-center justify-center space-x-2">
+            <DollarSign className="h-8 w-8 text-white" />
+            <span className="text-2xl font-bold text-white">AvancePay</span>
           </Link>
-          <p className="text-gray-600 text-lg">{t('register.subtitle')}</p>
+          <h1 className="text-3xl font-bold text-white">{t('register.title')}</h1>
+          <p className="text-white/80">{t('register.subtitle')}</p>
         </div>
-
-        <Card className="shadow-lg border-0 bg-white/90 backdrop-blur-sm">
-          <CardHeader className="space-y-1 pb-4">
-            <CardTitle className="text-2xl text-center text-gray-800 font-semibold">{t('register.title')}</CardTitle>
+        
+        <Card className="shadow-elegant border-0">
+          <CardHeader>
+            <CardTitle>{t('register.createAccount')}</CardTitle>
+            <CardDescription>{t('register.chooseAccountType')}</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <Tabs defaultValue="company" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
+          <CardContent>
+            <Tabs defaultValue="company" className="space-y-6">
+              <TabsList className="grid grid-cols-2">
                 <TabsTrigger value="company" className="flex items-center space-x-2">
                   <Building className="h-4 w-4" />
                   <span>{t('register.companyTab')}</span>
@@ -312,31 +228,30 @@ const Register = () => {
                   <span>{t('register.employeeTab')}</span>
                 </TabsTrigger>
               </TabsList>
-
+              
               <TabsContent value="company" className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="company-name">{t('register.companyNameLabel')}</Label>
-                    <Input
-                      id="company-name"
-                      placeholder={t('register.companyNamePlaceholder')}
-                      className="h-13"
-                      value={companyName}
-                      onChange={(e) => setCompanyName(e.target.value)}
-                    />
-                  </div>
-                   <div className="space-y-2">
-                     <Label htmlFor="company-rif">{t('register.companyRifLabel')}</Label>
-                    <Input
-                      id="company-rif"
-                      placeholder="J-12345678-9"
-                      className="h-12"
-                      value={companyRif}
-                      onChange={(e) => setCompanyRif(e.target.value)}
-                    />
-                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="company-name">{t('register.companyNameLabel')}</Label>
+                  <Input
+                    id="company-name"
+                    placeholder={t('register.companyNamePlaceholder')}
+                    className="h-12"
+                    value={companyName}
+                    onChange={(e) => setCompanyName(e.target.value)}
+                  />
                 </div>
-
+                
+                <div className="space-y-2">
+                  <Label htmlFor="company-rif">{t('register.companyRifLabel')}</Label>
+                  <Input
+                    id="company-rif"
+                    placeholder="J-12345678-9"
+                    className="h-12"
+                    value={companyRif}
+                    onChange={(e) => setCompanyRif(e.target.value)}
+                  />
+                </div>
+                
                 <div className="space-y-2">
                   <Label htmlFor="company-address">{t('register.companyAddressLabel')}</Label>
                   <Textarea
@@ -414,24 +329,36 @@ const Register = () => {
               <TabsContent value="employee" className="space-y-4">
                 <div className="bg-secondary/20 border border-secondary/30 p-4 rounded-lg text-center">
                   <User className="h-8 w-8 text-secondary mx-auto mb-2" />
-                  <h4 className="font-semibold text-secondary-foreground">{t('register.inviteTitle')}</h4>
+                  <h4 className="font-semibold text-secondary-foreground">{t('register.employeeTitle')}</h4>
                   <p className="text-sm text-muted-foreground mt-1">
-                    {t('register.inviteDescription')} {t('register.activationLinkInfo')}
+                    {t('register.employeeDescription')}
                   </p>
                 </div>
 
                 <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="activation-code">{t('register.activationCodeLabel')}</Label>
-                    <div className="flex space-x-2">
+                  <CompanySelector 
+                    onCompanySelect={setSelectedCompanyId}
+                    selectedCompanyId={selectedCompanyId}
+                  />
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="employee-first-name">{t('common.firstName')}</Label>
                       <Input
-                        id="activation-code"
-                        placeholder={t('register.activationCodePlaceholder') || "Ingresa tu código de activación"}
+                        id="employee-first-name"
                         className="h-12"
-                        value={activationCode}
-                        onChange={(e) => setActivationCode(e.target.value)}
+                        value={employeeFirstName}
+                        onChange={(e) => setEmployeeFirstName(e.target.value)}
                       />
-                      
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="employee-last-name">{t('common.lastName')}</Label>
+                      <Input
+                        id="employee-last-name"
+                        className="h-12"
+                        value={employeeLastName}
+                        onChange={(e) => setEmployeeLastName(e.target.value)}
+                      />
                     </div>
                   </div>
 
@@ -476,7 +403,7 @@ const Register = () => {
                     disabled={isLoadingEmployee}
                     onClick={signUpEmployee}
                   >
-                    {isLoadingEmployee ? t('register.activating') : t('register.activateEmployeeCTA')}
+                    {isLoadingEmployee ? t('common.saving') : t('register.createEmployeeButton')}
                   </Button>
                 </div>
               </TabsContent>

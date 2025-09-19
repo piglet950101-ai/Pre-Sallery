@@ -227,55 +227,60 @@ const Landing = () => {
             </div>
           </div>
 
-          <div className="bg-background rounded-2xl p-8 shadow-card">
-            <div className="grid md:grid-cols-2 gap-8 items-center">
-              <div className="space-y-6">
-                <h3 className="text-2xl font-bold">{t('landing.forEmployeesTitle')}</h3>
+          <div className="grid md:grid-cols-2 gap-8">
+            {/* For Employees Card */}
+            <Card className="border-none shadow-elegant">
+              <CardContent className="p-8">
+                <h3 className="text-2xl font-bold text-foreground mb-6">{t('landing.forEmployeesTitle')}</h3>
                 <div className="space-y-4">
                   <div className="flex items-start space-x-3">
-                    <div className="h-6 w-6 bg-primary rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <div className="h-6 w-6 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                       <CheckCircle className="h-4 w-4 text-white" />
                     </div>
                     <p className="text-muted-foreground">{t('landing.forEmployeesPoint1')}</p>
                   </div>
                   <div className="flex items-start space-x-3">
-                    <div className="h-6 w-6 bg-primary rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <div className="h-6 w-6 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                       <CheckCircle className="h-4 w-4 text-white" />
                     </div>
                     <p className="text-muted-foreground">{t('landing.forEmployeesPoint2')}</p>
                   </div>
                   <div className="flex items-start space-x-3">
-                    <div className="h-6 w-6 bg-primary rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <div className="h-6 w-6 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                       <CheckCircle className="h-4 w-4 text-white" />
                     </div>
                     <p className="text-muted-foreground">{t('landing.forEmployeesPoint3')}</p>
                   </div>
                 </div>
-              </div>
-              <div className="space-y-6">
-                <h3 className="text-2xl font-bold">{t('landing.forCompaniesTitle')}</h3>
+              </CardContent>
+            </Card>
+
+            {/* For Companies Card */}
+            <Card className="border-none shadow-elegant">
+              <CardContent className="p-8">
+                <h3 className="text-2xl font-bold text-foreground mb-6">{t('landing.forCompaniesTitle')}</h3>
                 <div className="space-y-4">
                   <div className="flex items-start space-x-3">
-                    <div className="h-6 w-6 bg-secondary rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <div className="h-6 w-6 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                       <CheckCircle className="h-4 w-4 text-white" />
                     </div>
                     <p className="text-muted-foreground">{t('landing.forCompaniesPoint1')}</p>
                   </div>
                   <div className="flex items-start space-x-3">
-                    <div className="h-6 w-6 bg-secondary rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <div className="h-6 w-6 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                       <CheckCircle className="h-4 w-4 text-white" />
                     </div>
                     <p className="text-muted-foreground">{t('landing.forCompaniesPoint2')}</p>
                   </div>
                   <div className="flex items-start space-x-3">
-                    <div className="h-6 w-6 bg-secondary rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <div className="h-6 w-6 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                       <CheckCircle className="h-4 w-4 text-white" />
                     </div>
                     <p className="text-muted-foreground">{t('landing.forCompaniesPoint3')}</p>
                   </div>
                 </div>
-              </div>
-            </div>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </section>

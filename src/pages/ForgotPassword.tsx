@@ -6,11 +6,14 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "react-router-dom";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 
 const ForgotPassword = () => {
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+  const { t } = useLanguage();
 
   const handleSend = async () => {
     try {
@@ -19,9 +22,9 @@ const ForgotPassword = () => {
         redirectTo: `${window.location.origin}/reset-password`,
       });
       if (error) throw error;
-      toast({ title: "Revisa tu correo para continuar" });
+      toast({ title: t('forgotPassword.checkEmail') });
     } catch (err: any) {
-      toast({ title: "Error", description: err?.message ?? "Inténtalo de nuevo" });
+      toast({ title: t('forgotPassword.error'), description: err?.message ?? t('forgotPassword.tryAgain') });
     } finally {
       setIsLoading(false);
     }
@@ -29,18 +32,24 @@ const ForgotPassword = () => {
 
   return (
     <div className="min-h-screen bg-gradient-hero flex items-center justify-center p-4">
+      <div className="absolute top-4 right-4">
+        <LanguageSwitcher />
+      </div>
+      
       <Card className="w-full max-w-md shadow-elegant border-0">
         <CardHeader>
-          <CardTitle>Recuperar contraseña</CardTitle>
+          <CardTitle>{t('forgotPassword.title')}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="email">Correo</Label>
+            <Label htmlFor="email">{t('forgotPassword.email')}</Label>
             <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
           </div>
-          <Button className="w-full" disabled={isLoading} onClick={handleSend}>Enviar enlace</Button>
+          <Button className="w-full" disabled={isLoading} onClick={handleSend}>
+            {t('forgotPassword.sendLink')}
+          </Button>
           <Button variant="link" className="w-full" asChild>
-            <Link to="/login">Volver a iniciar sesión</Link>
+            <Link to="/login">{t('forgotPassword.backToLogin')}</Link>
           </Button>
         </CardContent>
       </Card>

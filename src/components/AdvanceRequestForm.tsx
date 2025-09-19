@@ -220,8 +220,8 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
             </div>
             <Progress value={progressPercentage} className="h-3" />
             <div className="flex justify-between text-xs mt-1 text-muted-foreground">
-              <span>Inicio del mes</span>
-              <span>{progressPercentage.toFixed(1)}% completado</span>
+              <span>{t('employee.inicioDelMes')}</span>
+              <span>{progressPercentage.toFixed(1)}% {t('employee.completado')}</span>
             </div>
           </div>
 
@@ -253,8 +253,8 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
               className="h-3" 
             />
             <div className="flex justify-between text-xs mt-1 text-muted-foreground">
-              <span>Usado: ${employeeData.usedAmount.toFixed(2)}</span>
-              <span>Disponible: ${employeeData.availableAmount.toFixed(2)}</span>
+              <span>{t('employee.usado')} ${employeeData.usedAmount.toFixed(2)}</span>
+              <span>{t('employee.disponible')} ${employeeData.availableAmount.toFixed(2)}</span>
             </div>
           </div>
         </div>
@@ -273,10 +273,9 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
             <div className="flex items-start space-x-3 p-4 bg-orange-100 border border-orange-200 rounded-lg">
               <AlertCircle className="h-5 w-5 text-orange-600 mt-0.5 flex-shrink-0" />
               <div className="text-sm">
-                <div className="font-medium text-orange-800">Solicitud en Progreso</div>
+                <div className="font-medium text-orange-800">{t('employee.solicitudEnProgreso')}</div>
                 <div className="text-orange-700">
-                  Ya tienes una solicitud de adelanto pendiente o en procesamiento. 
-                  No puedes solicitar un nuevo adelanto hasta que se complete la solicitud actual.
+                  {t('employee.solicitudEnProgresoDesc')}
                 </div>
               </div>
             </div>
@@ -287,9 +286,9 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
             <div className="flex items-start space-x-3 p-4 bg-blue-100 border border-blue-200 rounded-lg">
               <CheckCircle className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
               <div className="text-sm">
-                <div className="font-medium text-blue-800">Listo para Nueva Solicitud</div>
+                <div className="font-medium text-blue-800">{t('employee.listoParaNuevaSolicitud')}</div>
                 <div className="text-blue-700">
-                  Tu solicitud anterior fue rechazada. Puedes solicitar un nuevo adelanto ahora.
+                  {t('employee.listoParaNuevaSolicitudDesc')}
                 </div>
               </div>
             </div>

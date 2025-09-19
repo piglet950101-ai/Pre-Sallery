@@ -205,8 +205,6 @@ const CompanyDashboard = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [isLoadingEmployees, setIsLoadingEmployees] = useState(true);
-  const [employeeFees, setEmployeeFees] = useState<any[]>([]);
-  const [isLoadingEmployeeFees, setIsLoadingEmployeeFees] = useState(true);
   const [advances, setAdvances] = useState<any[]>([]);
   const [isLoadingAdvances, setIsLoadingAdvances] = useState(true);
   const [company, setCompany] = useState<any>(null);
@@ -218,6 +216,8 @@ const CompanyDashboard = () => {
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [advanceToAction, setAdvanceToAction] = useState<any>(null);
+  const [employeeFees, setEmployeeFees] = useState<any[]>([]);
+  const [isLoadingEmployeeFees, setIsLoadingEmployeeFees] = useState(false);
   
   // CSV Upload states
   const [showCsvUploadModal, setShowCsvUploadModal] = useState(false);
@@ -235,11 +235,6 @@ const CompanyDashboard = () => {
   const [reportFormat, setReportFormat] = useState('excel');
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [recentReports, setRecentReports] = useState<any[]>([]);
-  
-  // Export format selection states
-  const [showFormatDialog, setShowFormatDialog] = useState(false);
-  const [pendingExportType, setPendingExportType] = useState<string | null>(null);
-  const [selectedExportFormat, setSelectedExportFormat] = useState<'excel' | 'csv' | 'pdf'>('excel');
   
   // Billing states
   const [invoices, setInvoices] = useState<any[]>([]);
@@ -260,6 +255,9 @@ const CompanyDashboard = () => {
   const [totalOutstanding, setTotalOutstanding] = useState(0);
   const [lastPaymentDate, setLastPaymentDate] = useState('2024-01-15');
   const [isLoadingPayments, setIsLoadingPayments] = useState(false);
+  // Export confirmation modal state
+  const [isExportConfirmOpen, setIsExportConfirmOpen] = useState(false);
+  const [pendingExportType, setPendingExportType] = useState<string | null>(null);
   // Delete employee modal state
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null);
@@ -279,7 +277,7 @@ const CompanyDashboard = () => {
   const [showChangeRequestModal, setShowChangeRequestModal] = useState(false);
   const [viewingChangeRequest, setViewingChangeRequest] = useState<ChangeRequest | null>(null);
   const [changeRequestPage, setChangeRequestPage] = useState(1);
-  const [changeRequestItemsPerPage, setChangeRequestItemsPerPage] = useState(10);
+  const [changeRequestsPerPage, setChangeRequestsPerPage] = useState(10);
   const [employeeSearch, setEmployeeSearch] = useState<string>("");
   const [employeeCurrentPage, setEmployeeCurrentPage] = useState<number>(1);
   const [employeeItemsPerPage, setEmployeeItemsPerPage] = useState<number>(10);
@@ -299,17 +297,22 @@ const CompanyDashboard = () => {
   ), [advances]);
 
   // Company data (will be calculated from real data, excluding cancelled advances)
-
   const companyData = {
     name: company?.name || "Cargando...",
     rif: company?.rif || "Cargando...",
     activeEmployees: employees.filter(emp => emp.is_active).length,
     totalAdvances: activeAdvances.reduce((sum, advance) => sum + advance.requested_amount, 0),
     pendingAdvances: activeAdvances.filter(advance => advance.status === 'pending').length,
-    monthlyFees: employees.filter(emp => emp.is_active).length * 1.00, // $1 per active employee per month
-    totalEmployeeRegistrationFees: employeeFees.length > 0 
-      ? employeeFees.reduce((sum, fee) => sum + fee.fee_amount, 0)
-      : employees.filter(emp => emp.is_active).length * 1.00, // Fallback: $1 per active employee
+    monthlyFees: activeAdvances
+      .filter(advance => {
+        const advanceDate = new Date(advance.created_at);
+        const now = new Date();
+        return advanceDate.getMonth() === now.getMonth() && 
+               advanceDate.getFullYear() === now.getFullYear();
+      })
+      .reduce((sum, advance) => sum + advance.fee_amount, 0),
+    totalEmployeeRegistrationFees: employeeFees
+      .reduce((sum, fee) => sum + fee.fee_amount, 0),
     weeklyBilling: activeAdvances
       .filter(advance => {
         const advanceDate = new Date(advance.created_at);
@@ -388,10 +391,7 @@ const CompanyDashboard = () => {
 
   // Calculate real-time total outstanding from actual data
   const calculateRealTotalOutstanding = () => {
-    const isFirstPeriod = currentBillingPeriod.period === 'first';
-    return isFirstPeriod 
-      ? currentPeriodTotalAdvances  // First period: Advance amounts only
-      : currentPeriodTotalAdvances + currentPeriodUnpaidFees;  // Second period: Advance amounts + Employee fees
+    return currentMonthUnpaidAdvances + currentMonthUnpaidFees;
   };
 
   // Compute next due date (twice a month: 15th and end of month)
@@ -419,51 +419,24 @@ const CompanyDashboard = () => {
   const getCurrentBillingPeriod = () => {
     const now = new Date();
     const dayOfMonth = now.getDate();
-    const year = now.getFullYear();
-    const month = now.getMonth();
     
     if (dayOfMonth <= 15) {
       return {
         period: 'first',
-        startDate: new Date(year, month, 1),
-        endDate: new Date(year, month, 14), // 1st-14th (not 15th)
-        dueDate: new Date(year, month, 15), // Due on 15th
-        description: '1st-14th of month',
-        invoiceNumber: `INV-${year}-${String(month + 1).padStart(2, '0')}-01`
+        startDate: new Date(now.getFullYear(), now.getMonth(), 1),
+        endDate: new Date(now.getFullYear(), now.getMonth(), 15),
+        dueDate: new Date(now.getFullYear(), now.getMonth(), 15),
+        description: '1-15th of month'
       };
     } else {
-      const lastDayOfMonth = new Date(year, month + 1, 0).getDate();
       return {
         period: 'second',
-        startDate: new Date(year, month, 15), // 15th-end
-        endDate: new Date(year, month, lastDayOfMonth),
-        dueDate: new Date(year, month, lastDayOfMonth), // Due on last day
-        description: '15th-end of month',
-        invoiceNumber: `INV-${year}-${String(month + 1).padStart(2, '0')}-02`
+        startDate: new Date(now.getFullYear(), now.getMonth(), 16),
+        endDate: new Date(now.getFullYear(), now.getMonth() + 1, 0),
+        dueDate: new Date(now.getFullYear(), now.getMonth() + 1, 0),
+        description: '16th-end of month'
       };
     }
-  };
-
-  // Check if today is a billing date (15th or last day of month)
-  const isBillingDate = () => {
-    const now = new Date();
-    const dayOfMonth = now.getDate();
-    const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-    
-    return dayOfMonth === 15 || dayOfMonth === lastDayOfMonth;
-  };
-
-  // Check if today is the 15th of the month
-  const isFifteenthOfMonth = () => {
-    const now = new Date();
-    return now.getDate() === 15;
-  };
-
-  // Check if today is the last day of the month
-  const isLastDayOfMonth = () => {
-    const now = new Date();
-    const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-    return now.getDate() === lastDayOfMonth;
   };
 
   // Calculate non-negative whole days remaining until a given ISO date (0 if today or past)
@@ -613,24 +586,13 @@ const CompanyDashboard = () => {
   // Calculate current billing period amounts based on new logic
   const currentBillingPeriod = getCurrentBillingPeriod();
   
-  // Calculate advances for current billing period (all advances, not just unpaid)
-  const currentPeriodAdvances = activeAdvances
+  // Calculate advances for current billing period
+  const currentPeriodUnpaidAdvances = unpaidAdvances
     .filter(advance => {
       const advanceDate = new Date(advance.created_at);
       return advanceDate >= currentBillingPeriod.startDate && advanceDate <= currentBillingPeriod.endDate;
-    });
-  
-  const currentPeriodUnpaidAdvances = currentPeriodAdvances
-    .filter(advance => advance.status === 'pending' || advance.status === 'approved' || advance.status === 'processing')
+    })
     .reduce((sum, advance) => sum + advance.requested_amount, 0);
-  
-  // Calculate total advances amount for billing (all advances in period)
-  const currentPeriodTotalAdvances = currentPeriodAdvances
-    .reduce((sum, advance) => sum + advance.requested_amount, 0);
-  
-  // Calculate commission fees for current period
-  const currentPeriodCommissionFees = currentPeriodAdvances
-    .reduce((sum, advance) => sum + (advance.fee_amount || 0), 0);
 
   // Calculate employee fees for current billing period
   let currentPeriodUnpaidFees = 0;
@@ -638,20 +600,8 @@ const CompanyDashboard = () => {
   // Calculate monthly employee fees ($1 per active employee per month)
   const activeEmployeesCount = employees.filter(emp => emp.is_active).length;
   const monthlyEmployeeFees = activeEmployeesCount * 1.00; // $1 per employee per month
-  
-  // Use actual employee fees from database if available, otherwise use calculated amount
-  if (unpaidEmployeeFees.length > 0) {
-    // Use fees from database
-    currentPeriodUnpaidFees = unpaidEmployeeFees
-      .filter(fee => {
-        const feeDate = new Date(fee.created_at);
-        return feeDate >= currentBillingPeriod.startDate && feeDate <= currentBillingPeriod.endDate;
-      })
-      .reduce((sum, fee) => sum + fee.fee_amount, 0);
-  } else {
-    // Fallback: use calculated monthly fees if no database records exist
-    currentPeriodUnpaidFees = monthlyEmployeeFees;
-  }
+  // Charge full monthly employee fee at once per month (no half periods, no advances fees here)
+  currentPeriodUnpaidFees = monthlyEmployeeFees;
 
   // Legacy calculations for backward compatibility
   const currentMonthUnpaidAdvances = unpaidAdvances
@@ -670,31 +620,17 @@ const CompanyDashboard = () => {
     })
     .reduce((sum, fee) => sum + fee.fee_amount, 0);
 
-  // Billing data calculations - use period-based billing logic
-  // First period (1-14th): Advance amounts only (billed on 15th)
-  // Second period (15th-end): Advance amounts + Employee fees (billed on last day)
-  const isFirstPeriod = currentBillingPeriod.period === 'first';
-  const totalBilling = isFirstPeriod 
-    ? currentPeriodTotalAdvances  // First period: Advance amounts only
-    : currentPeriodTotalAdvances + currentPeriodUnpaidFees;  // Second period: Advance amounts + Employee fees
-
+  // Billing data calculations - use new period-based amounts
   const billingData = {
     currentMonthFees: currentPeriodUnpaidFees,
-    currentMonthAdvances: currentPeriodTotalAdvances,
+    currentMonthAdvances: currentPeriodUnpaidAdvances,
     currentMonthRegistrationFees: currentPeriodUnpaidFees,
-    totalOutstanding: totalBilling, // Use period-based billing logic
+    totalOutstanding: currentPeriodUnpaidAdvances + currentPeriodUnpaidFees,
     lastPaymentDate: lastPaymentDate || '2024-01-15',
     nextDueDate: computeNextDueDate(),
     paymentHistory: paymentHistory,
-    billingPeriod: currentBillingPeriod,
-    // Additional data for billing breakdown
-    currentPeriodAdvancesCount: currentPeriodAdvances.length,
-    currentPeriodCommissionFees: currentPeriodCommissionFees,
-    currentPeriodTotalAdvances: currentPeriodTotalAdvances,
-    isFirstPeriod: isFirstPeriod,
-    totalBilling: totalBilling
+    billingPeriod: currentBillingPeriod
   };
-
 
   // Initialize totalOutstanding when component mounts
   useEffect(() => {
@@ -835,9 +771,6 @@ const CompanyDashboard = () => {
         
         // Fetch employee fees for this company
         fetchEmployeeFees();
-        
-        // Create monthly employee fees if they don't exist
-        setTimeout(() => createMonthlyEmployeeFees(), 1000);
         
         // Fetch advances for this company
         const { data: advancesData, error: advancesError } = await supabase
@@ -988,40 +921,6 @@ const CompanyDashboard = () => {
     return Math.floor(100000 + Math.random() * 900000).toString();
   };
 
-  // Debug function to test auth user creation
-  const testAuthUserCreation = async () => {
-    try {
-      console.log('Testing auth user creation...');
-      const testEmail = `test-${Date.now()}@example.com`;
-      const { data, error } = await supabase.auth.signUp({
-        email: testEmail,
-        password: 'pre123456',
-        options: {
-          emailRedirectTo: `${window.location.origin}/login`,
-          data: {
-            role: 'employee',
-            test: true
-          }
-        }
-      });
-      
-      console.log('Test auth user creation result:', { data, error });
-      
-      if (error) {
-        console.error('Test auth user creation failed:', error);
-      } else {
-        console.log('Test auth user created successfully:', data.user?.id);
-        // Clean up test user
-        if (data.user?.id) {
-          await supabase.auth.admin.deleteUser(data.user.id);
-          console.log('Test user cleaned up');
-        }
-      }
-    } catch (err) {
-      console.error('Test auth user creation error:', err);
-    }
-  };
-
   const refreshEmployees = async () => {
     try {
       setIsLoadingEmployees(true);
@@ -1120,65 +1019,6 @@ const CompanyDashboard = () => {
       setEmployeeFees([]);
     } finally {
       setIsLoadingEmployeeFees(false);
-    }
-  };
-
-  // Create monthly employee fees if they don't exist
-  const createMonthlyEmployeeFees = async () => {
-    try {
-      // Get current company user
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      // Get company data
-      const { data: companyData, error: companyError } = await supabase
-        .from("companies")
-        .select("*")
-        .eq("auth_user_id", user.id)
-        .single();
-      
-      if (companyError || !companyData) return;
-
-      // Check if fees already exist for this month
-      const currentMonth = new Date().getMonth();
-      const currentYear = new Date().getFullYear();
-      
-      const { data: existingFees } = await supabase
-        .from("employee_fees")
-        .select("*")
-        .eq("company_id", companyData.id)
-        .gte("created_at", new Date(currentYear, currentMonth, 1).toISOString())
-        .lt("created_at", new Date(currentYear, currentMonth + 1, 1).toISOString());
-
-      // If no fees exist for this month, create them
-      if (!existingFees || existingFees.length === 0) {
-        const activeEmployees = employees.filter(emp => emp.is_active);
-        
-        if (activeEmployees.length > 0) {
-          const feeRecords = activeEmployees.map(employee => ({
-            company_id: companyData.id,
-            employee_id: employee.id,
-            fee_amount: 1.00, // $1 per employee per month
-            fee_type: 'monthly_employee_fee',
-            status: 'pending',
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          }));
-
-          const { error: insertError } = await supabase
-            .from("employee_fees")
-            .insert(feeRecords);
-
-          if (insertError) {
-            console.error("Error creating monthly employee fees:", insertError);
-          } else {
-            // Refresh employee fees
-            await fetchEmployeeFees();
-          }
-        }
-      }
-    } catch (error) {
-      console.error("Error creating monthly employee fees:", error);
     }
   };
 
@@ -1284,41 +1124,6 @@ const CompanyDashboard = () => {
         throw new Error(`Error al crear empleado: ${employeeError.message}`);
       }
 
-      // Create auth user for the employee
-      try {
-        console.log(`Creating auth user for ${normalizedEmail}...`);
-        const { data: authData, error: authError } = await supabase.auth.signUp({
-          email: normalizedEmail,
-          password: 'pre123456', // Default password
-          options: {
-            emailRedirectTo: `${window.location.origin}/login`,
-            data: {
-              role: 'employee',
-              employee_id: employeeData.id,
-              company_id: companyData.id
-            }
-          }
-        });
-
-        console.log(`Auth user creation result for ${normalizedEmail}:`, { authData, authError });
-
-        if (authError) {
-          console.error(`Auth user creation failed for ${normalizedEmail}:`, authError);
-          // Still continue since employee was created, but log the auth error
-        } else {
-          // Update employee with auth_user_id
-          const updateResult = await supabase
-            .from('employees')
-            .update({ auth_user_id: authData.user?.id })
-            .eq('id', employeeData.id);
-          
-          console.log(`Updated employee ${employeeData.id} with auth_user_id:`, updateResult);
-        }
-      } catch (authError) {
-        console.error(`Auth user creation failed for ${normalizedEmail}:`, authError);
-        // Still continue since employee was created
-      }
-
       // Create employee fee record ($1 one-time registration fee)
       const currentDate = new Date();
       const dueDate = new Date(currentDate.getTime() + (30 * 24 * 60 * 60 * 1000)); // 30 days from now
@@ -1336,17 +1141,12 @@ const CompanyDashboard = () => {
         }]);
 
       if (feeError) {
-        console.error('Error creating employee fee:', feeError);
-        // Don't fail the employee creation, just log the error
-      } else {
-        console.log('Employee fee created successfully for:', employeeInfo.firstName, employeeInfo.lastName);
+        console.error("Error creating employee fee:", feeError);
+        // Don't throw error here, just log it - employee was created successfully
       }
       
       // Refresh fees after adding new employee fee
       await fetchEmployeeFees();
-      
-      // Create monthly employee fees for the new employee
-      setTimeout(() => createMonthlyEmployeeFees(), 500);
 
       // TODO: Send activation code via email/SMS
       // await supabase.functions.invoke('send-activation-code', { 
@@ -1485,41 +1285,6 @@ const CompanyDashboard = () => {
         throw new Error(`Error al crear empleado: ${employeeError.message}`);
       }
 
-      // Create auth user for the employee
-      try {
-        console.log(`Creating auth user for ${normalizedEmail}...`);
-        const { data: authData, error: authError } = await supabase.auth.signUp({
-          email: normalizedEmail,
-          password: 'pre123456', // Default password
-          options: {
-            emailRedirectTo: `${window.location.origin}/login`,
-            data: {
-              role: 'employee',
-              employee_id: newEmployeeData.id,
-              company_id: companyData.id
-            }
-          }
-        });
-
-        console.log(`Auth user creation result for ${normalizedEmail}:`, { authData, authError });
-
-        if (authError) {
-          console.error(`Auth user creation failed for ${normalizedEmail}:`, authError);
-          // Still continue since employee was created, but log the auth error
-        } else {
-          // Update employee with auth_user_id
-          const updateResult = await supabase
-            .from('employees')
-            .update({ auth_user_id: authData.user?.id })
-            .eq('id', newEmployeeData.id);
-          
-          console.log(`Updated employee ${newEmployeeData.id} with auth_user_id:`, updateResult);
-        }
-      } catch (authError) {
-        console.error(`Auth user creation failed for ${normalizedEmail}:`, authError);
-        // Still continue since employee was created
-      }
-
       // Create employee fee record ($1 one-time registration fee)
       const currentDate = new Date();
       const dueDate = new Date(currentDate.getTime() + (30 * 24 * 60 * 60 * 1000)); // 30 days from now
@@ -1543,9 +1308,6 @@ const CompanyDashboard = () => {
       
       // Refresh fees after adding new employee fee
       await fetchEmployeeFees();
-      
-      // Create monthly employee fees for the new employee
-      setTimeout(() => createMonthlyEmployeeFees(), 500);
       
       toast({
         title: t('company.billing.employeeAdded'),
@@ -1620,47 +1382,11 @@ const CompanyDashboard = () => {
     if (!employeeToDelete) return;
     try {
       setIsLoading(true);
-      
-      // First, delete related records that have foreign key constraints
-      // Delete audit logs for this employee
-      const { error: auditError } = await supabase
-        .from("audit_logs")
-        .delete()
-        .eq("employee_id", employeeToDelete.id);
-      
-      if (auditError) {
-        console.error("Error deleting audit logs:", auditError);
-        // Continue with employee deletion even if audit logs fail
-      }
-
-      // Delete employee fees for this employee
-      const { error: feeError } = await supabase
-        .from("employee_fees")
-        .delete()
-        .eq("employee_id", employeeToDelete.id);
-      
-      if (feeError) {
-        console.error("Error deleting employee fees:", feeError);
-        // Continue with employee deletion even if fees fail
-      }
-
-      // Delete change requests for this employee
-      const { error: changeRequestError } = await supabase
-        .from("change_requests")
-        .delete()
-        .eq("employee_id", employeeToDelete.id);
-      
-      if (changeRequestError) {
-        console.error("Error deleting change requests:", changeRequestError);
-        // Continue with employee deletion even if change requests fail
-      }
-
-      // Now delete the employee
+      // Soft delete: mark employee inactive, or hard delete if desired
       const { error } = await supabase
         .from("employees")
         .delete()
         .eq("id", employeeToDelete.id);
-      
       if (error) throw error;
 
       // Remove from local state
@@ -1690,57 +1416,6 @@ const CompanyDashboard = () => {
       if (!editingEmployee) {
         throw new Error(t('company.billing.couldNotUpdateEmployees'));
       }
-
-      // Normalize and validate email
-      const normalizedEmail = String(employeeInfo.email || "").trim().toLowerCase();
-      if (!normalizedEmail || !normalizedEmail.includes('@') || !normalizedEmail.includes('.')) {
-        toast({
-          title: t('company.billing.invalidEmail'),
-          description: t('company.billing.invalidEmailDesc'),
-          variant: "destructive"
-        });
-        setIsLoading(false);
-        return;
-      }
-
-      // Get company ID for duplicate check
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
-      if (!currentUser) {
-        throw new Error("Usuario no autenticado");
-      }
-      
-      const { data: companyData, error: companyError } = await supabase
-        .from("companies")
-        .select("id")
-        .eq("auth_user_id", currentUser.id)
-        .single();
-      
-      if (companyError || !companyData) {
-        throw new Error(t('company.billing.couldNotLoadEmployees'));
-      }
-
-      // Check for duplicate email (excluding the current employee being edited)
-      const { data: existingByEmail, error: dupCheckError } = await supabase
-        .from("employees")
-        .select("id")
-        .eq("company_id", companyData.id)
-        .ilike("email", normalizedEmail)
-        .neq("id", editingEmployee.id) // Exclude the current employee being edited
-        .limit(1);
-
-      if (dupCheckError && dupCheckError.code !== 'PGRST116') {
-        throw new Error(`Error verificando email: ${dupCheckError.message}`);
-      }
-
-      if (Array.isArray(existingByEmail) && existingByEmail.length > 0) {
-        toast({
-          title: t('company.billing.duplicateEmail'),
-          description: t('company.billing.duplicateEmailDesc'),
-          variant: "destructive"
-        });
-        setIsLoading(false);
-        return;
-      }
       
       // Update employee data in Supabase
       const { data: updatedEmployee, error: updateError } = await supabase
@@ -1748,7 +1423,7 @@ const CompanyDashboard = () => {
         .update({
           first_name: employeeInfo.firstName,
           last_name: employeeInfo.lastName,
-          email: normalizedEmail,
+          email: employeeInfo.email,
           phone: employeeInfo.phone || null,
           cedula: employeeInfo.cedula || null,
           birth_date: employeeInfo.birthDate,
@@ -1787,12 +1462,12 @@ const CompanyDashboard = () => {
       });
       
       // Refresh employee list
-      const { data: { user: refreshUser } } = await supabase.auth.getUser();
-      if (refreshUser) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
         const { data: companyData } = await supabase
           .from("companies")
           .select("id")
-          .eq("auth_user_id", refreshUser.id)
+          .eq("auth_user_id", user.id)
           .single();
         
         if (companyData) {
@@ -1922,9 +1597,6 @@ const CompanyDashboard = () => {
             emergency_contact: row.emergency_contact || row['emergency contact'] || '',
             emergency_phone: row.emergency_phone || row['emergency phone'] || '',
             position: row.position || row.job_title || row['job title'] || row.title || 'Employee', // Default position
-            employment_start_date: row.employment_start_date || row['employment start date'] || new Date().toISOString(), // Default to current date
-            employment_type: row.employment_type || row['employment type'] || 'full-time', // Default employment type
-            living_expenses: parseFloat(row.living_expenses || row['living expenses'] || '0') || 0, // Default living expenses
             company_id: companyData.id,
             activation_code: generateActivationCode(),
             is_active: true,
@@ -1953,51 +1625,14 @@ const CompanyDashboard = () => {
           }
 
           // Insert employee
-          const { data: newEmployee, error: insertError } = await supabase
+          const { error: insertError } = await supabase
             .from("employees")
-            .insert([employeeData])
-            .select()
-            .single();
+            .insert([employeeData]);
 
           if (insertError) {
             errors.push(`Row ${row.rowNumber}: ${insertError.message}`);
             errorCount++;
           } else {
-            // Create auth user for the employee
-            try {
-              console.log(`Creating auth user for ${employeeData.email}...`);
-              const { data: authData, error: authError } = await supabase.auth.signUp({
-                email: employeeData.email,
-                password: 'pre123456', // Default password
-                options: {
-                  emailRedirectTo: `${window.location.origin}/login`,
-                  data: {
-                    role: 'employee',
-                    employee_id: newEmployee.id,
-                    company_id: companyData.id
-                  }
-                }
-              });
-
-              console.log(`Auth user creation result for ${employeeData.email}:`, { authData, authError });
-
-              if (authError) {
-                console.error(`Auth user creation failed for ${employeeData.email}:`, authError);
-                // Still count as success since employee was created, but log the auth error
-              } else {
-                // Update employee with auth_user_id
-                const updateResult = await supabase
-                  .from('employees')
-                  .update({ auth_user_id: authData.user?.id })
-                  .eq('id', newEmployee.id);
-                
-                console.log(`Updated employee ${newEmployee.id} with auth_user_id:`, updateResult);
-              }
-            } catch (authError) {
-              console.error(`Auth user creation failed for ${employeeData.email}:`, authError);
-              // Still count as success since employee was created
-            }
-            
             successCount++;
           }
         } catch (rowError: any) {
@@ -2013,8 +1648,8 @@ const CompanyDashboard = () => {
           description: `Successfully imported ${successCount} out of ${selectedRows.length} selected employees`,
         });
         
-        // Refresh employees list without reloading the page
-        await refreshEmployees();
+        // Refresh employees list by reloading the page data
+        window.location.reload();
       }
 
       if (errorCount > 0) {
@@ -2173,29 +1808,6 @@ const CompanyDashboard = () => {
   const employeeStartIndex = (employeeCurrentPage - 1) * employeeItemsPerPage;
   const employeeEndIndex = employeeStartIndex + employeeItemsPerPage;
   const paginatedEmployees = filteredEmployees.slice(employeeStartIndex, employeeEndIndex);
-
-  // Filter change requests by search and filters
-  const filteredChangeRequests = useMemo(() => {
-    return changeRequests.filter(request => {
-      if (changeRequestStatus !== 'all' && request.status !== changeRequestStatus) return false;
-      if (changeRequestCategory !== 'all' && request.category !== changeRequestCategory) return false;
-      if (changeRequestPriority !== 'all' && request.priority !== changeRequestPriority) return false;
-      if (changeRequestSearch && !request.field_name.toLowerCase().includes(changeRequestSearch.toLowerCase()) &&
-          !request.reason.toLowerCase().includes(changeRequestSearch.toLowerCase())) return false;
-      return true;
-    });
-  }, [changeRequests, changeRequestStatus, changeRequestCategory, changeRequestPriority, changeRequestSearch]);
-
-  // Change request pagination calculations
-  const changeRequestTotalPages = Math.max(1, Math.ceil(filteredChangeRequests.length / changeRequestItemsPerPage));
-  const changeRequestStartIndex = (changeRequestPage - 1) * changeRequestItemsPerPage;
-  const changeRequestEndIndex = changeRequestStartIndex + changeRequestItemsPerPage;
-  const paginatedChangeRequests = filteredChangeRequests.slice(changeRequestStartIndex, changeRequestEndIndex);
-
-  // Reset change request page when filters change
-  useEffect(() => {
-    setChangeRequestPage(1);
-  }, [changeRequestStatus, changeRequestCategory, changeRequestPriority, changeRequestSearch]);
 
   // Reset to first page when filters change
   useEffect(() => {
@@ -2391,7 +2003,7 @@ const CompanyDashboard = () => {
     type: string,
     period: string,
     formatChoice: 'excel' | 'csv' | 'pdf',
-    options?: { addToRecent?: boolean; uploadToStorage?: boolean; dataHash?: string }
+    options?: { addToRecent?: boolean; uploadToStorage?: boolean }
   ) => {
     try {
       setIsGeneratingReport(true);
@@ -2399,16 +2011,11 @@ const CompanyDashboard = () => {
       const reportName = `report_${type}_${period}_${format(new Date(), 'yyyy-MM-dd')}`;
       
       // Create report data based on type
-      let exportData = [];
+      let reportData = [];
       
       switch (type) {
         case 'advances':
-          console.log('Exporting advances - activeAdvances:', activeAdvances);
-          console.log('Exporting advances - activeAdvances length:', activeAdvances.length);
-          if (activeAdvances.length > 0) {
-            console.log('First advance sample:', activeAdvances[0]);
-          }
-          exportData = activeAdvances.map(advance => ({
+          reportData = activeAdvances.map(advance => ({
             [t('common.date')]: format(new Date(advance.created_at), 'dd/MM/yyyy HH:mm'),
             [t('common.employee')]: `${advance.employees.first_name} ${advance.employees.last_name}`,
             Email: advance.employees.email,
@@ -2427,7 +2034,7 @@ const CompanyDashboard = () => {
           break;
           
         case 'fees':
-          exportData = activeAdvances.map(advance => ({
+          reportData = activeAdvances.map(advance => ({
             [t('common.date')]: format(new Date(advance.created_at), 'dd/MM/yyyy'),
             [t('common.employee')]: `${advance.employees.first_name} ${advance.employees.last_name}`,
             [t('company.reports.advances')]: advance.requested_amount,
@@ -2439,7 +2046,7 @@ const CompanyDashboard = () => {
           break;
           
         case 'employees':
-          exportData = employees.map(employee => ({
+          reportData = employees.map(employee => ({
             [t('common.employee')]: `${employee.first_name} ${employee.last_name}`,
             Email: employee.email,
             ID: employee.cedula || 'N/A',
@@ -2456,7 +2063,7 @@ const CompanyDashboard = () => {
           break;
           
         case 'comprehensive':
-          exportData = activeAdvances.map(advance => ({
+          reportData = activeAdvances.map(advance => ({
             [t('common.date')]: format(new Date(advance.created_at), 'dd/MM/yyyy HH:mm'),
             [t('common.employee')]: `${advance.employees.first_name} ${advance.employees.last_name}`,
             Email: advance.employees.email,
@@ -2476,60 +2083,9 @@ const CompanyDashboard = () => {
             'Processed At': advance.processed_at ? format(new Date(advance.processed_at), 'dd/MM/yyyy HH:mm') : 'N/A'
           }));
           break;
-          
-        case 'analytics':
-          // Generate analytics report with summary data
-          console.log('Exporting analytics - activeAdvances:', activeAdvances);
-          console.log('Exporting analytics - employees:', employees);
-          console.log('Exporting analytics - activeAdvances length:', activeAdvances.length);
-          console.log('Exporting analytics - employees length:', employees.length);
-          // Access the global reportData object (defined outside this function)
-          const globalReportData = {
-            totalAdvances: activeAdvances.reduce((sum, advance) => sum + advance.requested_amount, 0),
-            totalAdvanceCount: activeAdvances.length,
-            totalFees: activeAdvances.reduce((sum, advance) => sum + (advance.fee_amount || 0), 0),
-            averageFeeRate: activeAdvances.length > 0 
-              ? (activeAdvances.reduce((sum, advance) => sum + (((advance.fee_amount || 0) / Math.max(advance.requested_amount || 0, 1)) * 100), 0) / activeAdvances.length)
-              : 0,
-            activeEmployees: employees.filter(emp => emp.is_active).length,
-            employeeParticipationRate: employees.length > 0 
-              ? (employees.filter(emp => emp.is_active && activeAdvances.some(adv => adv.employee_id === emp.id)).length / employees.length) * 100
-              : 0,
-            mostActiveEmployees: employees.filter(emp => emp.is_active).length,
-            mostActiveDay: 'Monday', // This would need to be calculated based on actual data
-            peakHour: '9:00 AM', // This would need to be calculated based on actual data
-            monthlyGrowth: 0, // This would need to be calculated based on actual data
-            approvedAdvances: activeAdvances.filter(adv => adv.status === 'completed' || adv.status === 'approved').length,
-            pendingAdvances: activeAdvances.filter(adv => adv.status === 'pending' || adv.status === 'processing').length,
-            rejectedAdvances: activeAdvances.filter(adv => adv.status === 'failed').length,
-            averageAdvanceAmount: activeAdvances.length > 0 
-              ? activeAdvances.reduce((sum, advance) => sum + advance.requested_amount, 0) / activeAdvances.length
-              : 0
-          };
-          
-          const analyticsData = {
-            [t('company.reports.totalRequests')]: globalReportData.totalAdvanceCount || 0,
-            [t('company.reports.approvedRequests')]: globalReportData.approvedAdvances || 0,
-            [t('company.reports.pendingRequests')]: globalReportData.pendingAdvances || 0,
-            [t('company.reports.rejectedRequests')]: globalReportData.rejectedAdvances || 0,
-            [t('company.reports.totalAmount')]: globalReportData.totalAdvances || 0,
-            [t('company.reports.avgAmount')]: globalReportData.averageAdvanceAmount || 0,
-            [t('company.participationRate')]: globalReportData.employeeParticipationRate || 0,
-            [t('company.mostActiveEmployees')]: globalReportData.mostActiveEmployees || 0,
-            [t('company.mostActiveDay')]: globalReportData.mostActiveDay || 'N/A',
-            [t('company.peakHour')]: globalReportData.peakHour || 'N/A',
-            [t('company.monthlyGrowth')]: globalReportData.monthlyGrowth || 0,
-            'Export Date': format(new Date(), 'dd/MM/yyyy HH:mm')
-          };
-          exportData = [analyticsData];
-          console.log('Analytics exportData:', exportData);
-          break;
       }
       
-      console.log('Final exportData for', type, ':', exportData);
-      console.log('Final exportData length:', exportData.length);
-      
-      if (exportData.length === 0) {
+      if (reportData.length === 0) {
         toast({
           title: t('common.noData'),
           description: t('common.noDataToExport'),
@@ -2546,8 +2102,8 @@ const CompanyDashboard = () => {
       let publicUrl: string | null = null;
       
       if (formatChoice === 'excel') {
-        const worksheet = XLSX.utils.json_to_sheet(exportData);
-        autoFitColumns(worksheet, exportData);
+        const worksheet = XLSX.utils.json_to_sheet(reportData);
+        autoFitColumns(worksheet, reportData);
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, 'Report');
         
@@ -2565,10 +2121,10 @@ const CompanyDashboard = () => {
           const storagePath = `${company?.id || 'company'}/${fileName}`;
           publicUrl = await uploadReportToStorage(blob, storagePath, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         }
-        fileSize = `${Math.round(JSON.stringify(exportData).length / 1024)} KB`;
+        fileSize = `${Math.round(JSON.stringify(reportData).length / 1024)} KB`;
         toast({ title: t('common.exportSuccess'), description: fileName });
       } else if (formatChoice === 'csv') {
-        const csv = XLSX.utils.sheet_to_csv(XLSX.utils.json_to_sheet(exportData));
+        const csv = XLSX.utils.sheet_to_csv(XLSX.utils.json_to_sheet(reportData));
         const blob = new Blob([csv], { type: 'text/csv' });
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -2585,7 +2141,7 @@ const CompanyDashboard = () => {
         toast({ title: t('common.exportSuccess'), description: fileName });
       } else if (formatChoice === 'pdf') {
         // Generate PDF using jsPDF
-        const pdf = generatePDFReport(exportData, type, reportName);
+        const pdf = generatePDFReport(reportData, type, reportName);
         fileName = `${reportName}.pdf`;
         const blob = pdf.output('blob');
         // Trigger local download
@@ -2599,7 +2155,9 @@ const CompanyDashboard = () => {
           const storagePath = `${company?.id || 'company'}/${fileName}`;
           publicUrl = await uploadReportToStorage(blob, storagePath, 'application/pdf');
         }
-        fileSize = `${Math.round(JSON.stringify(exportData).length / 1024)} KB`;
+        fileSize = `${Math.round(JSON.stringify(reportData).length / 1024)} KB`;
+        
+        toast({ title: t('common.exportSuccess'), description: fileName });
       }
       
       // Add to recent reports
@@ -2611,15 +2169,14 @@ const CompanyDashboard = () => {
           format: formatChoice,
         createdAt: new Date().toISOString(),
           size: fileSize,
-          url: publicUrl || '',
-          dataHash: options?.dataHash || ''
+          url: publicUrl || ''
       };
       setRecentReports(prev => [newReport, ...prev.slice(0, 9)]); // Keep only last 10
       }
       
       toast({
         title: t('common.exportSuccess'),
-        description: `${fileName} - ${exportData.length} ${t('company.requests')}`,
+        description: `${fileName} - ${reportData.length} ${t('company.requests')}`,
       });
       
     } catch (error: any) {
@@ -2639,123 +2196,10 @@ const CompanyDashboard = () => {
     return generateReportWithParams(reportType, reportPeriod, reportFormat as 'excel'|'csv'|'pdf');
   };
 
-  // Generate data hash for comparison
-  const generateDataHash = (type: string) => {
-    let dataToHash = '';
-    
-    if (type === 'advances') {
-      dataToHash = JSON.stringify(activeAdvances.map(adv => ({
-        id: adv.id,
-        requested_amount: adv.requested_amount,
-        fee_amount: adv.fee_amount,
-        status: adv.status,
-        created_at: adv.created_at
-      })));
-    } else if (type === 'analytics') {
-      dataToHash = JSON.stringify({
-        totalAdvances: activeAdvances.reduce((sum, advance) => sum + advance.requested_amount, 0),
-        totalAdvanceCount: activeAdvances.length,
-        approvedAdvances: activeAdvances.filter(adv => adv.status === 'completed' || adv.status === 'approved').length,
-        pendingAdvances: activeAdvances.filter(adv => adv.status === 'pending' || adv.status === 'processing').length,
-        rejectedAdvances: activeAdvances.filter(adv => adv.status === 'failed').length,
-        averageAdvanceAmount: activeAdvances.length > 0 
-          ? activeAdvances.reduce((sum, advance) => sum + advance.requested_amount, 0) / activeAdvances.length
-          : 0
-      });
-    }
-    
-    // Simple hash function
-    let hash = 0;
-    for (let i = 0; i < dataToHash.length; i++) {
-      const char = dataToHash.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash; // Convert to 32-bit integer
-    }
-    return hash.toString();
-  };
-
-  // Check if data has changed since last export
-  const hasDataChanged = (type: string) => {
-    const currentHash = generateDataHash(type);
-    const lastReport = recentReports.find(report => 
-      report.type === type && 
-      report.period === reportPeriod && 
-      report.format === reportFormat
-    );
-    
-    if (!lastReport) return true; // No previous report, so data has "changed"
-    
-    return lastReport.dataHash !== currentHash;
-  };
-
-  // Handle export button click - show format selection dialog
-  const handleExportClick = (type: string) => {
+  // Export specific report type
+  const exportReport = (type: string) => {
     setPendingExportType(type);
-    setSelectedExportFormat('excel'); // Default to Excel
-    setShowFormatDialog(true);
-  };
-
-  // Handle format selection and export
-  const handleFormatSelection = async () => {
-    if (pendingExportType) {
-      setShowFormatDialog(false);
-      await exportReport(pendingExportType, selectedExportFormat);
-      setPendingExportType(null);
-    }
-  };
-
-  // Export specific report type with format selection
-  const exportReport = async (type: string, format?: 'excel' | 'csv' | 'pdf') => {
-    try {
-      setIsGeneratingReport(true);
-      
-      // Check if data is loaded
-      if (isLoadingAdvances || isLoadingEmployees) {
-        toast({
-          title: "Please wait",
-          description: "Data is still loading. Please try again in a moment.",
-          variant: "destructive"
-        });
-        return;
-      }
-      
-      const selectedFormat = format || reportFormat as 'excel'|'csv'|'pdf';
-      const dataChanged = hasDataChanged(type);
-      const currentHash = generateDataHash(type);
-      
-      // Generate report with selected format
-      await generateReportWithParams(
-        type, 
-        reportPeriod, 
-        selectedFormat,
-        { 
-          addToRecent: dataChanged, 
-          uploadToStorage: dataChanged,
-          dataHash: currentHash
-        }
-      );
-      
-      if (dataChanged) {
-        toast({
-          title: t('common.exportSuccess'),
-          description: `${type} report exported as ${selectedFormat.toUpperCase()} and saved to recent reports`,
-        });
-      } else {
-        toast({
-          title: t('common.exportSuccess'),
-          description: `${type} report exported as ${selectedFormat.toUpperCase()} (no changes detected, not saved to recent reports)`,
-        });
-      }
-    } catch (error: any) {
-      console.error("Error exporting report:", error);
-      toast({
-        title: "Error",
-        description: error?.message ?? "Failed to export report",
-        variant: "destructive"
-      });
-    } finally {
-      setIsGeneratingReport(false);
-    }
+    setIsExportConfirmOpen(true);
   };
 
   // Export a PDF mirroring the on-screen "Reporte de Adelantos" summary section
@@ -2862,18 +2306,41 @@ const CompanyDashboard = () => {
     return pdf;
   };
 
+  const confirmExport = () => {
+    if (!pendingExportType) {
+      setIsExportConfirmOpen(false);
+      return;
+    }
+    // For advances button: export a PDF summary matching the on-screen section format
+    if (pendingExportType === 'advances') {
+      setIsExportConfirmOpen(false);
+      const fileName = `Advances_Report_${format(new Date(), 'yyyy-MM-dd')}.pdf`;
+      const pdf = generateAdvancesSectionPDF();
+      pdf.save(fileName);
+      setPendingExportType(null);
+      return;
+    }
+    if (pendingExportType === 'analytics') {
+      setIsExportConfirmOpen(false);
+      const fileName = `Usage_Analysis_${format(new Date(), 'yyyy-MM-dd')}.pdf`;
+      const pdf = generateAnalyticsSectionPDF();
+      pdf.save(fileName);
+      setPendingExportType(null);
+      return;
+    }
+    setReportType(pendingExportType);
+    setIsExportConfirmOpen(false);
+    generateReport();
+    setPendingExportType(null);
+  };
 
+  const cancelExport = () => {
+    setIsExportConfirmOpen(false);
+    setPendingExportType(null);
+  };
 
   // Generate PDF report using jsPDF
   const generatePDFReport = (data: any[], type: string, reportName: string) => {
-    console.log('PDF Generation - data:', data);
-    console.log('PDF Generation - type:', type);
-    console.log('PDF Generation - data length:', data.length);
-    if (data.length > 0) {
-      console.log('PDF Generation - first row keys:', Object.keys(data[0]));
-      console.log('PDF Generation - first row:', data[0]);
-    }
-    
     const currentDate = new Date();
     const companyName = company?.name || 'Empresa';
     const companyRif = company?.rif || 'N/A';
@@ -2885,143 +2352,165 @@ const CompanyDashboard = () => {
     // Simple header
     pdf.setFontSize(16);
     pdf.setFont('helvetica', 'bold');
-    const reportTitle = type === 'advances' ? t('company.reports.advances') : t('company.reports.usageAnalysis');
-    pdf.text(reportTitle, 20, 20);
+    pdf.text(`Reporte de ${type}`, 20, 20);
     
     pdf.setFontSize(10);
     pdf.setFont('helvetica', 'normal');
     pdf.text(`${companyName} - RIF: ${companyRif}`, 20, 28);
-    pdf.text(`${t('common.generated')}: ${format(currentDate, 'dd/MM/yyyy HH:mm')}`, 20, 34);
+    pdf.text(`Generado: ${format(currentDate, 'dd/MM/yyyy HH:mm')}`, 20, 34);
     
     // Summary: include for analytics and other types, but not for 'advances'
     if (type !== 'advances') {
       pdf.setFontSize(12);
       pdf.setFont('helvetica', 'bold');
-      pdf.text(t('common.summary'), 20, 45);
+      pdf.text('Resumen', 20, 45);
 
       pdf.setFontSize(10);
       pdf.setFont('helvetica', 'normal');
-      pdf.text(`${t('common.totalRecords')}: ${data.length}`, 20, 52);
-      pdf.text(`${t('common.period')}: ${reportPeriod}`, 20, 58);
+      pdf.text(`Total de registros: ${data.length}`, 20, 52);
+      pdf.text(`Período: ${reportPeriod}`, 20, 58);
 
       // Add basic stats if we have data
       if (data.length > 0) {
         const totalAmount = data.reduce((sum, row) => {
-          // Find amount field dynamically by looking for common amount field names
-          const amountFields = Object.keys(row).filter(key => 
-            key.toLowerCase().includes('amount') || 
-            key.toLowerCase().includes('monto') ||
-            key.toLowerCase().includes('requested') ||
-            key.toLowerCase().includes('solicitado')
-          );
-          
-          let amount = 0;
-          for (const field of amountFields) {
-            const value = parseFloat(String(row[field] || 0));
-            if (!isNaN(value) && value > 0) {
-              amount = value;
-              break;
-            }
-          }
-          
-          return sum + amount;
+          const amount = parseFloat(String(row['Monto Solicitado'] || row['Monto Adelanto'] || 0));
+          return sum + (isNaN(amount) ? 0 : amount);
         }, 0);
 
         const avgAmount = totalAmount / data.length;
 
-        pdf.text(`${t('common.totalAmount')}: $${totalAmount.toFixed(2)}`, 20, 64);
-        pdf.text(`${t('common.average')}: $${avgAmount.toFixed(2)}`, 20, 70);
+        pdf.text(`Monto total: $${totalAmount.toFixed(2)}`, 20, 64);
+        pdf.text(`Promedio: $${avgAmount.toFixed(2)}`, 20, 70);
       }
     }
     
-    // Add data in key-value pair style (like the dashboard UI)
+    // Add data table if there's data
     if (data.length > 0) {
       try {
-        let yPosition = type === 'advances' ? 45 : 80;
+        // Prepare table data
+        const headers = Object.keys(data[0]);
+        const tableData = data.map(row => 
+          headers.map(header => String(row[header] || ''))
+        );
         
-        // For advances report, show individual advance details
-        if (type === 'advances') {
-          pdf.setFontSize(12);
-          pdf.setFont('helvetica', 'bold');
-          pdf.text(t('company.reports.advanceDetails'), 20, yPosition);
-          yPosition += 10;
-          
-          data.forEach((advance, index) => {
-            // Check if we need a new page
-            if (yPosition > pdf.internal.pageSize.height - 40) {
-              pdf.addPage();
-              yPosition = 20;
-            }
+        // Add table using autoTable with responsive design
+        if (pdf.autoTable) {
+          // Calculate optimal column widths based on content
+          const calculateColumnWidths = (headers: string[], data: any[][]) => {
+            const pageWidth = pdf.internal.pageSize.width - 40; // 20mm margins on each side
+            const minWidth = 15; // Minimum column width
+            const maxWidth = pageWidth / headers.length * 2; // Maximum column width
             
-            pdf.setFontSize(10);
-            pdf.setFont('helvetica', 'bold');
-            pdf.text(`${t('company.reports.advance')} #${index + 1}`, 20, yPosition);
-            yPosition += 6;
-            
-            pdf.setFont('helvetica', 'normal');
-            pdf.setFontSize(9);
-            
-            // Display key-value pairs with proper translations
-            const fields = [
-              { key: t('common.date'), value: advance[Object.keys(advance).find(k => k.toLowerCase().includes('date') || k.toLowerCase().includes('fecha'))] || 'N/A' },
-              { key: t('common.employee'), value: advance[Object.keys(advance).find(k => k.toLowerCase().includes('employee') || k.toLowerCase().includes('empleado'))] || 'N/A' },
-              { key: 'Email', value: advance['Email'] || 'N/A' },
-              { key: t('common.requestedAmount'), value: advance[Object.keys(advance).find(k => k.toLowerCase().includes('amount') || k.toLowerCase().includes('monto'))] || 'N/A' },
-              { key: t('common.fee'), value: advance[Object.keys(advance).find(k => k.toLowerCase().includes('fee') || k.toLowerCase().includes('comisión'))] || 'N/A' },
-              { key: t('common.netAmount'), value: advance[Object.keys(advance).find(k => k.toLowerCase().includes('net') || k.toLowerCase().includes('neto'))] || 'N/A' },
-              { key: t('common.status'), value: advance[Object.keys(advance).find(k => k.toLowerCase().includes('status') || k.toLowerCase().includes('estado'))] || 'N/A' },
-              { key: t('common.paymentMethod'), value: advance[Object.keys(advance).find(k => k.toLowerCase().includes('payment') || k.toLowerCase().includes('pago'))] || 'N/A' }
-            ];
-            
-            fields.forEach(field => {
-              if (field.value !== 'N/A') {
-                pdf.text(`${field.key}: ${field.value}`, 25, yPosition);
-                yPosition += 5;
-              }
+            return headers.map((header, index) => {
+              // Calculate content width for this column
+              const headerWidth = header.length * 1.5; // Approximate character width
+              const maxDataWidth = Math.max(...data.map(row => String(row[index] || '').length)) * 1.2;
+              const contentWidth = Math.max(headerWidth, maxDataWidth);
+              
+              // Clamp between min and max width
+              return Math.max(minWidth, Math.min(maxWidth, contentWidth));
             });
-            
-            yPosition += 8; // Space between advances
+          };
+          
+          const columnWidths = calculateColumnWidths(headers, tableData);
+          
+          pdf.autoTable({
+            head: [headers],
+            body: tableData,
+            startY: type !== 'advances' ? 80 : 50,
+            styles: {
+              fontSize: 8,
+              cellPadding: 3,
+              lineColor: [0, 0, 0],
+              lineWidth: 0.1,
+              textColor: [0, 0, 0],
+              font: 'helvetica',
+              halign: 'left',
+              valign: 'middle',
+            },
+            headStyles: {
+              fillColor: [240, 240, 240],
+              textColor: [0, 0, 0],
+              fontStyle: 'bold',
+              fontSize: 9,
+              halign: 'center',
+            },
+            alternateRowStyles: {
+              fillColor: [250, 250, 250],
+            },
+            columnStyles: headers.reduce((acc, header, index) => {
+              acc[index] = { 
+                cellWidth: columnWidths[index],
+                halign: 'left',
+                overflow: 'linebreak',
+                cellPadding: 2
+              };
+              return acc;
+            }, {} as any),
+            margin: { left: 20, right: 20, top: 5 },
+            tableWidth: 'wrap',
+            showHead: 'everyPage',
+            pageBreak: 'auto',
+            rowPageBreak: 'avoid',
+            didDrawPage: function (data) {
+              // Simple page number
+              const pageCount = pdf.getNumberOfPages();
+              pdf.setFontSize(8);
+              pdf.setTextColor(100, 100, 100);
+              pdf.text(`Página ${pdf.getCurrentPageInfo().pageNumber} de ${pageCount}`, 
+                pdf.internal.pageSize.width - 30, 
+                pdf.internal.pageSize.height - 10);
+            }
           });
         } else {
-          // For analytics report, show summary data in key-value pairs
-          pdf.setFontSize(12);
-          pdf.setFont('helvetica', 'bold');
-          pdf.text(t('company.reports.detailedAnalysis'), 20, yPosition);
-          yPosition += 10;
-          
-          pdf.setFont('helvetica', 'normal');
-          pdf.setFontSize(10);
-          
-          // Display all fields as key-value pairs
-          Object.entries(data[0]).forEach(([key, value]) => {
+          // Fallback: simple text table if autoTable is not available
+          pdf.setFontSize(8);
+          let yPosition = 80;
+          const usableWidth = pdf.internal.pageSize.width - 40; // 20mm side margins
+
+          // Add headers (wrapped to page width)
+          const headers = Object.keys(data[0]);
+          const headerText = headers.join(' | ');
+          const wrappedHeader = pdf.splitTextToSize(headerText, usableWidth);
+          pdf.text(wrappedHeader, 20, yPosition);
+          yPosition += wrappedHeader.length * 6 + 2;
+
+          // Add data rows (limit to first 100, wrapped)
+          const maxRows = Math.min(data.length, 100);
+          for (let i = 0; i < maxRows; i++) {
+            const rowText = headers.map(header => String(data[i][header] || '')).join(' | ');
+            const wrappedRow = pdf.splitTextToSize(rowText, usableWidth);
+            pdf.text(wrappedRow, 20, yPosition);
+            yPosition += wrappedRow.length * 6;
+
+            // New page if needed
             if (yPosition > pdf.internal.pageSize.height - 20) {
               pdf.addPage();
               yPosition = 20;
             }
-            
-            // Format the value based on its type
-            let displayValue = String(value || 'N/A');
-            if (typeof value === 'number' && key.toLowerCase().includes('amount')) {
-              displayValue = `$${value.toFixed(2)}`;
-            } else if (typeof value === 'number' && key.toLowerCase().includes('rate')) {
-              displayValue = `${value.toFixed(1)}%`;
-            } else if (typeof value === 'number' && key.toLowerCase().includes('growth')) {
-              displayValue = `${value >= 0 ? '+' : ''}${value.toFixed(1)}%`;
-            }
-            
-            pdf.text(`${key}: ${displayValue}`, 20, yPosition);
+          }
+
+          if (data.length > maxRows) {
+            pdf.text(`... y ${data.length - maxRows} registros más`, 20, yPosition);
+          }
+        }
+      } catch (error) {
+        console.error('Error generating PDF table:', error);
+        pdf.setFontSize(10);
+        pdf.text('Error al generar la tabla. Mostrando datos básicos...', 20, 80);
+        
+        // Simple fallback
+        pdf.setFontSize(8);
+        let yPosition = 90;
+        data.slice(0, 20).forEach((row, index) => {
+          const rowText = Object.values(row).join(' | ');
+          pdf.text(rowText, 20, yPosition);
           yPosition += 6;
         });
-        }
-        
-      } catch (error) {
-        console.error('Error generating PDF content:', error);
-        pdf.setFontSize(10);
-        pdf.text(t('common.errorGeneratingReport'), 20, 60);
       }
     } else {
       pdf.setFontSize(10);
-      pdf.text(t('common.noDataAvailable'), 20, 80);
+      pdf.text('No hay datos disponibles para el período seleccionado.', 20, 80);
     }
     
     // Simple footer
@@ -3220,21 +2709,12 @@ const CompanyDashboard = () => {
   // Generate invoice
   const generateInvoice = async (invoiceData: any) => {
     try {
-      console.log('Generating invoice with data:', invoiceData);
       
       const doc = new jsPDF();
       
       // Set up the PDF document
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
-      
-      // Safely extract values with fallbacks
-      const invoiceNumber = invoiceData.invoiceNumber || invoiceData.id || 'INV-UNKNOWN';
-      const period = invoiceData.period || invoiceData.billing_period || 'Período no especificado';
-      const dueDate = invoiceData.dueDate || invoiceData.due_date || format(new Date(), 'dd/MM/yyyy');
-      const advanceFees = invoiceData.advanceFees || invoiceData.advance_fees || invoiceData.advances_amount || 0;
-      const registrationFees = invoiceData.registrationFees || invoiceData.registration_fees || invoiceData.employee_fees || 0;
-      const totalAmount = invoiceData.amount || invoiceData.total_amount || (advanceFees + registrationFees);
       
       // Header
       doc.setFontSize(24);
@@ -3250,13 +2730,13 @@ const CompanyDashboard = () => {
       // Invoice details
       doc.setFontSize(14);
       doc.setFont('helvetica', 'bold');
-      doc.text(`Factura #${invoiceNumber}`, pageWidth - 60, 50);
+      doc.text(`Factura #${invoiceData.invoiceNumber}`, pageWidth - 60, 50);
       
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
       doc.text(`Fecha: ${format(new Date(), 'dd/MM/yyyy')}`, pageWidth - 60, 60);
-      doc.text(`Período: ${period}`, pageWidth - 60, 70);
-      doc.text(`Vence: ${dueDate}`, pageWidth - 60, 80);
+      doc.text(`Período: ${invoiceData.period}`, pageWidth - 60, 70);
+      doc.text(`Vence: ${invoiceData.dueDate}`, pageWidth - 60, 80);
       
       // Client info
       doc.setFontSize(12);
@@ -3277,14 +2757,14 @@ const CompanyDashboard = () => {
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
       doc.text(`Adelantos procesados: ${reportData?.approvedAdvances || 0}`, 20, 165);
-      doc.text(`Monto total adelantos: $${Number(advanceFees).toFixed(2)}`, 20, 175);
+      doc.text(`Monto total adelantos: $${invoiceData.advanceFees.toFixed(2)}`, 20, 175);
       doc.text(`Empleados registrados: ${employeeFees?.length || 0}`, 20, 185);
-      doc.text(`Tarifas de registro: $${Number(registrationFees).toFixed(2)}`, 20, 195);
+      doc.text(`Tarifas de registro: $${invoiceData.registrationFees.toFixed(2)}`, 20, 195);
       
       // Total
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
-      doc.text(`TOTAL A PAGAR: $${Number(totalAmount).toFixed(2)}`, pageWidth - 60, 220);
+      doc.text(`TOTAL A PAGAR: $${invoiceData.amount.toFixed(2)}`, pageWidth - 60, 220);
       
       // Footer
       doc.setFontSize(8);
@@ -3306,8 +2786,8 @@ const CompanyDashboard = () => {
         stack: error.stack,
         invoiceData,
         reportData,
-        companyData,
-        employeeFees
+        employeeFees,
+        companyData
       });
       toast({
         title: "Error",
@@ -3467,6 +2947,25 @@ const CompanyDashboard = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        {/* Export confirmation modal */}
+        <Dialog open={isExportConfirmOpen} onOpenChange={setIsExportConfirmOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>{t('company.exportConfirmTitle')}</DialogTitle>
+              <DialogDescription>
+                {t('company.exportConfirmDesc')}
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="flex gap-2 sm:gap-0">
+              <Button variant="outline" onClick={cancelExport} className="flex-1 sm:flex-none">
+                {t('common.cancel')}
+              </Button>
+              <Button onClick={confirmExport} className="flex-1 sm:flex-none">
+                {t('common.accept')}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
           <Card className="border-none shadow-card">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -3538,7 +3037,7 @@ const CompanyDashboard = () => {
                 ${isLoadingEmployeeFees ? '...' : companyData.totalEmployeeRegistrationFees.toFixed(2)}
               </div>
               <p className="text-xs text-muted-foreground">
-                  {isLoadingEmployees ? '...' : `${employees.filter(emp => emp.is_active).length} ${t('company.billing.registeredEmployees')}`}
+                {isLoadingEmployeeFees ? '...' : `${employeeFees.length} ${t('company.billing.registeredEmployees')}`}
               </p>
             </CardContent>
           </Card>
@@ -3546,14 +3045,7 @@ const CompanyDashboard = () => {
 
         <Tabs defaultValue="advances" className="space-y-6">
           <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="advances" className="relative">
-              {t('company.advances')}
-              {companyData.pendingAdvances > 0 && (
-                <Badge variant="destructive" className="ml-2 h-5 w-5 flex items-center justify-center p-0 text-xs">
-                  {companyData.pendingAdvances}
-                </Badge>
-              )}
-            </TabsTrigger>
+            <TabsTrigger value="advances">{t('company.advances')}</TabsTrigger>
             <TabsTrigger value="employees" className="relative">
               {t('company.employees')}
               {totalPendingItems > 0 && (
@@ -4118,7 +3610,13 @@ const CompanyDashboard = () => {
 
                 <Card className="border-none shadow-elegant">
                   <CardHeader>
-                    <div className="flex items-center justify-end">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle>{t('employee.changeRequests.title')}</CardTitle>
+                        <CardDescription>
+                          {t('employee.changeRequests.description')} 
+                        </CardDescription>
+                      </div>
                       <Button 
                         variant="outline" 
                         size="sm"
@@ -4201,18 +3699,15 @@ const CompanyDashboard = () => {
                       </div>
                     ) : (
                       <div className="space-y-4">
-                        {/* Pagination at the top */}
-                        {filteredChangeRequests.length > 0 && (
-                          <Pagination
-                            className="pb-4"
-                            currentPage={changeRequestPage}
-                            totalItems={filteredChangeRequests.length}
-                            itemsPerPage={changeRequestItemsPerPage}
-                            onPageChange={(p) => setChangeRequestPage(Math.max(1, Math.min(p, changeRequestTotalPages)))}
-                            onItemsPerPageChange={(n) => { setChangeRequestItemsPerPage(n); setChangeRequestPage(1); }}
-                          />
-                        )}
-                        {paginatedChangeRequests.map((request) => (
+                        {changeRequests
+                          .filter(request => {
+                            if (changeRequestStatus !== 'all' && request.status !== changeRequestStatus) return false;
+                            if (changeRequestCategory !== 'all' && request.category !== changeRequestCategory) return false;
+                            if (changeRequestSearch && !request.field_name.toLowerCase().includes(changeRequestSearch.toLowerCase()) &&
+                                !request.reason.toLowerCase().includes(changeRequestSearch.toLowerCase())) return false;
+                            return true;
+                          })
+                          .map((request) => (
                             <div key={request.id} className="border rounded-lg p-4 hover:bg-muted/50 transition-colors">
                               <div className="flex items-start justify-between">
                                 <div className="flex-1 space-y-2">
@@ -4240,40 +3735,21 @@ const CompanyDashboard = () => {
                                     <div className="font-medium">
                                       {request.field_name.replace('_', ' ').toUpperCase()} Change Profile Request
                                     </div>
-                                    {(() => {
-                                      const employee = employees.find(emp => emp.id === request.employee_id);
-                                      return (
-                                        <div className="bg-muted/30 rounded-lg p-3 space-y-1">
-                                          <div className="flex items-center space-x-2">
-                                            <div className="h-8 w-8 bg-gradient-secondary rounded-full flex items-center justify-center">
-                                              <span className="text-white text-xs font-medium">
-                                                {employee ? `${employee.first_name[0]}${employee.last_name[0]}` : '??'}
-                                              </span>
-                                            </div>
-                                            <div>
-                                              <p className="text-sm font-medium">
-                                                {employee ? `${employee.first_name} ${employee.last_name}` : 'Unknown Employee'}
-                                              </p>
-                                              <p className="text-xs text-muted-foreground">
-                                                {employee?.email || 'Not available'}
-                                              </p>
-                                            </div>
-                                          </div>
-                                        </div>
-                                      );
-                                    })()}
                                     <p className="text-sm text-muted-foreground">
-                                      <span className="font-medium">Current Value:</span> {request.current_value || 'Not set'}
+                                      Employee ID: {request.employee_id}
                                     </p>
                                     <p className="text-sm text-muted-foreground">
-                                      <span className="font-medium">Requested Value:</span> {request.requested_value || 'Not provided'}
+                                      Current Value: {request.current_value || 'Not set'}
                                     </p>
                                     <p className="text-sm text-muted-foreground">
-                                      <span className="font-medium">Reason:</span> {request.reason}
+                                      Requested Value: {request.requested_value || 'Not provided'}
+                                    </p>
+                                    <p className="text-sm text-muted-foreground">
+                                      Reason: {request.reason}
                                     </p>
                                     {request.details && (
                                       <p className="text-xs text-muted-foreground mt-1">
-                                        <span className="font-medium">Details:</span> {request.details}
+                                        Details: {request.details}
                                       </p>
                                     )}
                                   </div>
@@ -4649,10 +4125,6 @@ const CompanyDashboard = () => {
                       <span className="font-medium text-red-600">{reportData.rejectedAdvances}</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-sm text-muted-foreground">{t('company.reports.totalAmount')}</span>
-                      <span className="font-medium text-primary">${reportData.totalAdvances.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
                       <span className="text-sm text-muted-foreground">{t('company.reports.avgAmount')}</span>
                       <span className="font-medium">${reportData.averageAdvanceAmount.toFixed(2)}</span>
                     </div>
@@ -4660,7 +4132,7 @@ const CompanyDashboard = () => {
                   <Button 
                     className="w-full" 
                     variant="outline"
-                    onClick={() => handleExportClick('advances')}
+                    onClick={() => exportReport('advances')}
                     disabled={isGeneratingReport}
                   >
                     <Download className="h-4 w-4 mr-2" />
@@ -4707,7 +4179,7 @@ const CompanyDashboard = () => {
                   <Button 
                     className="w-full" 
                     variant="outline"
-                    onClick={() => handleExportClick('analytics')}
+                    onClick={() => exportReport('analytics')}
                     disabled={isGeneratingReport}
                   >
                     <FileText className="h-4 w-4 mr-2" />
@@ -4871,23 +4343,16 @@ const CompanyDashboard = () => {
                     <div className="space-y-3">
                       <div className="flex justify-between items-center">
                         <span className="text-sm text-muted-foreground">{t('company.billing.processedAdvances')}:</span>
-                        <span className="font-medium">{billingData.currentPeriodAdvancesCount}</span>
+                        <span className="font-medium">{unpaidAdvances.length}</span>
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-sm text-muted-foreground">{t('company.billing.totalAdvancesAmount')}:</span>
-                        <span className="font-medium">${billingData.currentPeriodTotalAdvances.toFixed(2)}</span>
+                        <span className="font-medium">${billingData.currentMonthAdvances.toFixed(2)}</span>
                       </div>
-                      {!billingData.isFirstPeriod && (
                       <div className="flex justify-between items-center">
                         <span className="text-sm text-muted-foreground">{t('company.billing.averageCommission')}:</span>
-                          <span className="font-medium">
-                            {billingData.currentPeriodAdvancesCount > 0 
-                              ? ((billingData.currentPeriodCommissionFees / billingData.currentPeriodTotalAdvances) * 100).toFixed(1)
-                              : '0.0'
-                            }%
-                          </span>
+                        <span className="font-medium">{reportData.averageFeeRate.toFixed(1)}%</span>
                       </div>
-                      )}
                       <div className="flex justify-between items-center border-t pt-2">
                         <span className="text-sm font-medium">{t('company.billing.totalBilling')}:</span>
                         <span className="font-bold text-lg">${billingData.totalOutstanding.toFixed(2)}</span>
@@ -4895,11 +4360,10 @@ const CompanyDashboard = () => {
                     </div>
                   </div>
 
-                  {!billingData.isFirstPeriod && (
                   <div className="space-y-4">
-                      <h4 className="font-semibold">
-                        {t('company.billing.employeeFees')}
-                      </h4>
+                    <h4 className="font-semibold">
+                      {t('company.billing.employeeFees')}
+                    </h4>
                     <div className="space-y-3">
                       <div className="flex justify-between items-center">
                         <span className="text-sm text-muted-foreground">{t('company.billing.registeredEmployees')}:</span>
@@ -4919,7 +4383,6 @@ const CompanyDashboard = () => {
                       </div>
                     </div>
                   </div>
-                  )}
                 </div>
 
                 <div className="bg-gradient-hero p-6 rounded-lg">
@@ -4928,18 +4391,13 @@ const CompanyDashboard = () => {
                       <div className="text-sm text-muted-foreground">{t('company.billing.totalToPay')}</div>
                       <div className="text-3xl font-bold">${billingData.totalOutstanding.toFixed(2)}</div>
                       <div className="text-sm">{t('company.billing.dueDate')} {billingData.nextDueDate}</div>
-                      {!isBillingDate() && (
-                        <div className="text-xs text-yellow-600 mt-1">
-                          {t('company.billing.paymentRestrictionWarning')}
-                        </div>
-                      )}
                     </div>
                     <div className="flex space-x-2">
                       <Button 
                         variant="outline" 
                         onClick={() => generateInvoice({
-                          invoiceNumber: currentBillingPeriod.invoiceNumber,
-                          period: currentBillingPeriod.description,
+                          invoiceNumber: 'INV-2024-003',
+                          period: 'Enero 2024',
                           dueDate: billingData.nextDueDate,
                           advanceFees: billingData.currentMonthAdvances,
                           registrationFees: billingData.currentMonthRegistrationFees,
@@ -4951,17 +4409,9 @@ const CompanyDashboard = () => {
                       </Button>
                       <Button 
                         variant="premium"
-                        disabled={billingData.totalOutstanding <= 0 || !isBillingDate()}
+                        disabled={billingData.totalOutstanding <= 0}
                         onClick={() => {
                           if (billingData.totalOutstanding <= 0) return;
-                          if (!isBillingDate()) {
-                            toast({
-                              title: t('company.billing.paymentNotAvailable'),
-                              description: t('company.billing.paymentRestrictionWarning'),
-                              variant: "destructive"
-                            });
-                            return;
-                          }
                           setShowPaymentModal(true);
                         }}
                       >
@@ -5189,37 +4639,33 @@ const CompanyDashboard = () => {
             }}
             isLoading={isLoading}
             {...(editingEmployee ? {
-              initialData: (() => {
-                const initialData = {
-                  firstName: editingEmployee.first_name,
-                  lastName: editingEmployee.last_name,
-                  email: editingEmployee.email,
-                  phone: editingEmployee.phone || '',
-                  cedula: editingEmployee.cedula || '',
-                  birthDate: editingEmployee.birth_date ? new Date(editingEmployee.birth_date) : null,
-                  yearOfEmployment: editingEmployee.year_of_employment,
-                  position: editingEmployee.position,
-                  department: editingEmployee.department || '',
-                  employmentStartDate: editingEmployee.employment_start_date ? new Date(editingEmployee.employment_start_date) : null,
-                  employmentType: editingEmployee.employment_type,
-                  weeklyHours: editingEmployee.weekly_hours,
-                  monthlySalary: editingEmployee.monthly_salary,
-                  livingExpenses: editingEmployee.living_expenses,
-                  dependents: editingEmployee.dependents,
-                  emergencyContact: editingEmployee.emergency_contact,
-                  emergencyPhone: editingEmployee.emergency_phone,
-                  address: editingEmployee.address,
-                  city: editingEmployee.city,
-                  state: editingEmployee.state,
-                  postalCode: editingEmployee.postal_code || '',
-                  bankName: editingEmployee.bank_name,
-                  accountNumber: editingEmployee.account_number,
-                  accountType: editingEmployee.account_type,
-                  notes: editingEmployee.notes || ''
-                };
-                console.log("CompanyDashboard passing initialData to EmployeeInfoForm:", initialData);
-                return initialData;
-              })()
+              initialData: {
+                firstName: editingEmployee.first_name,
+                lastName: editingEmployee.last_name,
+                email: editingEmployee.email,
+                phone: editingEmployee.phone || '',
+                cedula: editingEmployee.cedula || '',
+                birthDate: editingEmployee.birth_date ? new Date(editingEmployee.birth_date) : null,
+                yearOfEmployment: editingEmployee.year_of_employment,
+                position: editingEmployee.position,
+                department: editingEmployee.department || '',
+                employmentStartDate: editingEmployee.employment_start_date ? new Date(editingEmployee.employment_start_date) : null,
+                employmentType: editingEmployee.employment_type,
+                weeklyHours: editingEmployee.weekly_hours,
+                monthlySalary: editingEmployee.monthly_salary,
+                livingExpenses: editingEmployee.living_expenses,
+                dependents: editingEmployee.dependents,
+                emergencyContact: editingEmployee.emergency_contact,
+                emergencyPhone: editingEmployee.emergency_phone,
+                address: editingEmployee.address,
+                city: editingEmployee.city,
+                state: editingEmployee.state,
+                postalCode: editingEmployee.postal_code || '',
+                bankName: editingEmployee.bank_name,
+                accountNumber: editingEmployee.account_number,
+                accountType: editingEmployee.account_type,
+                notes: editingEmployee.notes || ''
+              }
             } : {})}
           />
         </DialogContent>
@@ -5441,7 +4887,6 @@ const CompanyDashboard = () => {
                   .select("id")
                   .eq("company_id", companyData.id)
                   .ilike("email", email)
-                  .neq("id", editingEmployee?.id || "") // Exclude the current employee being edited
                   .limit(1);
                 return Array.isArray(existing) && existing.length > 0;
               } catch {
@@ -5677,81 +5122,12 @@ const CompanyDashboard = () => {
                   .eq("company_id", companyData.id)
                   .ilike("email", email)
                   .limit(1);
-                return Array.isArray(existing) && existing.length > 0;
+                return existing && existing.length > 0;
               } catch {
                 return false;
               }
             }}
           />
-        </DialogContent>
-      </Dialog>
-
-      {/* Export Format Selection Dialog */}
-      <Dialog open={showFormatDialog} onOpenChange={setShowFormatDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Select Export Format</DialogTitle>
-            <DialogDescription>
-              Choose the format for your {pendingExportType} report export.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-3">
-              <div className="flex items-center space-x-3">
-                <input
-                  type="radio"
-                  id="excel"
-                  name="exportFormat"
-                  value="excel"
-                  checked={selectedExportFormat === 'excel'}
-                  onChange={(e) => setSelectedExportFormat(e.target.value as 'excel' | 'csv' | 'pdf')}
-                  className="h-4 w-4 text-primary"
-                />
-                <Label htmlFor="excel" className="flex items-center space-x-2 cursor-pointer">
-                  <FileText className="h-4 w-4 text-green-600" />
-                  <span>Excel (.xlsx) - Best for data analysis</span>
-                </Label>
-              </div>
-              <div className="flex items-center space-x-3">
-                <input
-                  type="radio"
-                  id="csv"
-                  name="exportFormat"
-                  value="csv"
-                  checked={selectedExportFormat === 'csv'}
-                  onChange={(e) => setSelectedExportFormat(e.target.value as 'excel' | 'csv' | 'pdf')}
-                  className="h-4 w-4 text-primary"
-                />
-                <Label htmlFor="csv" className="flex items-center space-x-2 cursor-pointer">
-                  <FileText className="h-4 w-4 text-blue-600" />
-                  <span>CSV (.csv) - Universal compatibility</span>
-                </Label>
-              </div>
-              <div className="flex items-center space-x-3">
-                <input
-                  type="radio"
-                  id="pdf"
-                  name="exportFormat"
-                  value="pdf"
-                  checked={selectedExportFormat === 'pdf'}
-                  onChange={(e) => setSelectedExportFormat(e.target.value as 'excel' | 'csv' | 'pdf')}
-                  className="h-4 w-4 text-primary"
-                />
-                <Label htmlFor="pdf" className="flex items-center space-x-2 cursor-pointer">
-                  <FileText className="h-4 w-4 text-red-600" />
-                  <span>PDF (.pdf) - Professional presentation</span>
-                </Label>
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowFormatDialog(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleFormatSelection} disabled={isGeneratingReport}>
-              {isGeneratingReport ? 'Exporting...' : `Export as ${selectedExportFormat.toUpperCase()}`}
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

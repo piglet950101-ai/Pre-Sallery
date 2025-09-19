@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -108,9 +108,48 @@ export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialD
   const [currentStep, setCurrentStep] = useState(1);
   const totalSteps = 5;
 
+  // Update form data when initialData changes
+  useEffect(() => {
+    console.log("EmployeeInfoForm useEffect triggered with initialData:", initialData);
+    if (initialData) {
+      const newFormData = {
+        firstName: initialData.firstName || "",
+        lastName: initialData.lastName || "",
+        email: initialData.email || "",
+        phone: initialData.phone || "",
+        cedula: initialData.cedula || "",
+        birthDate: initialData.birthDate || null,
+        yearOfEmployment: initialData.yearOfEmployment || 0,
+        position: initialData.position || "",
+        department: initialData.department || "",
+        employmentStartDate: initialData.employmentStartDate || null,
+        employmentType: initialData.employmentType || "",
+        weeklyHours: initialData.weeklyHours || 40,
+        monthlySalary: initialData.monthlySalary || 0,
+        livingExpenses: initialData.livingExpenses || 0,
+        dependents: initialData.dependents || 0,
+        emergencyContact: initialData.emergencyContact || "",
+        emergencyPhone: initialData.emergencyPhone || "",
+        address: initialData.address || "",
+        city: initialData.city || "",
+        state: initialData.state || "",
+        postalCode: initialData.postalCode || "",
+        bankName: initialData.bankName || "",
+        accountNumber: initialData.accountNumber || "",
+        accountType: initialData.accountType || "",
+        notes: initialData.notes || "",
+      };
+      console.log("Setting form data to:", newFormData);
+      setFormData(newFormData);
+    }
+  }, [initialData]);
+
   const updateField = (field: keyof EmployeeInfo, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
+
+  // Debug current form data
+  console.log("EmployeeInfoForm current formData:", formData);
 
   const validateStep = (step: number): boolean => {
     switch (step) {
@@ -290,7 +329,7 @@ export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialD
                   id="position"
                   value={formData.position}
                   onChange={(e) => updateField("position", e.target.value)}
-                  placeholder={language === 'en' ? 'Developer' : 'Desarrollador'}
+                  placeholder={language === 'en' ? 'Sales Associate' : 'Asociado de Ventas'}
                 />
               </div>
               <div className="space-y-2">
@@ -299,7 +338,7 @@ export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialD
                   id="department"
                   value={formData.department}
                   onChange={(e) => updateField("department", e.target.value)}
-                  placeholder={language === 'en' ? 'Technology' : 'Tecnología'}
+                  placeholder={language === 'en' ? 'Sales' : 'Ventas'}
                 />
               </div>
             </div>
