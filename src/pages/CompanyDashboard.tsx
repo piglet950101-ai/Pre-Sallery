@@ -263,7 +263,7 @@ const CompanyDashboard = () => {
   // Billing state management
   const [paymentHistory, setPaymentHistory] = useState<any[]>([]);
   const [totalOutstanding, setTotalOutstanding] = useState(0);
-  const [lastPaymentDate, setLastPaymentDate] = useState('2024-01-15');
+  const [lastPaymentDate, setLastPaymentDate] = useState('');
   const [isLoadingPayments, setIsLoadingPayments] = useState(false);
   // Delete employee modal state
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -311,10 +311,8 @@ const CompanyDashboard = () => {
   const companyData = {
     name: company?.name || "Cargando...",
     rif: company?.rif || "Cargando...",
-    activeEmployees: employees.filter(emp => emp.is_active).length,
     totalAdvances: activeAdvances.reduce((sum, advance) => sum + advance.requested_amount, 0),
     pendingAdvances: activeAdvances.filter(advance => advance.status === 'pending').length,
-    monthlyFees: employees.filter(emp => emp.is_active).length * 1.00, // $1 per active employee per month
     totalEmployeeRegistrationFees: employeeFees.length > 0
       ? employeeFees.reduce((sum, fee) => sum + fee.fee_amount, 0)
       : employees.filter(emp => emp.is_active).length * 1.00, // Fallback: $1 per active employee
@@ -370,7 +368,6 @@ const CompanyDashboard = () => {
     averageFeeRate: activeAdvances.length > 0 
       ? (activeAdvances.reduce((sum, advance) => sum + (((advance.fee_amount || 0) / Math.max(advance.requested_amount || 0, 1)) * 100), 0) / activeAdvances.length)
       : 0,
-    activeEmployees: employees.filter(emp => emp.is_active).length,
     employeeParticipationRate: employees.length > 0 
       ? (employees.filter(emp => emp.is_active && activeAdvances.some(adv => adv.employee_id === emp.id)).length / employees.length) * 100
       : 0,
@@ -537,15 +534,61 @@ const CompanyDashboard = () => {
     }
   };
 
+  // Clear mockup data from database
+  const clearMockupData = async () => {
+    try {
+      // Get current company user with better error handling
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError) {
+        console.warn('Auth error in clearMockupData:', userError);
+        return;
+      }
+      if (!user) return;
+      
+      // Get company ID
+      const { data: companyData, error: companyError } = await supabase
+        .from("companies")
+        .select("id")
+        .eq("auth_user_id", user.id)
+        .maybeSingle();
+
+      if (companyError || !companyData) return;
+      
+      // Delete mockup payment records (INV-2024-001 and INV-2024-002)
+      const { error: deleteError } = await supabase
+        .from("company_payments")
+        .delete()
+        .eq("company_id", companyData.id)
+        .in("invoice_number", ["INV-2024-001", "INV-2024-002"]);
+      
+      if (deleteError) {
+        console.warn('Error clearing mockup data:', deleteError);
+      } else {
+        console.log('Mockup data cleared successfully');
+      }
+    } catch (error) {
+      console.warn('Error clearing mockup data:', error);
+    }
+  };
+
   // Fetch payment history from Supabase
   const fetchPaymentHistory = async () => {
     try {
       setIsLoadingPayments(true);
       
-      // Get current company user
-      const { data: { user } } = await supabase.auth.getUser();
+      // First, clear any mockup data
+      await clearMockupData();
+      
+      // Get current company user with better error handling
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError) {
+        console.error('Auth error:', userError);
+        throw new Error(`Authentication error: ${userError.message}`);
+      }
       if (!user) {
-        throw new Error("Usuario no autenticado");
+        console.warn('No authenticated user found');
+        setPaymentHistory([]);
+        return;
       }
       
       // Get company ID
@@ -705,7 +748,7 @@ const CompanyDashboard = () => {
     currentMonthAdvances: currentPeriodTotalAdvances,
     currentMonthRegistrationFees: currentPeriodUnpaidFees,
     totalOutstanding: totalBilling, // Use period-based billing logic
-    lastPaymentDate: lastPaymentDate || '2024-01-15',
+    lastPaymentDate: lastPaymentDate || '',
     nextDueDate: computeNextDueDate(),
     paymentHistory: paymentHistory,
     billingPeriod: currentBillingPeriod,
@@ -731,80 +774,30 @@ const CompanyDashboard = () => {
     setTotalOutstanding(newTotal);
   }, [currentPeriodUnpaidAdvances, currentPeriodUnpaidFees]);
 
-  // Create initial payment records for testing
-  const createInitialPayments = async () => {
-    try {
-      // Get current company user
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      
-      // Get company ID
-      const { data: companyData, error: companyError } = await supabase
-        .from("companies")
-        .select("id")
-        .eq("auth_user_id", user.id)
-        .maybeSingle();
-      
-      if (companyError) {
-        console.error("Error fetching company data:", companyError);
-        return;
-      }
 
-      if (!companyData) {
-        console.warn("No company found for this user. User may need to complete company registration.");
-        return;
-      }
-      
-      // Check if payments already exist
-      const { data: existingPayments } = await supabase
-        .from("company_payments")
-        .select("id")
-        .eq("company_id", companyData.id)
-        .limit(1);
-      
-      if (existingPayments && existingPayments.length > 0) return; // Payments already exist
-      
-      // Create sample payment records
-      const { error: insertError } = await supabase
-        .from("company_payments")
-        .insert([
-          {
-            company_id: companyData.id,
-        amount: 1250.00,
-        status: 'paid',
-            payment_method: 'bank_transfer',
-            payment_details: '0102-1234-5678-9012',
-            paid_date: '2024-01-14',
-            invoice_number: 'INV-2024-001',
-            period: '1-15 Enero, 2024',
-            due_date: '2024-01-15'
-          },
-          {
-            company_id: companyData.id,
-        amount: 1180.00,
-        status: 'pending',
-            payment_method: null,
-            payment_details: null,
-            paid_date: null,
-            invoice_number: 'INV-2024-002',
-            period: '16-31 Enero, 2024',
-            due_date: '2024-02-01'
-          }
-        ]);
-      
-      if (insertError) {
-        console.error('Error creating initial payments:', insertError);
-      }
-    } catch (error) {
-      console.error('Error in createInitialPayments:', error);
-    }
-  };
-
-  // Fetch payment history when component mounts
+  // Check authentication status and fetch data when component mounts
   useEffect(() => {
-    createInitialPayments().then(() => {
-      fetchPaymentHistory();
-    });
+    const initializeData = async () => {
+      try {
+        // Check if user is authenticated
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        if (userError) {
+          console.error('Authentication error on mount:', userError);
+          return;
+        }
+        if (!user) {
+          console.warn('No authenticated user found on mount');
+          return;
+        }
+        
+        // User is authenticated, fetch data
+        await fetchPaymentHistory();
+      } catch (error) {
+        console.error('Error initializing data:', error);
+      }
+    };
+    
+    initializeData();
   }, []); // Empty dependency array - only run once
 
   // Fetch employees from Supabase and set up real-time subscription
@@ -816,10 +809,17 @@ const CompanyDashboard = () => {
       try {
         setIsLoadingEmployees(true);
         
-        // Get current company user
-        const { data: { user } } = await supabase.auth.getUser();
+        // Check authentication first
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        if (userError) {
+          console.error('Auth error in fetchEmployees:', userError);
+          setEmployees([]);
+          return;
+        }
         if (!user) {
-          throw new Error("Usuario no autenticado");
+          console.warn('No authenticated user found in fetchEmployees');
+          setEmployees([]);
+          return;
         }
         
         // Get company data from companies table
@@ -1027,48 +1027,20 @@ const CompanyDashboard = () => {
     return Math.floor(100000 + Math.random() * 900000).toString();
   };
 
-  // Debug function to test auth user creation
-  const testAuthUserCreation = async () => {
-    try {
-      console.log('Testing auth user creation...');
-      const testEmail = `test-${Date.now()}@example.com`;
-      const { data, error } = await supabase.auth.signUp({
-        email: testEmail,
-        password: 'pre123456',
-        options: {
-          emailRedirectTo: `${window.location.origin}/login`,
-          data: {
-            role: 'employee',
-            test: true
-          }
-        }
-      });
-
-      console.log('Test auth user creation result:', { data, error });
-
-      if (error) {
-        console.error('Test auth user creation failed:', error);
-      } else {
-        console.log('Test auth user created successfully:', data.user?.id);
-        // Clean up test user
-        if (data.user?.id) {
-          await supabase.auth.admin.deleteUser(data.user.id);
-          console.log('Test user cleaned up');
-        }
-      }
-    } catch (err) {
-      console.error('Test auth user creation error:', err);
-    }
-  };
 
   const refreshEmployees = async () => {
     try {
       setIsLoadingEmployees(true);
       
-      // Get current company user
-      const { data: { user } } = await supabase.auth.getUser();
+      // Get current company user with better error handling
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError) {
+        console.error('Auth error in refreshEmployees:', userError);
+        throw new Error(`Authentication error: ${userError.message}`);
+      }
       if (!user) {
-        throw new Error("Usuario no autenticado");
+        console.warn('No authenticated user found in refreshEmployees');
+        return;
       }
       
       // Get company ID from companies table
@@ -1120,10 +1092,16 @@ const CompanyDashboard = () => {
     try {
       setIsLoadingEmployeeFees(true);
       
-      // Get current company user
-      const { data: { user } } = await supabase.auth.getUser();
+      // Get current company user with better error handling
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError) {
+        console.error('Auth error in fetchEmployeeFees:', userError);
+        throw new Error(`Authentication error: ${userError.message}`);
+      }
       if (!user) {
-        throw new Error("Usuario no autenticado");
+        console.warn('No authenticated user found in fetchEmployeeFees');
+        setEmployeeFees([]);
+        return;
       }
       
       // Get company data from companies table
@@ -3098,7 +3076,6 @@ const CompanyDashboard = () => {
             averageFeeRate: activeAdvances.length > 0
               ? (activeAdvances.reduce((sum, advance) => sum + (((advance.fee_amount || 0) / Math.max(advance.requested_amount || 0, 1)) * 100), 0) / activeAdvances.length)
               : 0,
-            activeEmployees: employees.filter(emp => emp.is_active).length,
             employeeParticipationRate: employees.length > 0
               ? (employees.filter(emp => emp.is_active && activeAdvances.some(adv => adv.employee_id === emp.id)).length / employees.length) * 100
               : 0,
@@ -3872,7 +3849,7 @@ const CompanyDashboard = () => {
       doc.setFont('helvetica', 'normal');
       doc.text(`Empresa: ${company?.name || 'N/A'}`, 20, 110);
       doc.text(`RIF: ${company?.rif || 'N/A'}`, 20, 120);
-      doc.text(`Empleados activos: ${companyData.activeEmployees}`, 20, 130);
+      doc.text(`Empleados activos: ${employees.filter(emp => emp.is_active).length}`, 20, 130);
       
       // Invoice items - simplified version
       doc.setFontSize(12);
@@ -4090,21 +4067,7 @@ const CompanyDashboard = () => {
         </Dialog>
         
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-          <Card className="border-none shadow-card">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">{t('company.activeEmployees')}</CardTitle>
-              <Users className="h-4 w-4 text-primary" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-primary">
-                {isLoadingEmployees ? '...' : companyData.activeEmployees}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                ${isLoadingAdvances ? '...' : companyData.monthlyFees.toFixed(2)} {t('company.monthlyFees')}
-              </p>
-            </CardContent>
-          </Card>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
 
           <Card className="border-none shadow-card">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -5074,7 +5037,7 @@ const CompanyDashboard = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">
-                    {reportData.activeEmployees}
+                    {employees.filter(emp => emp.is_active).length}
                   </div>
                   <p className="text-xs text-muted-foreground">
                     {reportData.employeeParticipationRate.toFixed(1)}% {t('company.participation')}
@@ -5286,7 +5249,7 @@ const CompanyDashboard = () => {
                     ${billingData.currentMonthAdvances.toFixed(2)}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {companyData.activeEmployees} {t('company.activeEmployeesCount')}
+                    {employees.filter(emp => emp.is_active).length} {t('company.activeEmployeesCount')}
                   </p>
                 </CardContent>
               </Card>
