@@ -17,10 +17,9 @@ interface SimpleEmployeeFormProps {
   onSave: (employeeData: SimpleEmployeeData) => void;
   onCancel: () => void;
   isLoading?: boolean;
-  checkEmailDuplicate?: (email: string) => Promise<boolean>;
 }
 
-export const SimpleEmployeeForm = ({ onSave, onCancel, isLoading = false, checkEmailDuplicate }: SimpleEmployeeFormProps) => {
+export const SimpleEmployeeForm = ({ onSave, onCancel, isLoading = false }: SimpleEmployeeFormProps) => {
   const { toast } = useToast();
   const { t, language } = useLanguage();
   const [formData, setFormData] = useState<SimpleEmployeeData>({
@@ -47,28 +46,6 @@ export const SimpleEmployeeForm = ({ onSave, onCancel, isLoading = false, checkE
       return;
     }
 
-    // Check for duplicate email
-    if (checkEmailDuplicate) {
-      const email = formData.email.trim().toLowerCase();
-      try {
-        const isDuplicate = await checkEmailDuplicate(email);
-        if (isDuplicate) {
-          toast({
-            title: t('company.billing.duplicateEmail'),
-            description: t('company.billing.duplicateEmailDesc'),
-            variant: "destructive"
-          });
-          return;
-        }
-      } catch (err: any) {
-        toast({
-          title: t('company.billing.error'),
-          description: err?.message ?? (t('common.tryAgain') || 'Please try again'),
-          variant: "destructive"
-        });
-        return;
-      }
-    }
 
     onSave(formData);
   };
@@ -99,44 +76,42 @@ export const SimpleEmployeeForm = ({ onSave, onCancel, isLoading = false, checkE
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="firstName">{t('employeeForm.firstName')} *</Label>
-              <Input
-                id="firstName"
-                value={formData.firstName}
-                onChange={(e) => updateField("firstName", e.target.value)}
-                placeholder={language === 'en' ? 'John' : 'Juan'}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="lastName">{t('employeeForm.lastName')} *</Label>
-              <Input
-                id="lastName"
-                value={formData.lastName}
-                onChange={(e) => updateField("lastName", e.target.value)}
-                placeholder={language === 'en' ? 'Doe' : 'Pérez'}
-                required
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="email">{t('employeeForm.email')} *</Label>
-            <div className="relative">
-              <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              <Label htmlFor="email">{t('employeeForm.email')} *</Label>
               <Input
                 id="email"
                 type="email"
                 value={formData.email}
                 onChange={(e) => updateField("email", e.target.value)}
                 placeholder={language === 'en' ? 'john.doe@company.com' : 'juan.perez@empresa.com'}
-                className="pl-10"
                 required
               />
             </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="firstName">{t('employeeForm.firstName')} *</Label>
+                <Input
+                  id="firstName"
+                  value={formData.firstName}
+                  onChange={(e) => updateField("firstName", e.target.value)}
+                  placeholder={language === 'en' ? 'John' : 'Juan'}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="lastName">{t('employeeForm.lastName')} *</Label>
+                <Input
+                  id="lastName"
+                  value={formData.lastName}
+                  onChange={(e) => updateField("lastName", e.target.value)}
+                  placeholder={language === 'en' ? 'Doe' : 'Pérez'}
+                  required
+                />
+              </div>
+            </div>
           </div>
+
         </div>
 
         {/* Default Values Info */}
@@ -145,6 +120,7 @@ export const SimpleEmployeeForm = ({ onSave, onCancel, isLoading = false, checkE
             {t('company.simpleEmployeeForm.defaultValuesTitle')}
           </h4>
           <ul className="text-sm text-blue-700 space-y-1">
+            <li>• {t('company.simpleEmployeeForm.defaultPassword')}</li>
             <li>• {t('company.simpleEmployeeForm.defaultPosition')}</li>
             <li>• {t('company.simpleEmployeeForm.defaultSalary')}</li>
             <li>• {t('company.simpleEmployeeForm.defaultHours')}</li>

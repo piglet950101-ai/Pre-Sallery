@@ -148,7 +148,6 @@ class ChangeRequestService {
             id,
             first_name,
             last_name,
-            email,
             company_id,
             companies!inner(
               id,
@@ -226,7 +225,6 @@ class ChangeRequestService {
             id,
             first_name,
             last_name,
-            email,
             company_id,
             companies!inner(
               id,

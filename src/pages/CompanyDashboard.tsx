@@ -44,6 +44,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Link } from "react-router-dom";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useState, useEffect, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -100,6 +101,7 @@ interface Employee {
 const CompanyDashboard = () => {
   const { t } = useLanguage();
   const { toast } = useToast();
+  const { user } = useAuth();
   // Format bytes to a short label
   const formatBytes = (bytes: number): string => {
     if (!bytes || isNaN(bytes)) return '';
@@ -200,6 +202,7 @@ const CompanyDashboard = () => {
     (worksheet as any)['!cols'] = cols;
   };
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isAddEmployeeDialogOpen, setIsAddEmployeeDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [showSimpleForm, setShowSimpleForm] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
@@ -211,6 +214,7 @@ const CompanyDashboard = () => {
   const [advances, setAdvances] = useState<any[]>([]);
   const [isLoadingAdvances, setIsLoadingAdvances] = useState(true);
   const [company, setCompany] = useState<any>(null);
+  const [hasCompanyRecord, setHasCompanyRecord] = useState<boolean | null>(null);
   const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
   const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
   const [filteredAdvances, setFilteredAdvances] = useState<any[]>([]);
@@ -281,6 +285,9 @@ const CompanyDashboard = () => {
   const [viewingChangeRequest, setViewingChangeRequest] = useState<ChangeRequest | null>(null);
   const [changeRequestPage, setChangeRequestPage] = useState(1);
   const [changeRequestItemsPerPage, setChangeRequestItemsPerPage] = useState(10);
+  const [showApproveChangeRequestModal, setShowApproveChangeRequestModal] = useState(false);
+  const [showRejectChangeRequestModal, setShowRejectChangeRequestModal] = useState(false);
+  const [changeRequestToAction, setChangeRequestToAction] = useState<ChangeRequest | null>(null);
   const [employeeSearch, setEmployeeSearch] = useState<string>("");
   const [employeeCurrentPage, setEmployeeCurrentPage] = useState<number>(1);
   const [employeeItemsPerPage, setEmployeeItemsPerPage] = useState<number>(10);
@@ -493,10 +500,16 @@ const CompanyDashboard = () => {
         .from("companies")
         .select("*")
         .eq("auth_user_id", user.id)
-        .single();
+        .maybeSingle();
       
-      if (companyError || !companyData) {
+      if (companyError) {
         console.error('Error refreshing company data:', companyError);
+        return;
+      }
+
+      if (!companyData) {
+        console.warn("No company found for this user. User may need to complete company registration.");
+        setCompany(null);
         return;
       }
       
@@ -540,7 +553,7 @@ const CompanyDashboard = () => {
         .from("companies")
         .select("id")
         .eq("auth_user_id", user.id)
-        .single();
+        .maybeSingle();
       
       if (companyError) {
         console.error("Error fetching company data:", companyError);
@@ -548,7 +561,10 @@ const CompanyDashboard = () => {
       }
 
       if (!companyData) {
-        throw new Error("No company found for this user. Please contact support.");
+        console.warn("No company found for this user. User may need to complete company registration.");
+        // Return empty array instead of throwing error
+        setPaymentHistory([]);
+        return;
       }
       
       // Fetch payments for this company
@@ -727,9 +743,17 @@ const CompanyDashboard = () => {
         .from("companies")
         .select("id")
         .eq("auth_user_id", user.id)
-        .single();
+        .maybeSingle();
       
-      if (companyError || !companyData) return;
+      if (companyError) {
+        console.error("Error fetching company data:", companyError);
+        return;
+      }
+
+      if (!companyData) {
+        console.warn("No company found for this user. User may need to complete company registration.");
+        return;
+      }
       
       // Check if payments already exist
       const { data: existingPayments } = await supabase
@@ -803,14 +827,24 @@ const CompanyDashboard = () => {
           .from("companies")
           .select("*")
           .eq("auth_user_id", user.id)
-          .single();
+          .maybeSingle();
         
-        if (companyError || !companyData) {
+        if (companyError) {
+          console.error("Error fetching company data:", companyError);
           throw new Error(t('company.billing.couldNotLoadEmployees'));
+        }
+
+        if (!companyData) {
+          console.warn("No company found for this user. User may need to complete company registration.");
+          setEmployees([]);
+          setCompany(null);
+          setHasCompanyRecord(false);
+          return;
         }
         
         companyId = companyData.id;
         setCompany(companyData);
+        setHasCompanyRecord(true);
         // Load persisted recent reports for this company
         loadRecentReportsFromStorage(companyId);
 
@@ -852,8 +886,7 @@ const CompanyDashboard = () => {
             *,
             employees!inner(
               first_name,
-              last_name,
-              email
+              last_name
             )
           `)
           .eq("company_id", companyId)
@@ -1043,7 +1076,7 @@ const CompanyDashboard = () => {
         .from("companies")
         .select("id")
         .eq("auth_user_id", user.id)
-        .single();
+        .maybeSingle();
       
       if (companyError) {
         console.error("Error fetching company data:", companyError);
@@ -1067,14 +1100,14 @@ const CompanyDashboard = () => {
       
       setEmployees(employeesData || []);
       toast({
-        title: "Lista actualizada",
-        description: "La lista de empleados ha sido actualizada",
+        title: t('company.billing.listUpdated'),
+        description: t('company.billing.listUpdatedDesc'),
       });
     } catch (error: any) {
       console.error("Error refreshing employees:", error);
       toast({
-        title: "Error",
-        description: error?.message ?? "No se pudieron actualizar los empleados",
+        title: t('common.error'),
+        description: error?.message ?? t('company.employees.updateError'),
         variant: "destructive"
       });
     } finally {
@@ -1098,7 +1131,7 @@ const CompanyDashboard = () => {
         .from("companies")
         .select("*")
         .eq("auth_user_id", user.id)
-        .single();
+        .maybeSingle();
       
       if (companyError) {
         console.error("Error fetching company data:", companyError);
@@ -1116,8 +1149,7 @@ const CompanyDashboard = () => {
           *,
           employees!inner(
             first_name,
-            last_name,
-            email
+            last_name
           )
         `)
         .eq("company_id", companyData.id)
@@ -1151,7 +1183,7 @@ const CompanyDashboard = () => {
         .from("companies")
         .select("*")
         .eq("auth_user_id", user.id)
-        .single();
+        .maybeSingle();
 
       if (companyError || !companyData) return;
 
@@ -1175,7 +1207,7 @@ const CompanyDashboard = () => {
             company_id: companyData.id,
             employee_id: employee.id,
             fee_amount: 1.00, // $1 per employee per month
-            fee_type: 'monthly_employee_fee',
+            fee_type: 'employee_monthly_fee',
             status: 'pending',
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
@@ -1216,7 +1248,7 @@ const CompanyDashboard = () => {
         .from("companies")
         .select("id")
         .eq("auth_user_id", user.id)
-        .single();
+        .maybeSingle();
       
       if (companyError) {
         console.error("Error fetching company data:", companyError);
@@ -1227,39 +1259,10 @@ const CompanyDashboard = () => {
         throw new Error("No company found for this user. Please contact support.");
       }
 
-      // Normalize and validate email
-      const normalizedEmail = String(employeeInfo.email || "").trim().toLowerCase();
-      if (!normalizedEmail || !normalizedEmail.includes('@') || !normalizedEmail.includes('.')) {
-        toast({
-          title: t('company.billing.invalidEmail'),
-          description: t('company.billing.invalidEmailDesc'),
-          variant: "destructive"
-        });
-        setIsLoading(false);
-        return;
-      }
+      // Use auth user email for the employee
+      const employeeEmail = user.email;
 
-      // Check for duplicate email within this company before inserting
-      const { data: existingByEmail, error: dupCheckError } = await supabase
-        .from("employees")
-        .select("id")
-        .eq("company_id", companyData.id)
-        .ilike("email", normalizedEmail)
-        .limit(1);
-
-      if (dupCheckError && dupCheckError.code !== 'PGRST116') {
-        throw new Error(`Error verificando email: ${dupCheckError.message}`);
-      }
-
-      if (Array.isArray(existingByEmail) && existingByEmail.length > 0) {
-        toast({
-          title: t('company.billing.duplicateEmail'),
-          description: t('company.billing.duplicateEmailDesc'),
-          variant: "destructive"
-        });
-        setIsLoading(false);
-        return;
-      }
+      // Note: Email uniqueness is handled at the auth user level, not in employees table
       
       // Insert employee data into employees table
       const { data: employeeData, error: employeeError } = await supabase
@@ -1269,7 +1272,6 @@ const CompanyDashboard = () => {
           company_id: companyData.id,
           first_name: employeeInfo.firstName,
           last_name: employeeInfo.lastName,
-          email: normalizedEmail,
           phone: employeeInfo.phone || null,
           cedula: employeeInfo.cedula || null,
           birth_date: employeeInfo.birthDate,
@@ -1307,13 +1309,13 @@ const CompanyDashboard = () => {
 
       // Create auth user for the employee
       try {
-        console.log(`Creating auth user for ${normalizedEmail}...`);
+        console.log(`Creating auth user for ${employeeEmail}...`);
 
         // Store current user session to restore later
         const { data: { session: currentSession } } = await supabase.auth.getSession();
 
         const { data: authData, error: authError } = await supabase.auth.signUp({
-          email: normalizedEmail,
+          email: employeeEmail,
           password: 'pre123456', // Default password
           options: {
             emailRedirectTo: `${window.location.origin}/login`,
@@ -1325,13 +1327,13 @@ const CompanyDashboard = () => {
           }
         });
 
-        console.log(`Auth user creation result for ${normalizedEmail}:`, { authData, authError });
+        console.log(`Auth user creation result for ${employeeEmail}:`, { authData, authError });
 
         if (authError) {
-          console.error(`Auth user creation failed for ${normalizedEmail}:`, authError);
+          console.error(`Auth user creation failed for ${employeeEmail}:`, authError);
           throw new Error(`Failed to create auth user: ${authError.message}`);
         } else if (!authData.user) {
-          console.error(`Auth user creation returned no user for ${normalizedEmail}`);
+          console.error(`Auth user creation returned no user for ${employeeEmail}`);
           throw new Error(`Auth user creation returned no user`);
         } else {
           // Update user metadata to ensure role is properly set
@@ -1344,7 +1346,7 @@ const CompanyDashboard = () => {
           });
 
           if (metadataError) {
-            console.warn(`Failed to update user metadata for ${normalizedEmail}:`, metadataError);
+            console.warn(`Failed to update user metadata for ${employeeEmail}:`, metadataError);
             // Don't throw error, continue with employee update
           }
 
@@ -1373,11 +1375,11 @@ const CompanyDashboard = () => {
         }
 
       } catch (authError) {
-        console.error(`Auth user creation failed for ${normalizedEmail}:`, authError);
+        console.error(`Auth user creation failed for ${employeeEmail}:`, authError);
         // Still continue since employee was created
       }
 
-      // Create employee fee record ($1 one-time registration fee)
+      // Create employee fee record ($1 monthly registration fee)
       const currentDate = new Date();
       const dueDate = new Date(currentDate.getTime() + (30 * 24 * 60 * 60 * 1000)); // 30 days from now
       
@@ -1387,10 +1389,10 @@ const CompanyDashboard = () => {
           company_id: companyData.id,
           employee_id: employeeData.id,
           fee_amount: 1.00,
-          fee_type: 'employee_registration_fee',
+          fee_type: 'employee_monthly_fee',
           status: 'pending',
           due_date: dueDate.toISOString().split('T')[0],
-          notes: `One-time registration fee for ${employeeInfo.firstName} ${employeeInfo.lastName}`
+          notes: `Monthly registration fee for ${employeeInfo.firstName} ${employeeInfo.lastName}`
         }]);
 
       if (feeError) {
@@ -1436,6 +1438,7 @@ const CompanyDashboard = () => {
         description: error?.message ?? "No se pudo agregar el empleado",
         variant: "destructive"
       });
+      setIsDialogOpen(false);
     } finally {
       setIsLoading(false);
     }
@@ -1459,7 +1462,7 @@ const CompanyDashboard = () => {
         .from("companies")
         .select("id")
         .eq("auth_user_id", user.id)
-        .single();
+        .maybeSingle();
 
       if (companyError) {
         console.error("Error fetching company data:", companyError);
@@ -1470,39 +1473,10 @@ const CompanyDashboard = () => {
         throw new Error("No company found for this user. Please contact support.");
       }
 
-      // Normalize and validate email
-      const normalizedEmail = String(employeeData.email || "").trim().toLowerCase();
-      if (!normalizedEmail || !normalizedEmail.includes('@') || !normalizedEmail.includes('.')) {
-        toast({
-          title: t('company.billing.invalidEmail'),
-          description: t('company.billing.invalidEmailDesc'),
-          variant: "destructive"
-        });
-        setIsLoading(false);
-        return;
-      }
+      // Use provided email for the employee
+      const employeeEmail = employeeData.email;
 
-      // Check for duplicate email within this company before inserting
-      const { data: existingByEmail, error: dupCheckError } = await supabase
-        .from("employees")
-        .select("id")
-        .eq("company_id", companyData.id)
-        .ilike("email", normalizedEmail)
-        .limit(1);
-
-      if (dupCheckError && dupCheckError.code !== 'PGRST116') {
-        throw new Error(`Error verificando email: ${dupCheckError.message}`);
-      }
-
-      if (Array.isArray(existingByEmail) && existingByEmail.length > 0) {
-        toast({
-          title: t('company.billing.duplicateEmail'),
-          description: t('company.billing.duplicateEmailDesc'),
-          variant: "destructive"
-        });
-        setIsLoading(false);
-        return;
-      }
+      // Note: Email uniqueness is handled at the auth user level, not in employees table
 
       // Insert employee data with default values
       const { data: newEmployeeData, error: employeeError } = await supabase
@@ -1512,7 +1486,6 @@ const CompanyDashboard = () => {
           company_id: companyData.id,
           first_name: employeeData.firstName,
           last_name: employeeData.lastName,
-          email: normalizedEmail,
           phone: null,
           cedula: null,
           birth_date: null,
@@ -1521,20 +1494,20 @@ const CompanyDashboard = () => {
           department: null,
           employment_start_date: new Date().toISOString(),
           employment_type: 'full-time',
-          weekly_hours: 40,
-          monthly_salary: 5000,
+          weekly_hours: 0,
+          monthly_salary: 0,
           living_expenses: 0,
           dependents: 0,
-          emergency_contact: null,
-          emergency_phone: null,
-          address: null,
-          city: null,
-          state: null,
-          postal_code: null,
-          bank_name: null,
-          account_number: null,
+          emergency_contact: '',
+          emergency_phone: '',
+          address: '',
+          city: '',
+          state: '',
+          postal_code: '',
+          bank_name: '',
+          account_number: '',
           account_type: 'checking',
-          notes: null,
+          notes: '',
           activation_code: activationCode,
           is_active: false,
           is_verified: false,
@@ -1555,13 +1528,13 @@ const CompanyDashboard = () => {
 
       // Create auth user for the employee
       try {
-        console.log(`Creating auth user for ${normalizedEmail}...`);
+        console.log(`Creating auth user for ${employeeEmail}...`);
 
         // Store current user session to restore later
         const { data: { session: currentSession } } = await supabase.auth.getSession();
 
         const { data: authData, error: authError } = await supabase.auth.signUp({
-          email: normalizedEmail,
+          email: employeeEmail,
           password: 'pre123456', // Default password
           options: {
             emailRedirectTo: `${window.location.origin}/login`,
@@ -1573,13 +1546,13 @@ const CompanyDashboard = () => {
           }
         });
 
-        console.log(`Auth user creation result for ${normalizedEmail}:`, { authData, authError });
+        console.log(`Auth user creation result for ${employeeEmail}:`, { authData, authError });
 
         if (authError) {
-          console.error(`Auth user creation failed for ${normalizedEmail}:`, authError);
+          console.error(`Auth user creation failed for ${employeeEmail}:`, authError);
           throw new Error(`Failed to create auth user: ${authError.message}`);
         } else if (!authData.user) {
-          console.error(`Auth user creation returned no user for ${normalizedEmail}`);
+          console.error(`Auth user creation returned no user for ${employeeEmail}`);
           throw new Error(`Auth user creation returned no user`);
         } else {
           // Update user metadata to ensure role is properly set
@@ -1592,7 +1565,7 @@ const CompanyDashboard = () => {
           });
 
           if (metadataError) {
-            console.warn(`Failed to update user metadata for ${normalizedEmail}:`, metadataError);
+            console.warn(`Failed to update user metadata for ${employeeEmail}:`, metadataError);
             // Don't throw error, continue with employee update
           }
 
@@ -1621,11 +1594,11 @@ const CompanyDashboard = () => {
         }
 
       } catch (authError) {
-        console.error(`Auth user creation failed for ${normalizedEmail}:`, authError);
+        console.error(`Auth user creation failed for ${employeeEmail}:`, authError);
         // Still continue since employee was created
       }
 
-      // Create employee fee record ($1 one-time registration fee)
+      // Create employee fee record ($1 monthly registration fee)
       const currentDate = new Date();
       const dueDate = new Date(currentDate.getTime() + (30 * 24 * 60 * 60 * 1000)); // 30 days from now
 
@@ -1635,10 +1608,10 @@ const CompanyDashboard = () => {
           company_id: companyData.id,
           employee_id: employee.id,
           fee_amount: 1.00,
-          fee_type: 'employee_registration_fee',
+          fee_type: 'employee_monthly_fee',
           status: 'pending',
           due_date: dueDate.toISOString().split('T')[0],
-          notes: `One-time registration fee for ${employeeData.firstName} ${employeeData.lastName}`
+          notes: `Monthly registration fee for ${employeeData.firstName} ${employeeData.lastName}`
         }]);
 
       if (feeError) {
@@ -1676,6 +1649,7 @@ const CompanyDashboard = () => {
         description: error.message,
         variant: "destructive"
       });
+      setShowSimpleForm(false);
       setIsLoading(false);
     }
   };
@@ -1691,7 +1665,7 @@ const CompanyDashboard = () => {
         .single();
       
       console.log("Fetched employee data:", updatedEmployee);
-
+      
       if (error) {
         console.error("Error fetching employee data:", error);
         // Fallback to the employee data we already have
@@ -1720,7 +1694,6 @@ const CompanyDashboard = () => {
     const mappedData = {
       firstName: employee.first_name || "",
       lastName: employee.last_name || "",
-      email: employee.email || "",
       phone: employee.phone || "",
       cedula: employee.cedula || "",
       birthDate: employee.birth_date ? new Date(employee.birth_date) : null,
@@ -1729,8 +1702,8 @@ const CompanyDashboard = () => {
       department: employee.department || "",
       employmentStartDate: employee.employment_start_date ? new Date(employee.employment_start_date) : null,
       employmentType: employee.employment_type || "",
-      weeklyHours: employee.weekly_hours || 40,
-      monthlySalary: employee.monthly_salary || 5000,
+      weeklyHours: employee.weekly_hours || 0,
+      monthlySalary: employee.monthly_salary || 0,
       livingExpenses: employee.living_expenses || 0,
       dependents: employee.dependents || 0,
       emergencyContact: employee.emergency_contact || "",
@@ -1926,17 +1899,12 @@ const CompanyDashboard = () => {
         throw new Error(t('company.billing.couldNotUpdateEmployees'));
       }
 
-      // Normalize and validate email
-      const normalizedEmail = String(employeeInfo.email || "").trim().toLowerCase();
-      if (!normalizedEmail || !normalizedEmail.includes('@') || !normalizedEmail.includes('.')) {
-        toast({
-          title: t('company.billing.invalidEmail'),
-          description: t('company.billing.invalidEmailDesc'),
-          variant: "destructive"
-        });
-        setIsLoading(false);
-        return;
+      // Use auth user email for the employee
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error("Usuario no autenticado");
       }
+      const employeeEmail = user.email;
 
       // Get company ID for duplicate check
       const { data: { user: currentUser } } = await supabase.auth.getUser();
@@ -1959,28 +1927,7 @@ const CompanyDashboard = () => {
         throw new Error("No company found for this user. Please contact support.");
       }
 
-      // Check for duplicate email (excluding the current employee being edited)
-      const { data: existingByEmail, error: dupCheckError } = await supabase
-        .from("employees")
-        .select("id")
-        .eq("company_id", companyData.id)
-        .ilike("email", normalizedEmail)
-        .neq("id", editingEmployee.id) // Exclude the current employee being edited
-        .limit(1);
-
-      if (dupCheckError && dupCheckError.code !== 'PGRST116') {
-        throw new Error(`Error verificando email: ${dupCheckError.message}`);
-      }
-
-      if (Array.isArray(existingByEmail) && existingByEmail.length > 0) {
-        toast({
-          title: t('company.billing.duplicateEmail'),
-          description: t('company.billing.duplicateEmailDesc'),
-          variant: "destructive"
-        });
-        setIsLoading(false);
-        return;
-      }
+      // Note: Email uniqueness is handled at the auth user level, not in employees table
       
       // Update employee data in Supabase
       const { data: updatedEmployee, error: updateError } = await supabase
@@ -1988,7 +1935,6 @@ const CompanyDashboard = () => {
         .update({
           first_name: employeeInfo.firstName,
           last_name: employeeInfo.lastName,
-          email: normalizedEmail,
           phone: employeeInfo.phone || null,
           cedula: employeeInfo.cedula || null,
           birth_date: employeeInfo.birthDate,
@@ -2055,6 +2001,8 @@ const CompanyDashboard = () => {
         description: error?.message ?? "No se pudo actualizar el empleado",
         variant: "destructive"
       });
+      setIsEditDialogOpen(false);
+      setEditingEmployee(null);
     } finally {
       setIsLoading(false);
     }
@@ -2129,7 +2077,7 @@ const CompanyDashboard = () => {
         .from("companies")
         .select("id")
         .eq("auth_user_id", user.id)
-        .single();
+        .maybeSingle();
 
       if (companyError) {
         console.error("Error fetching company data:", companyError);
@@ -2145,14 +2093,16 @@ const CompanyDashboard = () => {
 
       for (const row of selectedRows) {
         try {
+          // Get email for auth user creation (not stored in employees table)
+          const employeeEmail = row.email || row.email_address || row['email address'] || '';
+          
           // Map CSV columns to employee fields
           const employeeData = {
             first_name: row.firstname || row.first_name || row['first name'] || '',
             last_name: row.lastname || row.last_name || row['last name'] || '',
-            email: (row.email || '').trim().toLowerCase(),
             phone: row.phone || row.phone_number || row['phone number'] || '',
-            monthly_salary: parseFloat(row.salary || row.monthly_salary || row['monthly salary'] || '5000') || 5000,
-            weekly_hours: parseFloat(row.hours || row.weekly_hours || row['weekly hours'] || '40') || 40,
+            monthly_salary: parseFloat(row.salary || row.monthly_salary || row['monthly salary'] || '0') || 0,
+            weekly_hours: parseFloat(row.hours || row.weekly_hours || row['weekly hours'] || '0') || 0,
             year_of_employment: parseInt(row.year || row.year_of_employment || row['year of employment'] || new Date().getFullYear().toString()) || new Date().getFullYear(),
             bank_name: row.bank || row.bank_name || row['bank name'] || '',
             account_number: row.account || row.account_number || row['account number'] || '',
@@ -2176,25 +2126,12 @@ const CompanyDashboard = () => {
           };
 
           // Validate required fields
-          if (!employeeData.email || !employeeData.first_name || !employeeData.last_name) {
-            errors.push(`Row ${row.rowNumber}: Missing required fields (email, first name, last name)`);
+          if (!employeeData.first_name || !employeeData.last_name || !employeeEmail) {
+            errors.push(`Row ${row.rowNumber}: Missing required fields (first name, last name, email)`);
             errorCount++;
             continue;
           }
 
-          // Check for duplicate email
-          const { data: existingByEmail } = await supabase
-            .from("employees")
-            .select("id")
-            .eq("company_id", companyData.id)
-            .ilike("email", employeeData.email)
-            .limit(1);
-
-          if (existingByEmail && existingByEmail.length > 0) {
-            errors.push(`Row ${row.rowNumber}: Email ${employeeData.email} already exists`);
-            errorCount++;
-            continue;
-          }
 
           // Insert employee
           const { data: newEmployee, error: insertError } = await supabase
@@ -2213,13 +2150,13 @@ const CompanyDashboard = () => {
             // Create auth user for the employee
             let authUserCreated = false;
             try {
-              console.log(`Creating auth user for ${employeeData.email}...`);
+              console.log(`Creating auth user for ${employeeEmail}...`);
 
               // Store current user session to restore later
               const { data: { session: currentSession } } = await supabase.auth.getSession();
 
               const { data: authData, error: authError } = await supabase.auth.signUp({
-                email: employeeData.email,
+                email: employeeEmail,
                 password: 'pre123456', // Default password
                 options: {
                   emailRedirectTo: `${window.location.origin}/login`,
@@ -2231,16 +2168,16 @@ const CompanyDashboard = () => {
                 }
               });
 
-              console.log(`Auth user creation result for ${employeeData.email}:`, { authData, authError });
+              console.log(`Auth user creation result for ${user.email}:`, { authData, authError });
 
               if (authError) {
-                console.error(`Auth user creation failed for ${employeeData.email}:`, authError);
+                console.error(`Auth user creation failed for ${user.email}:`, authError);
                 errors.push(`Row ${row.rowNumber}: Auth user creation failed - ${authError.message}`);
                 errorCount++;
                 // Don't count as success if auth user creation failed
                 continue;
               } else if (!authData.user) {
-                console.error(`Auth user creation returned no user for ${employeeData.email}`);
+                console.error(`Auth user creation returned no user for ${user.email}`);
                 errors.push(`Row ${row.rowNumber}: Auth user creation returned no user`);
                 errorCount++;
                 continue;
@@ -2255,7 +2192,7 @@ const CompanyDashboard = () => {
                 });
 
                 if (metadataError) {
-                  console.warn(`Failed to update user metadata for ${employeeData.email}:`, metadataError);
+                  console.warn(`Failed to update user metadata for ${user.email}:`, metadataError);
                   // Don't throw error, continue with employee update
                 }
 
@@ -2288,7 +2225,7 @@ const CompanyDashboard = () => {
               }
 
             } catch (authError) {
-              console.error(`Auth user creation failed for ${employeeData.email}:`, authError);
+              console.error(`Auth user creation failed for ${user.email}:`, authError);
               errors.push(`Row ${row.rowNumber}: Auth user creation error - ${authError}`);
               errorCount++;
               continue;
@@ -2296,6 +2233,32 @@ const CompanyDashboard = () => {
 
             // Only count as success if both employee and auth user were created
             if (authUserCreated) {
+              // Create employee fee record ($1 monthly registration fee)
+              try {
+                const currentDate = new Date();
+                const dueDate = new Date(currentDate.getTime() + (30 * 24 * 60 * 60 * 1000)); // 30 days from now
+                
+                const { error: feeError } = await supabase
+                  .from("employee_fees")
+                  .insert([{
+                    company_id: companyData.id,
+                    employee_id: employee.id,
+                    fee_amount: 1.00,
+                    fee_type: 'employee_monthly_fee',
+                    status: 'pending',
+                    due_date: dueDate.toISOString().split('T')[0],
+                    notes: `Monthly registration fee for ${employeeData.first_name} ${employeeData.last_name}`
+                  }]);
+
+                if (feeError) {
+                  console.error('Error creating employee fee for CSV import:', feeError);
+                  // Don't fail the import, just log the error
+                }
+              } catch (feeError) {
+                console.error('Error creating employee fee for CSV import:', feeError);
+                // Don't fail the import, just log the error
+              }
+              
               successCount++;
             }
           }
@@ -2309,7 +2272,7 @@ const CompanyDashboard = () => {
       if (successCount > 0) {
         toast({
           title: t('company.csvUpload.importSuccess'),
-          description: `Successfully imported ${successCount} out of ${selectedRows.length} selected employees. Employees can log in with their email and password 'pre123456'. Note: If login fails, check if email confirmation is required in Supabase settings.`,
+          description: `Successfully imported ${successCount} out of ${selectedRows.length} selected employees. Employees can log in with the company email and password 'pre123456'. Note: If login fails, check if email confirmation is required in Supabase settings.`,
         });
 
         // Refresh employees list without reloading the page
@@ -2458,7 +2421,6 @@ const CompanyDashboard = () => {
     const term = employeeSearch.trim().toLowerCase();
     return employees.filter(e =>
       `${e.first_name} ${e.last_name}`.toLowerCase().includes(term) ||
-      (e.email?.toLowerCase().includes(term)) ||
       (e.cedula?.toLowerCase().includes(term))
     );
   }, [employees, employeeSearch]);
@@ -2495,6 +2457,346 @@ const CompanyDashboard = () => {
   useEffect(() => {
     setChangeRequestPage(1);
   }, [changeRequestStatus, changeRequestCategory, changeRequestPriority, changeRequestSearch]);
+
+  // Change request confirmation handlers
+  const confirmApproveChangeRequest = async () => {
+    if (!changeRequestToAction) return;
+    const request = changeRequestToAction;
+    
+    try {
+      // First, let's check if the employee exists
+      const { data: existingEmployee, error: checkError } = await supabase
+        .from('employees')
+        .select('*')
+        .eq('id', request.employee_id)
+        .single();
+
+      if (checkError) {
+        console.error('Error checking employee:', checkError);
+        throw new Error(`Employee not found: ${checkError.message}`);
+      }
+
+      // Check current user context for RLS
+      const { data: { user } } = await supabase.auth.getUser();
+
+      // Check if current user is the company admin
+      const { data: companyData } = await supabase
+        .from('companies')
+        .select('*')
+        .eq('auth_user_id', user?.id)
+        .single();
+
+      // Check if this is a full name change (detected by special marker in details)
+      const isFullNameChange = request.details?.includes('FULL_NAME_CHANGE');
+      const isNameChange = request.field_name === 'first_name' || request.field_name === 'last_name';
+      const isEmailChange = request.field_name === 'email';
+      let partnerRequest = null;
+      
+      // Initialize service result
+      let serviceResult = { success: false, data: null };
+      
+      if (isFullNameChange) {
+        console.log('Processing full name change request');
+        console.log('Request details:', request);
+      } else if (isEmailChange) {
+        // Email changes are disabled - reject the request
+        console.log('Email change request detected - rejecting as email changes are disabled');
+        console.log('Current email:', request.current_value);
+        console.log('Requested email:', request.requested_value);
+        
+        // Reject the change request
+        const rejectResult = await changeRequestService.updateChangeRequestStatus(
+          request.id!,
+          'rejected',
+          'Email changes are currently disabled. Please contact your administrator.'
+        );
+        
+        if (!rejectResult.success) {
+          throw new Error(`Failed to reject email change request: ${rejectResult.error}`);
+        }
+        
+        // Refresh the change requests list
+        const refreshResult = await changeRequestService.getChangeRequests({
+          company_id: company?.id
+        });
+        if (refreshResult.success && refreshResult.data) {
+          setChangeRequests(refreshResult.data);
+        }
+        
+        toast({
+          title: 'Email Change Rejected',
+          description: 'Email changes are currently disabled. The request has been rejected.',
+          variant: "destructive"
+        });
+        
+        return; // Exit the function early for email changes
+        
+      } else if (isNameChange) {
+        // Look for the partner name change request
+        const partnerFieldName = request.field_name === 'first_name' ? 'last_name' : 'first_name';
+        console.log('Looking for partner request:', {
+          employee_id: request.employee_id,
+          partnerFieldName,
+          currentFieldName: request.field_name,
+          details: request.details
+        });
+        
+        // Debug: Show all pending change requests for this employee
+        const employeeRequests = changeRequests.filter(req => 
+          req.employee_id === request.employee_id && req.status === 'pending'
+        );
+        console.log('All pending requests for this employee:', employeeRequests);
+        
+        partnerRequest = changeRequests.find(req => 
+          req.employee_id === request.employee_id &&
+          req.field_name === partnerFieldName &&
+          req.status === 'pending' &&
+          (req.details?.includes('Full Name Change') || req.details?.includes('Full Name Change -'))
+        );
+        
+        console.log('Partner request found:', partnerRequest);
+      }
+
+      // Update the employee's profile using EmployeeService
+      if (isFullNameChange) {
+        // This is a full name change - update both fields together
+        console.log('Processing full name change - updating both first_name and last_name');
+        console.log('Current value:', request.current_value);
+        console.log('Requested value:', request.requested_value);
+        
+        // Split the full names
+        const currentNames = request.current_value.split(' ');
+        const requestedNames = request.requested_value.split(' ');
+        
+        const firstNameValue = requestedNames[0] || '';
+        const lastNameValue = requestedNames.slice(1).join(' ') || '';
+        
+        console.log('Extracted first name:', firstNameValue);
+        console.log('Extracted last name:', lastNameValue);
+        
+        // Update first name
+        const firstNameResult = await EmployeeService.updateEmployeeField({
+          employee_id: request.employee_id,
+          field_name: 'first_name',
+          field_value: firstNameValue,
+          company_id: company?.id!
+        });
+        
+        if (!firstNameResult.success) {
+          throw new Error(`Failed to update first name: ${firstNameResult.message}`);
+        }
+        
+        // Update last name
+        const lastNameResult = await EmployeeService.updateEmployeeField({
+          employee_id: request.employee_id,
+          field_name: 'last_name',
+          field_value: lastNameValue,
+          company_id: company?.id!
+        });
+        
+        if (!lastNameResult.success) {
+          throw new Error(`Failed to update last name: ${lastNameResult.message}`);
+        }
+        
+        serviceResult = { success: true, data: lastNameResult.data };
+        
+      } else if (isNameChange && partnerRequest) {
+        // This is a full name change - update both fields together
+        console.log('Processing full name change - updating both first_name and last_name');
+        console.log('Current request:', request);
+        console.log('Partner request:', partnerRequest);
+        
+        // Get the correct values for each field and split them properly
+        const firstNameValue = request.field_name === 'first_name' ? 
+          request.requested_value.split(' ')[0] : 
+          partnerRequest.requested_value.split(' ')[0];
+        const lastNameValue = request.field_name === 'last_name' ? 
+          request.requested_value.split(' ').slice(1).join(' ') : 
+          partnerRequest.requested_value.split(' ').slice(1).join(' ');
+        
+        console.log('First name value:', firstNameValue);
+        console.log('Last name value:', lastNameValue);
+        console.log('Splitting logic - request field:', request.field_name);
+        console.log('Splitting logic - request value:', request.requested_value);
+        console.log('Splitting logic - partner value:', partnerRequest.requested_value);
+        
+        // Update first name
+        const firstNameResult = await EmployeeService.updateEmployeeField({
+          employee_id: request.employee_id,
+          field_name: 'first_name',
+          field_value: firstNameValue,
+          company_id: company?.id!
+        });
+        
+        if (!firstNameResult.success) {
+          throw new Error(`Failed to update first name: ${firstNameResult.message}`);
+        }
+        
+        // Update last name
+        const lastNameResult = await EmployeeService.updateEmployeeField({
+          employee_id: request.employee_id,
+          field_name: 'last_name',
+          field_value: lastNameValue,
+          company_id: company?.id!
+        });
+        
+        if (!lastNameResult.success) {
+          throw new Error(`Failed to update last name: ${lastNameResult.message}`);
+        }
+        
+        serviceResult = { success: true, data: lastNameResult.data };
+        
+        // Also approve the partner request
+        const partnerApprovalResult = await changeRequestService.updateChangeRequestStatus(
+          partnerRequest.id!,
+          'approved',
+          'Request approved as part of full name change'
+        );
+        
+        if (!partnerApprovalResult.success) {
+          console.warn('Failed to approve partner request:', partnerApprovalResult.error);
+        }
+      } else if (isNameChange && !partnerRequest) {
+        // Single name change - handle it normally but with proper splitting
+        console.log('Processing single name change - no partner request found');
+        console.log('Request field:', request.field_name);
+        console.log('Request value:', request.requested_value);
+        
+        // For single name changes, we need to extract the correct part
+        let fieldValue;
+        if (request.field_name === 'first_name') {
+          fieldValue = request.requested_value.split(' ')[0];
+        } else if (request.field_name === 'last_name') {
+          fieldValue = request.requested_value.split(' ').slice(1).join(' ');
+        } else {
+          fieldValue = request.requested_value;
+        }
+        
+        console.log('Extracted field value:', fieldValue);
+        
+        serviceResult = await EmployeeService.updateEmployeeField({
+          employee_id: request.employee_id,
+          field_name: request.field_name,
+          field_value: fieldValue,
+          company_id: company?.id!
+        });
+      } else {
+        // Regular single field update - but skip email fields as they're handled by auth
+        if (request.field_name === 'email') {
+          console.log('Email field detected in general update - skipping as it should be handled by auth system');
+          serviceResult = { success: true, data: { email: request.requested_value } };
+        } else {
+          serviceResult = await EmployeeService.updateEmployeeField({
+            employee_id: request.employee_id,
+            field_name: request.field_name,
+            field_value: request.requested_value,
+            company_id: company?.id!
+          });
+        }
+      }
+
+      if (!serviceResult.success) {
+        throw new Error(`Failed to update employee profile`);
+      }
+
+      // Set updateResult for compatibility with existing code
+      const updateResult = [serviceResult.data];
+
+      if (!updateResult || updateResult.length === 0) {
+        console.error('No rows updated - this might be an RLS policy issue');
+        throw new Error('No rows were updated. This might be due to Row Level Security policies.');
+      }
+
+      // Verify the update by fetching the employee data
+      const { data: verifyEmployee, error: verifyError } = await supabase
+        .from('employees')
+        .select('*')
+        .eq('id', request.employee_id)
+        .single();
+
+      if (verifyError) {
+        console.error('Error verifying employee update:', verifyError);
+      }
+
+      // Then update the change request status
+      const approveResult = await changeRequestService.updateChangeRequestStatus(
+        request.id!,
+        'approved',
+        'Request approved by company admin'
+      );
+
+      if (approveResult.success) {
+        // Refresh the list
+        const refreshResult = await changeRequestService.getChangeRequests({
+          company_id: company?.id
+        });
+        if (refreshResult.success && refreshResult.data) {
+          setChangeRequests(refreshResult.data);
+        }
+
+        // Also refresh employees list to show updated info
+        refreshEmployees();
+
+        let successMessage;
+        if (isNameChange && partnerRequest) {
+          successMessage = 'Full name change approved and employee profile updated successfully (both first and last name)';
+        } else {
+          successMessage = 'Change request approved and employee profile updated successfully';
+        }
+
+        toast({
+          title: 'Success',
+          description: successMessage,
+        });
+      }
+    } catch (error) {
+      console.error('Error approving request:', error);
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to approve change request',
+        variant: "destructive"
+      });
+    } finally {
+      setShowApproveChangeRequestModal(false);
+      setChangeRequestToAction(null);
+    }
+  };
+
+  const confirmRejectChangeRequest = async () => {
+    if (!changeRequestToAction) return;
+    
+    try {
+      const rejectResult = await changeRequestService.updateChangeRequestStatus(
+        changeRequestToAction.id!,
+        'rejected',
+        'Request rejected by company admin'
+      );
+      
+      if (rejectResult.success) {
+        // Refresh the list
+        const refreshResult = await changeRequestService.getChangeRequests({
+          company_id: company?.id
+        });
+        if (refreshResult.success && refreshResult.data) {
+          setChangeRequests(refreshResult.data);
+        }
+        toast({
+          title: 'Success',
+          description: 'Change request rejected successfully',
+        });
+      }
+    } catch (error) {
+      console.error('Error rejecting request:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to reject change request',
+        variant: "destructive"
+      });
+    } finally {
+      setShowRejectChangeRequestModal(false);
+      setChangeRequestToAction(null);
+    }
+  };
 
   // Reset to first page when filters change
   useEffect(() => {
@@ -2647,7 +2949,7 @@ const CompanyDashboard = () => {
   };
 
   // Export to Excel
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
     if (filteredAdvances.length === 0) {
       toast({
         title: t('common.noData'),
@@ -2657,10 +2959,13 @@ const CompanyDashboard = () => {
       return;
     }
 
+    // Get current user for email display
+    const { data: { user } } = await supabase.auth.getUser();
+
     const exportData = filteredAdvances.map(advance => ({
       [t('common.date')]: format(new Date(advance.created_at), 'dd/MM/yyyy HH:mm'),
       [t('common.employee')]: `${advance.employees.first_name} ${advance.employees.last_name}`,
-      Email: advance.employees.email,
+      Email: user?.email || 'N/A',
       [t('common.requestedAmount')]: `$${advance.requested_amount.toFixed(2)}`,
       [t('common.fee')]: `$${advance.fee_amount.toFixed(2)}`,
       [t('common.netAmount')]: `$${advance.net_amount.toFixed(2)}`,
@@ -2695,6 +3000,9 @@ const CompanyDashboard = () => {
     try {
       setIsGeneratingReport(true);
       
+      // Get current user for email display
+      const { data: { user } } = await supabase.auth.getUser();
+      
       const reportName = `report_${type}_${period}_${format(new Date(), 'yyyy-MM-dd')}`;
       
       // Create report data based on type
@@ -2710,7 +3018,7 @@ const CompanyDashboard = () => {
           exportData = activeAdvances.map(advance => ({
             [t('common.date')]: format(new Date(advance.created_at), 'dd/MM/yyyy HH:mm'),
             [t('common.employee')]: `${advance.employees.first_name} ${advance.employees.last_name}`,
-            Email: advance.employees.email,
+            Email: user?.email || 'N/A',
             [t('common.requestedAmount')]: advance.requested_amount,
             [t('common.fee')]: advance.fee_amount,
             [t('common.netAmount')]: advance.net_amount,
@@ -2740,7 +3048,7 @@ const CompanyDashboard = () => {
         case 'employees':
           exportData = employees.map(employee => ({
             [t('common.employee')]: `${employee.first_name} ${employee.last_name}`,
-            Email: employee.email,
+            Email: user?.email || 'N/A',
             ID: employee.cedula || 'N/A',
             Position: employee.position || 'N/A',
             Department: employee.department || 'N/A',
@@ -2758,7 +3066,7 @@ const CompanyDashboard = () => {
           exportData = activeAdvances.map(advance => ({
             [t('common.date')]: format(new Date(advance.created_at), 'dd/MM/yyyy HH:mm'),
             [t('common.employee')]: `${advance.employees.first_name} ${advance.employees.last_name}`,
-            Email: advance.employees.email,
+            Email: user?.email || 'N/A',
             ID: advance.employees.cedula || 'N/A',
             Position: advance.employees.position || 'N/A',
             [t('common.requestedAmount')]: advance.requested_amount,
@@ -3353,7 +3661,7 @@ const CompanyDashboard = () => {
         .from("companies")
         .select("id")
         .eq("auth_user_id", user.id)
-        .single();
+        .maybeSingle();
       
       if (companyError || !companyData) {
         throw new Error("No se pudo obtener la información de la empresa");
@@ -3479,8 +3787,7 @@ const CompanyDashboard = () => {
             *,
             employees!inner(
               first_name,
-              last_name,
-              email
+              last_name
             )
           `)
           .eq("company_id", companyData.id)
@@ -3621,6 +3928,22 @@ const CompanyDashboard = () => {
       <Header />
 
       <div className="container mx-auto px-4 py-8 space-y-8">
+        {/* No company record message */}
+        {hasCompanyRecord === false && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
+            <div className="flex items-center justify-center gap-2 mb-4">
+              <AlertCircle className="h-6 w-6 text-yellow-600" />
+              <h3 className="text-lg font-semibold text-yellow-800">{t('company.noCompanyRecord')}</h3>
+            </div>
+            <p className="text-yellow-700 mb-4">
+              {t('company.noCompanyRecordDesc')}
+            </p>
+            <Button asChild>
+              <Link to="/register">{t('company.completeRegistration')}</Link>
+            </Button>
+          </div>
+        )}
+
         {/* Delete employee confirmation */}
         <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
           <DialogContent className="sm:max-w-md">
@@ -3669,7 +3992,7 @@ const CompanyDashboard = () => {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-sm text-muted-foreground">{t('company.email')}:</span>
-                        <span className="text-sm font-medium">{viewingEmployee.email}</span>
+                        <span className="text-sm font-medium">{user?.email || 'N/A'}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-sm text-muted-foreground">{t('company.phone')}:</span>
@@ -4228,7 +4551,7 @@ const CompanyDashboard = () => {
                       <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingEmployees ? 'animate-spin' : ''}`} />
                           {t('company.billing.refresh')}
                     </Button>
-                    <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                    <Dialog open={isAddEmployeeDialogOpen} onOpenChange={setIsAddEmployeeDialogOpen}>
                       <DialogTrigger asChild>
                     <Button variant="hero">
                       <Plus className="h-4 w-4 mr-2" />
@@ -4250,7 +4573,7 @@ const CompanyDashboard = () => {
                                 variant="outline"
                                 className="w-full h-20 flex flex-col items-center justify-center space-y-2"
                                 onClick={() => {
-                                  setIsDialogOpen(false);
+                                  setIsAddEmployeeDialogOpen(false);
                                   setShowSimpleForm(true);
                                 }}
                               >
@@ -4261,7 +4584,7 @@ const CompanyDashboard = () => {
                                 variant="outline"
                                 className="w-full h-20 flex flex-col items-center justify-center space-y-2"
                                 onClick={() => {
-                                  setIsDialogOpen(false);
+                                  setIsAddEmployeeDialogOpen(false);
                                   setShowCsvUploadModal(true);
                                 }}
                               >
@@ -4270,7 +4593,7 @@ const CompanyDashboard = () => {
                               </Button>
                             </div>
                             <DialogFooter>
-                              <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+                              <Button variant="outline" onClick={() => setIsAddEmployeeDialogOpen(false)}>
                                 {t('common.cancel')}
                               </Button>
                             </DialogFooter>
@@ -4305,7 +4628,7 @@ const CompanyDashboard = () => {
                         </div>
                         <div>
                             <div className="font-medium">{employee.first_name} {employee.last_name}</div>
-                            <div className="text-sm text-muted-foreground">{employee.cedula || employee.email}</div>
+                            <div className="text-sm text-muted-foreground">{employee.cedula || user?.email || 'N/A'}</div>
                         </div>
                       </div>
                       <div className="flex items-center space-x-6">
@@ -4555,7 +4878,7 @@ const CompanyDashboard = () => {
                                               {employee ? `${employee.first_name} ${employee.last_name}` : 'Unknown Employee'}
                                             </p>
                                             <p className="text-xs text-muted-foreground">
-                                              {employee?.email || 'Not available'}
+                                              {user?.email || 'Not available'}
                                             </p>
                                           </div>
                                         </div>
@@ -4601,167 +4924,9 @@ const CompanyDashboard = () => {
                                       variant="default"
                                       size="sm"
                                       className="bg-green-600 hover:bg-green-700"
-                                      onClick={async () => {
-                                        try {
-                                          // First, let's check if the employee exists
-                                          const { data: existingEmployee, error: checkError } = await supabase
-                                            .from('employees')
-                                            .select('*')
-                                            .eq('id', request.employee_id)
-                                            .single();
-
-                                          if (checkError) {
-                                            console.error('Error checking employee:', checkError);
-                                            throw new Error(`Employee not found: ${checkError.message}`);
-                                          }
-
-                                          // Check current user context for RLS
-                                          const { data: { user } } = await supabase.auth.getUser();
-
-                                          // Check if current user is the company admin
-                                          const { data: companyData } = await supabase
-                                            .from('companies')
-                                            .select('*')
-                                            .eq('auth_user_id', user?.id)
-                                            .single();
-
-                                          // Check if this is part of a full name change
-                                          const isNameChange = request.field_name === 'first_name' || request.field_name === 'last_name';
-                                          let partnerRequest = null;
-                                          
-                                          if (isNameChange) {
-                                            // Look for the partner name change request
-                                            const partnerFieldName = request.field_name === 'first_name' ? 'last_name' : 'first_name';
-                                            partnerRequest = changeRequests.find(req => 
-                                              req.employee_id === request.employee_id &&
-                                              req.field_name === partnerFieldName &&
-                                              req.status === 'pending' &&
-                                              req.details?.includes('Full Name Change')
-                                            );
-                                          }
-
-                                          // Update the employee's profile using EmployeeService
-                                          let serviceResult;
-                                          
-                                          if (isNameChange && partnerRequest) {
-                                            // This is a full name change - update both fields together
-                                            console.log('Processing full name change - updating both first_name and last_name');
-                                            
-                                            // Update first name
-                                            const firstNameResult = await EmployeeService.updateEmployeeField({
-                                              employee_id: request.employee_id,
-                                              field_name: 'first_name',
-                                              field_value: request.field_name === 'first_name' ? request.requested_value : partnerRequest.requested_value,
-                                              company_id: company?.id!
-                                            });
-                                            
-                                            if (!firstNameResult.success) {
-                                              throw new Error(`Failed to update first name: ${firstNameResult.message}`);
-                                            }
-                                            
-                                            // Update last name
-                                            const lastNameResult = await EmployeeService.updateEmployeeField({
-                                              employee_id: request.employee_id,
-                                              field_name: 'last_name',
-                                              field_value: request.field_name === 'last_name' ? request.requested_value : partnerRequest.requested_value,
-                                              company_id: company?.id!
-                                            });
-                                            
-                                            if (!lastNameResult.success) {
-                                              throw new Error(`Failed to update last name: ${lastNameResult.message}`);
-                                            }
-                                            
-                                            serviceResult = { success: true, data: lastNameResult.data };
-                                            
-                                            // Also approve the partner request
-                                            const partnerApprovalResult = await changeRequestService.updateChangeRequestStatus(
-                                              partnerRequest.id!,
-                                              'approved',
-                                              'Request approved as part of full name change'
-                                            );
-                                            
-                                            if (!partnerApprovalResult.success) {
-                                              console.warn('Failed to approve partner request:', partnerApprovalResult.error);
-                                            }
-                                          } else {
-                                            // Regular single field update
-                                            serviceResult = await EmployeeService.updateEmployeeField({
-                                              employee_id: request.employee_id,
-                                              field_name: request.field_name,
-                                              field_value: request.requested_value,
-                                              company_id: company?.id!
-                                            });
-                                          }
-
-
-                                          if (!serviceResult.success) {
-                                            throw new Error(`Failed to update employee profile: ${serviceResult.message}`);
-                                          }
-
-
-                                          // Set updateResult for compatibility with existing code
-                                          const updateResult = [serviceResult.data];
-                                          const updateError = null;
-
-
-                                          if (updateError) {
-                                            console.error('Employee update error:', updateError);
-                                            throw new Error(`Failed to update employee profile: ${updateError.message}`);
-                                          }
-
-                                          if (!updateResult || updateResult.length === 0) {
-                                            console.error('No rows updated - this might be an RLS policy issue');
-                                            throw new Error('No rows were updated. This might be due to Row Level Security policies.');
-                                          }
-
-
-                                          // Verify the update by fetching the employee data
-                                          const { data: verifyEmployee, error: verifyError } = await supabase
-                                            .from('employees')
-                                            .select('*')
-                                            .eq('id', request.employee_id)
-                                            .single();
-
-                                          if (verifyError) {
-                                            console.error('Error verifying employee update:', verifyError);
-                                          }
-
-                                          // Then update the change request status
-                                          const result = await changeRequestService.updateChangeRequestStatus(
-                                            request.id!,
-                                            'approved',
-                                            'Request approved by company admin'
-                                          );
-
-                                          if (result.success) {
-                                            // Refresh the list
-                                            const refreshResult = await changeRequestService.getChangeRequests({
-                                              company_id: company?.id
-                                            });
-                                            if (refreshResult.success && refreshResult.data) {
-                                              setChangeRequests(refreshResult.data);
-                                            }
-
-                                            // Also refresh employees list to show updated info
-                                            refreshEmployees();
-
-                                            const successMessage = isNameChange && partnerRequest 
-                                              ? 'Full name change approved and employee profile updated successfully (both first and last name)'
-                                              : 'Change request approved and employee profile updated successfully';
-
-                                            toast({
-                                              title: 'Success',
-                                              description: successMessage,
-                                            });
-                                          }
-                                        } catch (error) {
-                                          console.error('Error approving request:', error);
-                                          toast({
-                                            title: 'Error',
-                                            description: error instanceof Error ? error.message : 'Failed to approve change request',
-                                            variant: "destructive"
-                                          });
-                                        }
+                                      onClick={() => {
+                                        setChangeRequestToAction(request);
+                                        setShowApproveChangeRequestModal(true);
                                       }}
                                     >
                                       <CheckCircle className="h-4 w-4" />
@@ -4770,34 +4935,9 @@ const CompanyDashboard = () => {
                                     <Button
                                       variant="destructive"
                                       size="sm"
-                                      onClick={async () => {
-                                        try {
-                                          const result = await changeRequestService.updateChangeRequestStatus(
-                                            request.id!,
-                                            'rejected',
-                                            'Request rejected by company admin'
-                                          );
-                                          if (result.success) {
-                                            // Refresh the list
-                                            const refreshResult = await changeRequestService.getChangeRequests({
-                                              company_id: company?.id
-                                            });
-                                            if (refreshResult.success && refreshResult.data) {
-                                              setChangeRequests(refreshResult.data);
-                                            }
-                                            toast({
-                                              title: 'Success',
-                                              description: 'Change request rejected successfully',
-                                            });
-                                          }
-                                        } catch (error) {
-                                          console.error('Error rejecting request:', error);
-                                          toast({
-                                            title: 'Error',
-                                            description: 'Failed to reject change request',
-                                            variant: "destructive"
-                                          });
-                                        }
+                                      onClick={() => {
+                                        setChangeRequestToAction(request);
+                                        setShowRejectChangeRequestModal(true);
                                       }}
                                     >
                                       <X className="h-4 w-4" />
@@ -5742,29 +5882,6 @@ const CompanyDashboard = () => {
             onSave={handleEmployeeSave}
             onCancel={() => setIsEditDialogOpen(false)}
             isLoading={isLoading}
-            checkEmailDuplicate={async (email: string) => {
-              try {
-                // Get current user and company
-                const { data: { user } } = await supabase.auth.getUser();
-                if (!user) return false;
-                const { data: companyData } = await supabase
-                  .from("companies")
-                  .select("id")
-                  .eq("auth_user_id", user.id)
-                  .single();
-                if (!companyData) return false;
-                const { data: existing } = await supabase
-                  .from("employees")
-                  .select("id")
-                  .eq("company_id", companyData.id)
-                  .ilike("email", email)
-                  .neq("id", editingEmployee?.id || "") // Exclude the current employee being edited
-                  .limit(1);
-                return Array.isArray(existing) && existing.length > 0;
-              } catch {
-                return false;
-              }
-            }}
           />
         </DialogContent>
       </Dialog>
@@ -5978,27 +6095,6 @@ const CompanyDashboard = () => {
             onSave={handleSimpleEmployeeSave}
             onCancel={() => setShowSimpleForm(false)}
             isLoading={isLoading}
-            checkEmailDuplicate={async (email: string) => {
-              try {
-                const { data: { user } } = await supabase.auth.getUser();
-                if (!user) return false;
-                const { data: companyData } = await supabase
-                  .from("companies")
-                  .select("id")
-                  .eq("auth_user_id", user.id)
-                  .single();
-                if (!companyData) return false;
-                const { data: existing } = await supabase
-                  .from("employees")
-                  .select("id")
-                  .eq("company_id", companyData.id)
-                  .ilike("email", email)
-                  .limit(1);
-                return Array.isArray(existing) && existing.length > 0;
-              } catch {
-                return false;
-              }
-            }}
           />
         </DialogContent>
       </Dialog>
@@ -6067,6 +6163,85 @@ const CompanyDashboard = () => {
             </Button>
             <Button onClick={handleFormatSelection} disabled={isGeneratingReport}>
               {isGeneratingReport ? 'Exporting...' : `Export as ${selectedExportFormat.toUpperCase()}`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Approve Change Request Confirmation Modal */}
+      <Dialog open={showApproveChangeRequestModal} onOpenChange={setShowApproveChangeRequestModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-green-600" />
+              Approve Change Request
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to approve this change request?
+            </DialogDescription>
+            {changeRequestToAction && (
+              <div className="mt-2 p-3 bg-muted rounded-lg">
+                <div><strong>Field:</strong> {changeRequestToAction.field_name}</div>
+                <div><strong>Current:</strong> {changeRequestToAction.current_value}</div>
+                <div><strong>Requested:</strong> {changeRequestToAction.requested_value}</div>
+                <div><strong>Reason:</strong> {changeRequestToAction.reason}</div>
+              </div>
+            )}
+          </DialogHeader>
+          <DialogFooter className="flex gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setShowApproveChangeRequestModal(false)}
+              className="flex-1 sm:flex-none"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={confirmApproveChangeRequest}
+              className="flex-1 sm:flex-none bg-green-600 hover:bg-green-700"
+            >
+              <CheckCircle className="h-4 w-4 mr-2" />
+              Approve
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reject Change Request Confirmation Modal */}
+      <Dialog open={showRejectChangeRequestModal} onOpenChange={setShowRejectChangeRequestModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <X className="h-5 w-5 text-destructive" />
+              Reject Change Request
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to reject this change request?
+            </DialogDescription>
+            {changeRequestToAction && (
+              <div className="mt-2 p-3 bg-muted rounded-lg">
+                <div><strong>Field:</strong> {changeRequestToAction.field_name}</div>
+                <div><strong>Current:</strong> {changeRequestToAction.current_value}</div>
+                <div><strong>Requested:</strong> {changeRequestToAction.requested_value}</div>
+                <div><strong>Reason:</strong> {changeRequestToAction.reason}</div>
+              </div>
+            )}
+          </DialogHeader>
+          <DialogFooter className="flex gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setShowRejectChangeRequestModal(false)}
+              className="flex-1 sm:flex-none"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmRejectChangeRequest}
+              className="flex-1 sm:flex-none"
+            >
+              <X className="h-4 w-4 mr-2" />
+              Reject
             </Button>
           </DialogFooter>
         </DialogContent>

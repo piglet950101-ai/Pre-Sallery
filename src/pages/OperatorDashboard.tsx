@@ -534,8 +534,7 @@ const OperatorDashboard = () => {
           *,
           employees!inner(
             first_name,
-            last_name,
-            email
+            last_name
           ),
           companies!inner(
             name,
@@ -1410,9 +1409,6 @@ const OperatorDashboard = () => {
                           <div>
                             <div className="font-medium text-sm">
                               {fee.employees?.first_name} {fee.employees?.last_name}
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              {fee.employees?.email}
                             </div>
                             <div className="text-xs text-muted-foreground">
                               {t('footer.company')}: {fee.companies?.name} ({fee.companies?.rif})

@@ -31,7 +31,6 @@ interface EmployeeInfo {
   // Personal Information
   firstName: string;
   lastName: string;
-  email: string;
   phone: string;
   cedula: string;
   birthDate: Date | null;
@@ -71,10 +70,9 @@ interface EmployeeInfoFormProps {
   onCancel: () => void;
   isLoading?: boolean;
   initialData?: Partial<EmployeeInfo>;
-  checkEmailDuplicate?: (email: string) => Promise<boolean>;
 }
 
-export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialData, checkEmailDuplicate }: EmployeeInfoFormProps) => {
+export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialData }: EmployeeInfoFormProps) => {
   const { toast } = useToast();
   const { t, language } = useLanguage();
 
@@ -85,7 +83,6 @@ export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialD
     return {
       firstName: initialData?.firstName || "",
       lastName: initialData?.lastName || "",
-      email: initialData?.email || "",
       phone: initialData?.phone || "",
       cedula: initialData?.cedula || "",
       birthDate: initialData?.birthDate || null,
@@ -94,8 +91,8 @@ export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialD
       department: initialData?.department || "",
       employmentStartDate: initialData?.employmentStartDate || null,
       employmentType: initialData?.employmentType || "",
-      weeklyHours: initialData?.weeklyHours || 40,
-      monthlySalary: initialData?.monthlySalary || 5000,
+      weeklyHours: initialData?.weeklyHours || 0,
+      monthlySalary: initialData?.monthlySalary || 0,
       livingExpenses: initialData?.livingExpenses || 0,
       dependents: initialData?.dependents || 0,
       emergencyContact: initialData?.emergencyContact || "",
@@ -118,11 +115,10 @@ export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialD
   useEffect(() => {
     console.log("EmployeeInfoForm useEffect triggered with initialData:", initialData);
     console.log("Current formData before update:", formData);
-    if (initialData && (initialData.firstName || initialData.lastName || initialData.email)) {
+    if (initialData && (initialData.firstName || initialData.lastName)) {
       const newFormData = {
         firstName: initialData.firstName || "",
         lastName: initialData.lastName || "",
-        email: initialData.email || "",
         phone: initialData.phone || "",
         cedula: initialData.cedula || "",
         birthDate: initialData.birthDate || null,
@@ -131,8 +127,8 @@ export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialD
         department: initialData.department || "",
         employmentStartDate: initialData.employmentStartDate || null,
         employmentType: initialData.employmentType || "",
-        weeklyHours: initialData.weeklyHours || 40,
-        monthlySalary: initialData.monthlySalary || 5000,
+        weeklyHours: initialData.weeklyHours || 0,
+        monthlySalary: initialData.monthlySalary || 0,
         livingExpenses: initialData.livingExpenses || 0,
         dependents: initialData.dependents || 0,
         emergencyContact: initialData.emergencyContact || "",
@@ -162,7 +158,7 @@ export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialD
   const validateStep = (step: number): boolean => {
     switch (step) {
       case 1: // Personal Information
-        return !!(formData.firstName && formData.lastName && formData.email && formData.yearOfEmployment > 0 && formData.weeklyHours > 0 && formData.livingExpenses >= 0);
+        return !!(formData.firstName && formData.lastName && formData.yearOfEmployment > 0 && formData.weeklyHours > 0 && formData.livingExpenses >= 0);
       case 2: // Employment Information
         return !!(formData.position && formData.employmentStartDate && formData.employmentType && formData.monthlySalary > 0);
       case 3: // Financial Information
@@ -184,30 +180,6 @@ export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialD
         variant: "destructive"
       });
       return;
-    }
-    // On step 1, check for duplicate email before allowing to proceed
-    if (currentStep === 1 && checkEmailDuplicate) {
-      const email = String(formData.email || '').trim().toLowerCase();
-      if (email) {
-        try {
-          const isDuplicate = await checkEmailDuplicate(email);
-          if (isDuplicate) {
-            toast({
-              title: t('company.billing.duplicateEmail'),
-              description: t('company.billing.duplicateEmailDesc'),
-              variant: "destructive"
-            });
-            return;
-          }
-        } catch (err: any) {
-          toast({
-            title: t('company.billing.error'),
-            description: err?.message ?? (t('common.tryAgain') || 'Please try again'),
-            variant: "destructive"
-          });
-          return;
-        }
-      }
     }
     setCurrentStep(prev => Math.min(prev + 1, totalSteps));
   };
@@ -259,17 +231,6 @@ export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialD
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="email">{t('employeeForm.email')} *</Label>
-              <Input
-                id="email"
-                type="email"
-                value={formData.email}
-                onChange={(e) => updateField("email", e.target.value)}
-                placeholder={language === 'en' ? 'mary@example.com' : 'maria@ejemplo.com'}
-              />
-              <div className="text-xs text-gray-500">Debug: {formData.email}</div>
-            </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">

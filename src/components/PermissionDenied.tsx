@@ -1,7 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertTriangle, ArrowLeft, LogOut } from "lucide-react";
-import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { useNavigate } from "react-router-dom";
@@ -12,19 +11,18 @@ interface PermissionDeniedProps {
 }
 
 const PermissionDenied = ({ requiredRole, userRole }: PermissionDeniedProps) => {
-  const { t } = useLanguage();
   const { user } = useAuth();
   const navigate = useNavigate();
 
   const getRoleDisplayName = (role: string | null) => {
-    if (!role) return t('common.unknown') ?? 'Unknown';
+    if (!role) return 'Unknown';
     switch (role) {
       case 'employee':
-        return t('register.employee') ?? 'Employee';
+        return 'Employee';
       case 'company':
-        return t('register.company') ?? 'Company ';
+        return 'Company';
       case 'operator':
-        return t('register.operator') ?? 'Platform Operator';
+        return 'Platform Operator';
       default:
         return role;
     }
@@ -35,16 +33,13 @@ const PermissionDenied = ({ requiredRole, userRole }: PermissionDeniedProps) => 
     
     switch (requiredRole) {
       case 'employee':
-        return t('permission.denied.employee')?.replace('{userRole}', userRoleDisplay) ?? 
-          `This page is only accessible to employees. You are currently logged in as a ${userRoleDisplay}.`;
+        return `This page is only accessible to employees. You are currently logged in as a ${userRoleDisplay}.`;
       case 'company':
-        return t('permission.denied.company')?.replace('{userRole}', userRoleDisplay) ?? 
-          `This page is only accessible to company representatives. You are currently logged in as a ${userRoleDisplay}.`;
+        return `This page is only accessible to company representatives. You are currently logged in as a ${userRoleDisplay}.`;
       case 'operator':
-        return t('permission.denied.operator')?.replace('{userRole}', userRoleDisplay) ?? 
-          `This page is only accessible to platform operators. You are currently logged in as a ${userRoleDisplay}.`;
+        return `This page is only accessible to platform operators. You are currently logged in as a ${userRoleDisplay}.`;
       default:
-        return t('permission.denied.message') ?? 'You do not have permission to access this page.';
+        return 'You do not have permission to access this page.';
     }
   };
 
@@ -65,7 +60,7 @@ const PermissionDenied = ({ requiredRole, userRole }: PermissionDeniedProps) => 
             <AlertTriangle className="w-8 h-8 text-destructive" />
           </div>
           <CardTitle className="text-2xl text-destructive">
-            {t('permission.denied.title') ?? 'Access Denied'}
+            Access Denied
           </CardTitle>
           <CardDescription className="text-base">
             {getErrorMessage()}
@@ -73,7 +68,7 @@ const PermissionDenied = ({ requiredRole, userRole }: PermissionDeniedProps) => 
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="text-center text-sm text-muted-foreground">
-            {t('permission.denied.contactAdmin') ?? 'Please contact your administrator if you believe this is an error.'}
+            Please contact your administrator if you believe this is an error.
           </div>
           <div className="flex flex-col space-y-2">
             <Button 
@@ -82,7 +77,7 @@ const PermissionDenied = ({ requiredRole, userRole }: PermissionDeniedProps) => 
               className="w-full"
             >
               <ArrowLeft className="w-4 h-4 mr-2" />
-              {t('permission.denied.goBack') ?? 'Go Back'}
+              Go Back
             </Button>
             <Button 
               variant="destructive" 
@@ -90,7 +85,7 @@ const PermissionDenied = ({ requiredRole, userRole }: PermissionDeniedProps) => 
               className="w-full"
             >
               <LogOut className="w-4 h-4 mr-2" />
-              {t('permission.denied.logout') ?? 'Logout'}
+              Logout
             </Button>
           </div>
         </CardContent>

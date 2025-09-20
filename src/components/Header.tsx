@@ -236,16 +236,6 @@ const Header = ({ showNavigation = true, className = "" }: HeaderProps) => {
             )}
             
             {/* Role-specific navigation items */}
-            
-            {actualUserRole === 'company' && (
-              <Link 
-                to="/company/configuration" 
-                className="text-muted-foreground hover:text-foreground transition-colors flex items-center space-x-2"
-              >
-                <Settings className="h-4 w-4" />
-                <span>{t('company.configuration') ?? 'Configuration'}</span>
-              </Link>
-            )}
           </div>
           
           {/* Right Side Actions */}
@@ -269,10 +259,22 @@ const Header = ({ showNavigation = true, className = "" }: HeaderProps) => {
                   <p className="text-xs text-muted-foreground">{getRoleDisplayName(actualUserRole)}</p>
                 </div>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleProfile} className="flex items-center space-x-2">
-                  <UserCircle className="h-4 w-4" />
-                  <span>{t('nav.profile')}</span>
-                </DropdownMenuItem>
+                {actualUserRole === 'employee' && (
+                  <DropdownMenuItem asChild>
+                    <Link to="/profile" className="flex items-center space-x-2">
+                      <User className="h-4 w-4" />
+                      <span>{t('nav.profile') ?? 'Profile'}</span>
+                    </Link>
+                  </DropdownMenuItem>
+                )}
+                {actualUserRole === 'company' && (
+                  <DropdownMenuItem asChild>
+                    <Link to="/company/configuration" className="flex items-center space-x-2">
+                      <Settings className="h-4 w-4" />
+                      <span>{t('company.configuration') ?? 'Configuration'}</span>
+                    </Link>
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem onClick={handleLogout} className="flex items-center space-x-2 text-red-600">
                   <LogOut className="h-4 w-4" />
                   <span>{t('nav.logout')}</span>

@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useAuth } from "@/contexts/AuthContext";
 import Header from "@/components/Header";
 import ChangeRequestsList from "@/components/ChangeRequestsList";
 import ScrollToTopButton from "@/components/ScrollToTopButton";
@@ -66,7 +67,7 @@ interface Employee {
   department?: string;
   manager?: string;
   employee_id?: string;
-  hire_date?: string;
+  employment_start_date?: string;
   account_holder?: string;
   routing_number?: string;
   pago_movil_number?: string;
@@ -94,6 +95,7 @@ interface VerificationData {
 
 const Profile = () => {
   const { t, language } = useLanguage();
+  const { user } = useAuth();
   const { toast } = useToast();
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -186,9 +188,9 @@ const Profile = () => {
 
   // Initialize email data
   const initializeEmailData = () => {
-    if (employee) {
+    if (user) {
       setEmailData({
-        email: employee.email || '',
+        email: user.email || '',
         reason: ''
       });
     }
@@ -486,17 +488,17 @@ const Profile = () => {
       console.log('=== EMAIL SAVE DEBUG ===');
       console.log('Employee:', employee);
       console.log('Email data:', emailData);
-      console.log('Email changed:', emailData.email !== employee?.email);
+      console.log('Email changed:', emailData.email !== user?.email);
       console.log('========================');
 
-      if (!employee) {
-        console.log('No employee data, returning');
+      if (!user) {
+        console.log('No user data, returning');
         return;
       }
 
-      const emailChanged = emailData.email.trim() !== employee.email?.trim();
+      const emailChanged = emailData.email.trim() !== user.email?.trim();
       console.log('Email changed check:', emailChanged);
-      console.log('Current email:', employee.email);
+      console.log('Current email:', user.email);
       console.log('New email:', emailData.email);
 
       if (emailChanged) {
@@ -529,10 +531,10 @@ const Profile = () => {
         console.log('Creating change request with data:', {
           employee_id: employee.id,
           field_name: 'email',
-          current_value: employee.email,
+          current_value: user.email,
           requested_value: emailData.email,
           reason: emailData.reason,
-          details: `Email change request from ${employee.email} to ${emailData.email}`,
+          details: `Email change request from ${user.email} to ${emailData.email}`,
           category: 'contact',
           priority: 'normal'
         });
@@ -540,10 +542,10 @@ const Profile = () => {
         const result = await changeRequestService.createChangeRequest({
           employee_id: employee.id,
           field_name: 'email',
-          current_value: employee.email,
+          current_value: user.email,
           requested_value: emailData.email,
           reason: emailData.reason,
-          details: `Email change request from ${employee.email} to ${emailData.email}`,
+          details: `Email change request from ${user.email} to ${emailData.email}`,
           category: 'contact',
           priority: 'normal'
         });
@@ -638,13 +640,14 @@ const Profile = () => {
           priority: 'normal'
         });
 
+        // Create single change request for full name change
         const result = await changeRequestService.createChangeRequest({
           employee_id: employee.id,
-          field_name: 'first_name',
-          current_value: employee.first_name,
-          requested_value: fullNameData.firstName,
+          field_name: 'first_name', // Use first_name as field name
+          current_value: `${employee.first_name} ${employee.last_name}`,
+          requested_value: `${fullNameData.firstName} ${fullNameData.lastName}`,
           reason: fullNameData.reason,
-          details: `Full Name Change Request: ${employee.first_name} ${employee.last_name} → ${fullNameData.firstName} ${fullNameData.lastName}`,
+          details: `FULL_NAME_CHANGE: ${employee.first_name} ${employee.last_name} → ${fullNameData.firstName} ${fullNameData.lastName}`, // Special marker in details
           category: 'profile',
           priority: 'normal'
         });
@@ -994,8 +997,8 @@ const Profile = () => {
         const firstNameResult = await changeRequestService.createChangeRequest({
           employee_id: employee.id,
           field_name: 'first_name',
-          current_value: employee.first_name,
-          requested_value: changeRequestFirstName.trim(),
+          current_value: `${employee.first_name} ${employee.last_name}`,
+          requested_value: `${changeRequestFirstName.trim()} ${changeRequestLastName.trim()}`,
           reason: changeRequestReason,
           details: `Full Name Change - First Name: ${changeRequestFirstName.trim()}, Last Name: ${changeRequestLastName.trim()}`,
           category: 'personal',
@@ -1013,8 +1016,8 @@ const Profile = () => {
         const lastNameResult = await changeRequestService.createChangeRequest({
           employee_id: employee.id,
           field_name: 'last_name',
-          current_value: employee.last_name,
-          requested_value: changeRequestLastName.trim(),
+          current_value: `${employee.first_name} ${employee.last_name}`,
+          requested_value: `${changeRequestFirstName.trim()} ${changeRequestLastName.trim()}`,
           reason: changeRequestReason,
           details: `Full Name Change - First Name: ${changeRequestFirstName.trim()}, Last Name: ${changeRequestLastName.trim()}`,
           category: 'personal',
@@ -1103,7 +1106,7 @@ const Profile = () => {
   const getFieldCategory = (field: string): 'profile' | 'financial' | 'personal' | 'work' | 'contact' => {
     const financialFields = ['bank_name', 'account_number', 'account_type'];
     const personalFields = ['first_name', 'last_name', 'cedula', 'date_of_birth', 'email'];
-    const workFields = ['monthly_salary', 'weekly_hours', 'position', 'department', 'employee_id', 'hire_date'];
+    const workFields = ['monthly_salary', 'weekly_hours', 'position', 'department', 'employee_id', 'employment_start_date'];
     const contactFields = ['phone', 'password'];
 
     if (financialFields.includes(field)) return 'financial';
@@ -1346,82 +1349,12 @@ const Profile = () => {
             </CardHeader>
             <CardContent className="space-y-4">
                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                 {/* Email Field */}
+                 {/* Email Field - Read Only */}
                  <div>
                    <Label className="text-sm font-medium text-muted-foreground">{t('employee.email')}</Label>
-                   {!isEditingEmail ? (
-                     <div className="space-y-2">
-                       <div className="text-lg font-semibold py-2 px-3 bg-muted/50 rounded-md">
-                         {employee?.email || 'Not provided'}
-                       </div>
-                       <div className="flex items-center space-x-2">
-                         <Button
-                           size="sm"
-                           variant="outline"
-                           onClick={handleEditEmail}
-                           className="text-xs"
-                         >
-                           <Edit className="h-3 w-3 mr-1" />
-                           {t('common.edit')}
-                         </Button>
-                         {getChangeRequestStatus('email') && (
-                           <Badge variant="outline" className="text-xs">
-                             <Clock className="h-3 w-3 mr-1" />
-                             {t('employee.profile.requestPending')}
-                           </Badge>
-                         )}
-                       </div>
-                     </div>
-                   ) : (
-                     <div className="space-y-3">
-                       <div>
-                         <Label className="text-sm font-medium text-muted-foreground">
-                           {t('employee.profile.newEmail')}
-                         </Label>
-                         <Input
-                           type="email"
-                           value={emailData.email}
-                           onChange={(e) => setEmailData(prev => ({ ...prev, email: e.target.value }))}
-                           placeholder={t('employee.profile.emailPlaceholder')}
-                           className="mt-1"
-                         />
-                       </div>
-                       <div>
-                         <Label className="text-sm font-medium text-muted-foreground">
-                           {t('employee.profile.reasonForChange')} <span className="text-red-500">*</span>
-                         </Label>
-                         <Textarea
-                           value={emailData.reason}
-                           onChange={(e) => setEmailData(prev => ({ ...prev, reason: e.target.value }))}
-                           placeholder={t('employee.profile.reasonPlaceholder')}
-                           className="mt-1"
-                           rows={3}
-                         />
-                       </div>
-                       <div className="text-xs text-muted-foreground">
-                         {t('employee.profile.changeRequestNote')}
-                       </div>
-                       <div className="flex space-x-1">
-                         <Button
-                           size="sm"
-                           variant="outline"
-                           onClick={handleCancelEmailEdit}
-                           className="text-xs"
-                         >
-                           <X className="h-3 w-3 mr-1" />
-                           {t('common.cancel')}
-                         </Button>
-                         <Button
-                           size="sm"
-                           onClick={handleSaveEmail}
-                           className="text-xs"
-                         >
-                           <Send className="h-3 w-3 mr-1" />
-                           {t('employee.profile.submitRequest')}
-                         </Button>
-                       </div>
-                     </div>
-                   )}
+                   <div className="text-lg font-semibold py-2 px-3 bg-muted/50 rounded-md">
+                     {user?.email || 'Not provided'}
+                   </div>
                  </div>
 
                  {/* Full Name Field */}
@@ -1838,12 +1771,12 @@ const Profile = () => {
                   </div>
                 </div>
                 
-                {/* Third Line: Hire Date */}
+                {/* Third Line: Employment Start Date */}
                 <div className="grid grid-cols-1 gap-4">
                   <div>
                     <Label className="text-sm font-medium text-muted-foreground">{t('employee.profile.hireDate')}</Label>
                     <div className="text-lg font-semibold py-2 px-3 bg-muted/50 rounded-md">
-                      {employee?.hire_date ? new Date(employee.hire_date).toLocaleDateString() : 'Not specified'}
+                      {employee?.employment_start_date ? new Date(employee.employment_start_date).toLocaleDateString() : 'Not specified'}
                     </div>
                   </div>
                 </div>
