@@ -8,13 +8,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
-import { 
-  User, 
-  Mail, 
-  Calendar as CalendarIcon, 
-  Clock, 
-  DollarSign, 
-  Home, 
+import {
+  User,
+  Mail,
+  Calendar as CalendarIcon,
+  Clock,
+  DollarSign,
+  Home,
   Phone,
   MapPin,
   Building,
@@ -36,7 +36,7 @@ interface EmployeeInfo {
   cedula: string;
   birthDate: Date | null;
   yearOfEmployment: number;
-  
+
   // Employment Information
   position: string;
   department: string;
@@ -44,24 +44,24 @@ interface EmployeeInfo {
   employmentType: string; // "full-time" | "part-time" | "contract"
   weeklyHours: number;
   monthlySalary: number;
-  
+
   // Financial Information
   livingExpenses: number;
   dependents: number;
   emergencyContact: string;
   emergencyPhone: string;
-  
+
   // Address Information
   address: string;
   city: string;
   state: string;
   postalCode: string;
-  
+
   // Banking Information
   bankName: string;
   accountNumber: string;
   accountType: string; // "savings" | "checking"
-  
+
   // Additional Information
   notes: string;
 }
@@ -77,32 +77,38 @@ interface EmployeeInfoFormProps {
 export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialData, checkEmailDuplicate }: EmployeeInfoFormProps) => {
   const { toast } = useToast();
   const { t, language } = useLanguage();
-  const [formData, setFormData] = useState<EmployeeInfo>({
-    firstName: initialData?.firstName || "",
-    lastName: initialData?.lastName || "",
-    email: initialData?.email || "",
-    phone: initialData?.phone || "",
-    cedula: initialData?.cedula || "",
-    birthDate: initialData?.birthDate || null,
-    yearOfEmployment: initialData?.yearOfEmployment || 0,
-    position: initialData?.position || "",
-    department: initialData?.department || "",
-    employmentStartDate: initialData?.employmentStartDate || null,
-    employmentType: initialData?.employmentType || "",
-    weeklyHours: initialData?.weeklyHours || 40,
-    monthlySalary: initialData?.monthlySalary || 0,
-    livingExpenses: initialData?.livingExpenses || 0,
-    dependents: initialData?.dependents || 0,
-    emergencyContact: initialData?.emergencyContact || "",
-    emergencyPhone: initialData?.emergencyPhone || "",
-    address: initialData?.address || "",
-    city: initialData?.city || "",
-    state: initialData?.state || "",
-    postalCode: initialData?.postalCode || "",
-    bankName: initialData?.bankName || "",
-    accountNumber: initialData?.accountNumber || "",
-    accountType: initialData?.accountType || "",
-    notes: initialData?.notes || "",
+
+  console.log("EmployeeInfoForm rendered with initialData:", initialData);
+
+  const [formData, setFormData] = useState<EmployeeInfo>(() => {
+    console.log("Initializing formData with initialData:", initialData);
+    return {
+      firstName: initialData?.firstName || "",
+      lastName: initialData?.lastName || "",
+      email: initialData?.email || "",
+      phone: initialData?.phone || "",
+      cedula: initialData?.cedula || "",
+      birthDate: initialData?.birthDate || null,
+      yearOfEmployment: initialData?.yearOfEmployment || 0,
+      position: initialData?.position || "",
+      department: initialData?.department || "",
+      employmentStartDate: initialData?.employmentStartDate || null,
+      employmentType: initialData?.employmentType || "",
+      weeklyHours: initialData?.weeklyHours || 40,
+      monthlySalary: initialData?.monthlySalary || 5000,
+      livingExpenses: initialData?.livingExpenses || 0,
+      dependents: initialData?.dependents || 0,
+      emergencyContact: initialData?.emergencyContact || "",
+      emergencyPhone: initialData?.emergencyPhone || "",
+      address: initialData?.address || "",
+      city: initialData?.city || "",
+      state: initialData?.state || "",
+      postalCode: initialData?.postalCode || "",
+      bankName: initialData?.bankName || "",
+      accountNumber: initialData?.accountNumber || "",
+      accountType: initialData?.accountType || "",
+      notes: initialData?.notes || "",
+    };
   });
 
   const [currentStep, setCurrentStep] = useState(1);
@@ -111,7 +117,8 @@ export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialD
   // Update form data when initialData changes
   useEffect(() => {
     console.log("EmployeeInfoForm useEffect triggered with initialData:", initialData);
-    if (initialData) {
+    console.log("Current formData before update:", formData);
+    if (initialData && (initialData.firstName || initialData.lastName || initialData.email)) {
       const newFormData = {
         firstName: initialData.firstName || "",
         lastName: initialData.lastName || "",
@@ -125,7 +132,7 @@ export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialD
         employmentStartDate: initialData.employmentStartDate || null,
         employmentType: initialData.employmentType || "",
         weeklyHours: initialData.weeklyHours || 40,
-        monthlySalary: initialData.monthlySalary || 0,
+        monthlySalary: initialData.monthlySalary || 5000,
         livingExpenses: initialData.livingExpenses || 0,
         dependents: initialData.dependents || 0,
         emergencyContact: initialData.emergencyContact || "",
@@ -141,6 +148,9 @@ export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialD
       };
       console.log("Setting form data to:", newFormData);
       setFormData(newFormData);
+      console.log("Form data set, component should re-render");
+    } else {
+      console.log("No initialData provided or initialData is empty, keeping current formData");
     }
   }, [initialData]);
 
@@ -148,8 +158,6 @@ export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialD
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  // Debug current form data
-  console.log("EmployeeInfoForm current formData:", formData);
 
   const validateStep = (step: number): boolean => {
     switch (step) {
@@ -221,6 +229,8 @@ export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialD
   };
 
   const renderStepContent = () => {
+    console.log("renderStepContent called with formData:", formData);
+
     switch (currentStep) {
       case 1:
         return (
@@ -234,6 +244,8 @@ export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialD
                   onChange={(e) => updateField("firstName", e.target.value)}
                   placeholder={language === 'en' ? 'Mary' : 'María'}
                 />
+
+                <div className="text-xs text-gray-500">Debug: {formData.firstName}</div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="lastName">{t('employeeForm.lastName')} *</Label>
@@ -243,6 +255,7 @@ export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialD
                   onChange={(e) => updateField("lastName", e.target.value)}
                   placeholder={language === 'en' ? 'Smith' : 'González'}
                 />
+                <div className="text-xs text-gray-500">Debug: {formData.lastName}</div>
               </div>
             </div>
 
@@ -255,6 +268,7 @@ export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialD
                 onChange={(e) => updateField("email", e.target.value)}
                 placeholder={language === 'en' ? 'mary@example.com' : 'maria@ejemplo.com'}
               />
+              <div className="text-xs text-gray-500">Debug: {formData.email}</div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -589,6 +603,8 @@ export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialD
           {t('employeeForm.detailSubtitle')}
         </CardDescription>
         
+
+
         {/* Fee Notification */}
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-4">
           <div className="flex items-center space-x-2">
@@ -605,7 +621,7 @@ export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialD
       <CardContent className="space-y-6">
         {/* Progress Bar */}
         <div className="w-full bg-muted rounded-full h-2">
-          <div 
+          <div
             className="bg-primary h-2 rounded-full transition-all duration-300"
             style={{ width: `${(currentStep / totalSteps) * 100}%` }}
           />
@@ -616,14 +632,14 @@ export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialD
 
         {/* Navigation Buttons */}
         <div className="flex justify-between pt-6">
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             onClick={handlePrevious}
             disabled={currentStep === 1}
           >
             {t('common.previous')}
           </Button>
-          
+
           <div className="flex space-x-2">
             <Button variant="outline" onClick={onCancel}>
               {t('common.cancel')}

@@ -978,9 +978,11 @@ const OperatorDashboard = () => {
           <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="pending" className="relative">
               {t('operator.pendingAdvances')}
-              <Badge variant="destructive" className="ml-2 h-5 w-5 flex items-center justify-center p-0 text-xs">
-                {pendingAdvances.length}
-              </Badge>
+              {pendingAdvances.length > 0 && (
+                <Badge variant="destructive" className="ml-2 h-5 w-5 flex items-center justify-center p-0 text-xs">
+                  {pendingAdvances.length}
+                </Badge>
+              )}
             </TabsTrigger>
             <TabsTrigger value="batches">{t('operator.processedBatches')}</TabsTrigger>
             <TabsTrigger value="confirmations">{t('operator.confirmationsTab')}</TabsTrigger>

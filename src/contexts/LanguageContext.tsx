@@ -643,6 +643,9 @@ const translations: Translations = {
   'landing.pricing.employee.cta': { en: 'Activate My Account', es: 'Activar Mi Cuenta' },
   'landing.pricing.companyExampleLabel': { en: 'Company Example', es: 'Ejemplo de Empresa' },
   'landing.pricing.employeeExampleLabel': { en: 'Employee Example', es: 'Ejemplo de Empleado' },
+  'landing.pricing.enterprise.title': { en: 'Large Companies?', es: '¿Empresas grandes?' },
+  'landing.pricing.enterprise.description': { en: 'Custom enterprise plans for +500 employees with special discounts and advanced features.', es: 'Planes empresariales personalizados para +500 empleados con descuentos especiales y características avanzadas.' },
+  'landing.pricing.enterprise.cta': { en: 'Contact Enterprise Sales', es: 'Contactar Ventas Empresariales' },
   // Employee error messages
   'employee.error.amountExceeds': { en: 'Amount exceeds available balance', es: 'El monto excede el saldo disponible' },
   'employee.dashboard': { en: 'Dashboard', es: 'Panel' },

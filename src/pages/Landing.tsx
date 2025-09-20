@@ -570,12 +570,12 @@ const Landing = () => {
           </div>
 
           <div className="text-center mt-12 space-y-4">
-            <h3 className="text-2xl font-bold text-foreground">¿Empresas grandes?</h3>
+            <h3 className="text-2xl font-bold text-foreground">{t('landing.pricing.enterprise.title')}</h3>
             <p className="text-muted-foreground">
-              Planes empresariales personalizados para +500 empleados con descuentos especiales y características avanzadas.
+              {t('landing.pricing.enterprise.description')}
             </p>
             <Button variant="outline" size="lg">
-              Contactar Ventas Empresariales
+              {t('landing.pricing.enterprise.cta')}
             </Button>
           </div>
         </div>
