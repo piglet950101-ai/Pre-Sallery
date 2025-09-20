@@ -137,18 +137,22 @@ export class EmployeeService {
       await supabase
         .from('audit_logs')
         .insert({
-          table_name: 'employees',
-          record_id: data.employee_id,
-          action: 'update',
-          changes: updateData,
           user_id: user.id,
-          user_type: 'company_admin',
+          employee_id: data.employee_id,
+          company_id: data.company_id,
+          action: 'update_employee_field',
+          resource_type: 'employee_profile',
+          resource_id: data.employee_id,
+          old_values: { [data.field_name]: employee[data.field_name] },
+          new_values: { [data.field_name]: data.field_value },
           metadata: {
             field_name: data.field_name,
             old_value: employee[data.field_name],
             new_value: data.field_value,
             company_id: data.company_id
-          }
+          },
+          category: 'profile',
+          severity: 'info'
         })
 
       return {

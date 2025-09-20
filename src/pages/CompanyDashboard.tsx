@@ -8,10 +8,11 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { EmployeeInfoForm } from "@/components/EmployeeInfoForm";
 import { SimpleEmployeeForm } from "@/components/SimpleEmployeeForm";
 import Header from "@/components/Header";
-import {
-  Users,
-  DollarSign,
-  TrendingUp,
+import ScrollToTopButton from "@/components/ScrollToTopButton";
+import { 
+  Users, 
+  DollarSign, 
+  TrendingUp, 
   Clock,
   FileText,
   Settings,
@@ -228,7 +229,7 @@ const CompanyDashboard = () => {
   const [selectedCsvRows, setSelectedCsvRows] = useState<Set<number>>(new Set());
   const [csvCurrentPage, setCsvCurrentPage] = useState(1);
   const [csvItemsPerPage] = useState(10);
-
+  
   // Report states
   const [reportPeriod, setReportPeriod] = useState('thisMonth');
   const [reportType, setReportType] = useState('comprehensive');
@@ -240,12 +241,12 @@ const CompanyDashboard = () => {
   const [showFormatDialog, setShowFormatDialog] = useState(false);
   const [pendingExportType, setPendingExportType] = useState<string | null>(null);
   const [selectedExportFormat, setSelectedExportFormat] = useState<'excel' | 'csv' | 'pdf'>('excel');
-
+  
   // Billing states
   const [invoices, setInvoices] = useState<any[]>([]);
   const [isLoadingInvoices, setIsLoadingInvoices] = useState(false);
   const [billingPeriod, setBillingPeriod] = useState('current');
-
+  
   // Payment states
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('bank_transfer');
@@ -254,7 +255,7 @@ const CompanyDashboard = () => {
   // Payment history pagination
   const [paymentPage, setPaymentPage] = useState(1);
   const [paymentsPerPage, setPaymentsPerPage] = useState(5);
-
+  
   // Billing state management
   const [paymentHistory, setPaymentHistory] = useState<any[]>([]);
   const [totalOutstanding, setTotalOutstanding] = useState(0);
@@ -323,8 +324,8 @@ const CompanyDashboard = () => {
       .filter(advance => {
         const advanceDate = new Date(advance.created_at);
         const now = new Date();
-        return advanceDate.getMonth() === now.getMonth() &&
-          advanceDate.getFullYear() === now.getFullYear();
+        return advanceDate.getMonth() === now.getMonth() && 
+               advanceDate.getFullYear() === now.getFullYear();
       })
       .reduce((sum, advance) => sum + advance.requested_amount, 0),
     // Calculate last month advances for comparison
@@ -333,24 +334,24 @@ const CompanyDashboard = () => {
         const advanceDate = new Date(advance.created_at);
         const now = new Date();
         const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1);
-        return advanceDate.getMonth() === lastMonth.getMonth() &&
-          advanceDate.getFullYear() === lastMonth.getFullYear();
+        return advanceDate.getMonth() === lastMonth.getMonth() && 
+               advanceDate.getFullYear() === lastMonth.getFullYear();
       })
       .reduce((sum, advance) => sum + advance.requested_amount, 0)
   };
 
   // Calculate percentage change for monthly advances
-  const monthlyChangePercent = companyData.lastMonthAdvances > 0
+  const monthlyChangePercent = companyData.lastMonthAdvances > 0 
     ? ((companyData.monthlyAdvances - companyData.lastMonthAdvances) / companyData.lastMonthAdvances) * 100
     : 0;
 
   // Calculate UNPAID advances and fees for billing
-  const unpaidAdvances = activeAdvances.filter(advance =>
+  const unpaidAdvances = activeAdvances.filter(advance => 
     advance.status === 'pending' || advance.status === 'approved' || advance.status === 'processing'
     // Exclude 'completed' and 'failed' advances as they are either paid or rejected
   );
-
-  const unpaidEmployeeFees = employeeFees.filter(fee =>
+  
+  const unpaidEmployeeFees = employeeFees.filter(fee => 
     fee.status === 'pending' || fee.status === 'unpaid'
   );
 
@@ -359,11 +360,11 @@ const CompanyDashboard = () => {
     totalAdvances: activeAdvances.reduce((sum, advance) => sum + advance.requested_amount, 0),
     totalAdvanceCount: activeAdvances.length,
     totalFees: activeAdvances.reduce((sum, advance) => sum + (advance.fee_amount || 0), 0),
-    averageFeeRate: activeAdvances.length > 0
+    averageFeeRate: activeAdvances.length > 0 
       ? (activeAdvances.reduce((sum, advance) => sum + (((advance.fee_amount || 0) / Math.max(advance.requested_amount || 0, 1)) * 100), 0) / activeAdvances.length)
       : 0,
     activeEmployees: employees.filter(emp => emp.is_active).length,
-    employeeParticipationRate: employees.length > 0
+    employeeParticipationRate: employees.length > 0 
       ? (employees.filter(emp => emp.is_active && activeAdvances.some(adv => adv.employee_id === emp.id)).length / employees.length) * 100
       : 0,
     averagePerEmployee: employees.filter(emp => emp.is_active).length > 0
@@ -487,20 +488,20 @@ const CompanyDashboard = () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-
+      
       const { data: companyData, error: companyError } = await supabase
         .from("companies")
         .select("*")
         .eq("auth_user_id", user.id)
         .single();
-
+      
       if (companyError || !companyData) {
         console.error('Error refreshing company data:', companyError);
         return;
       }
-
+      
       setCompany(companyData);
-
+      
       toast({
         title: t('company.billing.dataUpdated'),
         description: t('company.billing.dataUpdatedDesc'),
@@ -527,20 +528,20 @@ const CompanyDashboard = () => {
   const fetchPaymentHistory = async () => {
     try {
       setIsLoadingPayments(true);
-
+      
       // Get current company user
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         throw new Error("Usuario no autenticado");
       }
-
+      
       // Get company ID
       const { data: companyData, error: companyError } = await supabase
         .from("companies")
         .select("id")
         .eq("auth_user_id", user.id)
         .single();
-
+      
       if (companyError) {
         console.error("Error fetching company data:", companyError);
         throw new Error(`Failed to fetch company data: ${companyError.message}`);
@@ -549,18 +550,18 @@ const CompanyDashboard = () => {
       if (!companyData) {
         throw new Error("No company found for this user. Please contact support.");
       }
-
+      
       // Fetch payments for this company
       const { data: payments, error: paymentsError } = await supabase
         .from("company_payments")
         .select("*")
         .eq("company_id", companyData.id)
         .order("created_at", { ascending: false });
-
+      
       if (paymentsError) {
         throw new Error(t('company.billing.couldNotLoadPayments'));
       }
-
+      
       // Transform data for UI
       const transformedPayments = payments.map(payment => ({
         id: payment.id,
@@ -573,14 +574,14 @@ const CompanyDashboard = () => {
         paymentMethod: payment.payment_method,
         paymentDetails: payment.payment_details
       }));
-
+      
       setPaymentHistory(transformedPayments);
-
+      
       // Calculate total outstanding
       const pendingPayments = transformedPayments.filter(p => p.status === 'pending');
       const totalPending = pendingPayments.reduce((sum, p) => sum + p.amount, 0);
       setTotalOutstanding(totalPending);
-
+      
       // Set last payment date
       const lastPaidPayment = transformedPayments.find(p => p.status === 'paid');
       if (lastPaidPayment && lastPaidPayment.paidDate) {
@@ -594,7 +595,7 @@ const CompanyDashboard = () => {
           console.warn('Invalid date format for lastPaymentDate:', lastPaidPayment.paidDate);
         }
       }
-
+      
     } catch (error: any) {
       console.error('Error fetching payment history:', error);
       toast({
@@ -720,33 +721,33 @@ const CompanyDashboard = () => {
       // Get current company user
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-
+      
       // Get company ID
       const { data: companyData, error: companyError } = await supabase
         .from("companies")
         .select("id")
         .eq("auth_user_id", user.id)
         .single();
-
+      
       if (companyError || !companyData) return;
-
+      
       // Check if payments already exist
       const { data: existingPayments } = await supabase
         .from("company_payments")
         .select("id")
         .eq("company_id", companyData.id)
         .limit(1);
-
+      
       if (existingPayments && existingPayments.length > 0) return; // Payments already exist
-
+      
       // Create sample payment records
       const { error: insertError } = await supabase
         .from("company_payments")
         .insert([
           {
             company_id: companyData.id,
-            amount: 1250.00,
-            status: 'paid',
+        amount: 1250.00,
+        status: 'paid',
             payment_method: 'bank_transfer',
             payment_details: '0102-1234-5678-9012',
             paid_date: '2024-01-14',
@@ -756,8 +757,8 @@ const CompanyDashboard = () => {
           },
           {
             company_id: companyData.id,
-            amount: 1180.00,
-            status: 'pending',
+        amount: 1180.00,
+        status: 'pending',
             payment_method: null,
             payment_details: null,
             paid_date: null,
@@ -766,7 +767,7 @@ const CompanyDashboard = () => {
             due_date: '2024-02-01'
           }
         ]);
-
+      
       if (insertError) {
         console.error('Error creating initial payments:', insertError);
       }
@@ -786,28 +787,28 @@ const CompanyDashboard = () => {
   useEffect(() => {
     let companyId: string | null = null;
     let channel: any = null;
-
+    
     const fetchEmployees = async () => {
       try {
         setIsLoadingEmployees(true);
-
+        
         // Get current company user
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
           throw new Error("Usuario no autenticado");
         }
-
+        
         // Get company data from companies table
         const { data: companyData, error: companyError } = await supabase
           .from("companies")
           .select("*")
           .eq("auth_user_id", user.id)
           .single();
-
+        
         if (companyError || !companyData) {
           throw new Error(t('company.billing.couldNotLoadEmployees'));
         }
-
+        
         companyId = companyData.id;
         setCompany(companyData);
         // Load persisted recent reports for this company
@@ -824,26 +825,26 @@ const CompanyDashboard = () => {
         } catch (error) {
           console.error('Error loading change requests:', error);
         }
-
+        
         // Fetch employees for this company
         const { data: employeesData, error: employeesError } = await supabase
           .from("employees")
           .select("*")
           .eq("company_id", companyId)
           .order("created_at", { ascending: false });
-
+        
         if (employeesError) {
           throw new Error(`Error al cargar empleados: ${employeesError.message}`);
         }
-
+        
         setEmployees(employeesData || []);
-
+        
         // Fetch employee fees for this company
         fetchEmployeeFees();
 
         // Create monthly employee fees if they don't exist
         setTimeout(() => createMonthlyEmployeeFees(), 1000);
-
+        
         // Fetch advances for this company
         const { data: advancesData, error: advancesError } = await supabase
           .from("advance_transactions")
@@ -857,15 +858,15 @@ const CompanyDashboard = () => {
           `)
           .eq("company_id", companyId)
           .order("created_at", { ascending: false });
-
+        
         if (advancesError) {
           console.error("Error fetching advances:", advancesError);
         } else {
           setAdvances(advancesData || []);
         }
-
+        
         setIsLoadingAdvances(false);
-
+        
         // Set up real-time subscription for employee updates
         if (companyId) {
           channel = supabase
@@ -879,15 +880,15 @@ const CompanyDashboard = () => {
                 filter: `company_id=eq.${companyId}`
               },
               (payload) => {
-
+                
                 if (payload.eventType === 'UPDATE') {
                   // Update the specific employee in the list
-                  setEmployees(prevEmployees =>
-                    prevEmployees.map(emp =>
+                  setEmployees(prevEmployees => 
+                    prevEmployees.map(emp => 
                       emp.id === payload.new.id ? { ...emp, ...payload.new } as Employee : emp
                     )
                   );
-
+                  
                   // Show notification for status changes
                   if (payload.old.is_active !== payload.new.is_active) {
                     const employeeName = `${payload.new.first_name} ${payload.new.last_name}`;
@@ -903,7 +904,7 @@ const CompanyDashboard = () => {
                       });
                     }
                   }
-
+                  
                   // Show notification for verification status changes
                   if (payload.old.is_verified !== payload.new.is_verified) {
                     const employeeName = `${payload.new.first_name} ${payload.new.last_name}`;
@@ -917,7 +918,7 @@ const CompanyDashboard = () => {
                 } else if (payload.eventType === 'INSERT') {
                   // Add new employee to the list
                   setEmployees(prevEmployees => [payload.new as Employee, ...prevEmployees]);
-
+                  
                   const employeeName = `${payload.new.first_name} ${payload.new.last_name}`;
                   toast({
                     title: "Nuevo Empleado Agregado",
@@ -925,14 +926,14 @@ const CompanyDashboard = () => {
                   });
                 } else if (payload.eventType === 'DELETE') {
                   // Remove employee from the list
-                  setEmployees(prevEmployees =>
+                  setEmployees(prevEmployees => 
                     prevEmployees.filter(emp => emp.id !== payload.old.id)
                   );
                 }
               }
             )
             .subscribe();
-
+            
           // Set up real-time subscription for advance updates
           const advancesChannel = supabase
             .channel(`advance-updates-${companyId}`)
@@ -945,20 +946,20 @@ const CompanyDashboard = () => {
                 filter: `company_id=eq.${companyId}`
               },
               (payload) => {
-
+                
                 if (payload.eventType === 'INSERT') {
                   // Add new advance to the list
                   setAdvances(prevAdvances => [payload.new, ...prevAdvances]);
                 } else if (payload.eventType === 'UPDATE') {
                   // Update the specific advance in the list
-                  setAdvances(prevAdvances =>
-                    prevAdvances.map(advance =>
+                  setAdvances(prevAdvances => 
+                    prevAdvances.map(advance => 
                       advance.id === payload.new.id ? { ...advance, ...payload.new } : advance
                     )
                   );
                 } else if (payload.eventType === 'DELETE') {
                   // Remove advance from the list
-                  setAdvances(prevAdvances =>
+                  setAdvances(prevAdvances => 
                     prevAdvances.filter(advance => advance.id !== payload.old.id)
                   );
                 }
@@ -977,9 +978,9 @@ const CompanyDashboard = () => {
         setIsLoadingEmployees(false);
       }
     };
-
+    
     fetchEmployees();
-
+    
     // Cleanup subscriptions on unmount
     return () => {
       if (channel) {
@@ -1030,20 +1031,20 @@ const CompanyDashboard = () => {
   const refreshEmployees = async () => {
     try {
       setIsLoadingEmployees(true);
-
+      
       // Get current company user
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         throw new Error("Usuario no autenticado");
       }
-
+      
       // Get company ID from companies table
       const { data: companyData, error: companyError } = await supabase
         .from("companies")
         .select("id")
         .eq("auth_user_id", user.id)
         .single();
-
+      
       if (companyError) {
         console.error("Error fetching company data:", companyError);
         throw new Error(`Failed to fetch company data: ${companyError.message}`);
@@ -1052,18 +1053,18 @@ const CompanyDashboard = () => {
       if (!companyData) {
         throw new Error("No company found for this user. Please contact support.");
       }
-
+      
       // Fetch employees for this company
       const { data: employeesData, error: employeesError } = await supabase
         .from("employees")
         .select("*")
         .eq("company_id", companyData.id)
         .order("created_at", { ascending: false });
-
+      
       if (employeesError) {
         throw new Error(`Error al cargar empleados: ${employeesError.message}`);
       }
-
+      
       setEmployees(employeesData || []);
       toast({
         title: "Lista actualizada",
@@ -1085,20 +1086,20 @@ const CompanyDashboard = () => {
   const fetchEmployeeFees = async () => {
     try {
       setIsLoadingEmployeeFees(true);
-
+      
       // Get current company user
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         throw new Error("Usuario no autenticado");
       }
-
+      
       // Get company data from companies table
       const { data: companyData, error: companyError } = await supabase
         .from("companies")
         .select("*")
         .eq("auth_user_id", user.id)
         .single();
-
+      
       if (companyError) {
         console.error("Error fetching company data:", companyError);
         throw new Error(`Failed to fetch company data: ${companyError.message}`);
@@ -1107,7 +1108,7 @@ const CompanyDashboard = () => {
       if (!companyData) {
         throw new Error("No company found for this user. Please contact support.");
       }
-
+      
       // Fetch employee fees for this company
       const { data: feesData, error: feesError } = await supabase
         .from("employee_fees")
@@ -1121,14 +1122,14 @@ const CompanyDashboard = () => {
         `)
         .eq("company_id", companyData.id)
         .order("created_at", { ascending: false });
-
+      
       if (feesError) {
         console.error("Error fetching employee fees:", feesError);
         // Don't throw error, just log it - fees table might not exist yet
         setEmployeeFees([]);
         return;
       }
-
+      
       setEmployeeFees(feesData || []);
     } catch (error: any) {
       console.error("Error fetching employee fees:", error);
@@ -1200,23 +1201,23 @@ const CompanyDashboard = () => {
   const handleEmployeeSave = async (employeeInfo: any) => {
     try {
       setIsLoading(true);
-
+      
       // Generate activation code
       const activationCode = generateActivationCode();
-
+      
       // Get current company user
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         throw new Error("Usuario no autenticado");
       }
-
+      
       // Get company ID from companies table
       const { data: companyData, error: companyError } = await supabase
         .from("companies")
         .select("id")
         .eq("auth_user_id", user.id)
         .single();
-
+      
       if (companyError) {
         console.error("Error fetching company data:", companyError);
         throw new Error(`Failed to fetch company data: ${companyError.message}`);
@@ -1259,7 +1260,7 @@ const CompanyDashboard = () => {
         setIsLoading(false);
         return;
       }
-
+      
       // Insert employee data into employees table
       const { data: employeeData, error: employeeError } = await supabase
         .from("employees")
@@ -1299,7 +1300,7 @@ const CompanyDashboard = () => {
         }])
         .select()
         .single();
-
+      
       if (employeeError) {
         throw new Error(`Error al crear empleado: ${employeeError.message}`);
       }
@@ -1379,7 +1380,7 @@ const CompanyDashboard = () => {
       // Create employee fee record ($1 one-time registration fee)
       const currentDate = new Date();
       const dueDate = new Date(currentDate.getTime() + (30 * 24 * 60 * 60 * 1000)); // 30 days from now
-
+      
       const { error: feeError } = await supabase
         .from("employee_fees")
         .insert([{
@@ -1398,7 +1399,7 @@ const CompanyDashboard = () => {
       } else {
         console.log('Employee fee created successfully for:', employeeInfo.firstName, employeeInfo.lastName);
       }
-
+      
       // Refresh fees after adding new employee fee
       await fetchEmployeeFees();
 
@@ -1411,23 +1412,23 @@ const CompanyDashboard = () => {
       //   activationCode: activationCode,
       //   employeeName: `${employeeInfo.firstName} ${employeeInfo.lastName}`
       // });
-
+      
       toast({
         title: t('company.billing.employeeAdded'),
         description: t('company.billing.employeeAddedDesc'),
       });
-
+      
       // Refresh employee list
       const { data: updatedEmployees, error: refreshError } = await supabase
         .from("employees")
         .select("*")
         .eq("company_id", companyData.id)
         .order("created_at", { ascending: false });
-
+      
       if (!refreshError && updatedEmployees) {
         setEmployees(updatedEmployees);
       }
-
+      
       setIsDialogOpen(false);
     } catch (error: any) {
       toast({
@@ -1688,7 +1689,7 @@ const CompanyDashboard = () => {
         .select("*")
         .eq("id", employee.id)
         .single();
-
+      
       console.log("Fetched employee data:", updatedEmployee);
 
       if (error) {
@@ -1700,7 +1701,7 @@ const CompanyDashboard = () => {
         console.log("Setting editingEmployee to updated employee:", updatedEmployee);
         setEditingEmployee(updatedEmployee);
       }
-
+      
       // Open modal immediately - the key prop will ensure proper re-rendering
       console.log("Opening edit dialog");
       setIsEditDialogOpen(true);
@@ -1920,7 +1921,7 @@ const CompanyDashboard = () => {
   const handleUpdateEmployee = async (employeeInfo: any) => {
     try {
       setIsLoading(true);
-
+      
       if (!editingEmployee) {
         throw new Error(t('company.billing.couldNotUpdateEmployees'));
       }
@@ -1980,7 +1981,7 @@ const CompanyDashboard = () => {
         setIsLoading(false);
         return;
       }
-
+      
       // Update employee data in Supabase
       const { data: updatedEmployee, error: updateError } = await supabase
         .from("employees")
@@ -2014,16 +2015,16 @@ const CompanyDashboard = () => {
         })
         .eq("id", editingEmployee.id)
         .select();
-
+      
       if (updateError) {
         throw new Error(`Error al actualizar empleado: ${updateError.message}`);
       }
-
+      
       toast({
         title: t('company.billing.dataUpdated'),
         description: t('company.billing.dataUpdatedDesc'),
       });
-
+      
       // Refresh employee list
       const { data: { user: refreshUser } } = await supabase.auth.getUser();
       if (refreshUser) {
@@ -2032,20 +2033,20 @@ const CompanyDashboard = () => {
           .select("id")
           .eq("auth_user_id", refreshUser.id)
           .single();
-
+        
         if (companyData) {
           const { data: updatedEmployees } = await supabase
             .from("employees")
             .select("*")
             .eq("company_id", companyData.id)
             .order("created_at", { ascending: false });
-
+          
           if (updatedEmployees) {
             setEmployees(updatedEmployees);
           }
         }
       }
-
+      
       setIsEditDialogOpen(false);
       setEditingEmployee(null);
     } catch (error: any) {
@@ -2420,12 +2421,12 @@ const CompanyDashboard = () => {
   // Filter advances by date range and exclude cancelled
   useEffect(() => {
     let filtered = activeAdvances;
-
+    
     if (dateFrom || dateTo) {
       filtered = activeAdvances.filter(advance => {
         const advanceDate = new Date(advance.created_at);
         const advanceDateOnly = startOfDay(advanceDate);
-
+        
         if (dateFrom && dateTo) {
           const fromDate = startOfDay(dateFrom);
           const toDate = endOfDay(dateTo);
@@ -2437,11 +2438,11 @@ const CompanyDashboard = () => {
           const toDate = endOfDay(dateTo);
           return advanceDateOnly <= toDate;
         }
-
+        
         return true;
       });
     }
-
+    
     setFilteredAdvances(filtered);
   }, [activeAdvances, dateFrom, dateTo]);
 
@@ -2545,10 +2546,10 @@ const CompanyDashboard = () => {
     if (!advanceToAction) return;
 
     try {
-
+      
       const { data, error } = await supabase
         .from("advance_transactions")
-        .update({
+        .update({ 
           status: 'approved',
           updated_at: new Date().toISOString()
         })
@@ -2562,9 +2563,9 @@ const CompanyDashboard = () => {
       }
 
       // Update local state immediately
-      setAdvances(prevAdvances =>
-        prevAdvances.map(advance =>
-          advance.id === advanceToAction.id
+      setAdvances(prevAdvances => 
+        prevAdvances.map(advance => 
+          advance.id === advanceToAction.id 
             ? { ...advance, status: 'approved', updated_at: new Date().toISOString() }
             : advance
         )
@@ -2592,10 +2593,10 @@ const CompanyDashboard = () => {
     if (!advanceToAction) return;
 
     try {
-
+      
       const { data, error } = await supabase
         .from("advance_transactions")
-        .update({
+        .update({ 
           status: 'failed',
           updated_at: new Date().toISOString()
         })
@@ -2609,9 +2610,9 @@ const CompanyDashboard = () => {
       }
 
       // Update local state immediately
-      setAdvances(prevAdvances =>
-        prevAdvances.map(advance =>
-          advance.id === advanceToAction.id
+      setAdvances(prevAdvances => 
+        prevAdvances.map(advance => 
+          advance.id === advanceToAction.id 
             ? { ...advance, status: 'failed', updated_at: new Date().toISOString() }
             : advance
         )
@@ -2693,12 +2694,12 @@ const CompanyDashboard = () => {
   ) => {
     try {
       setIsGeneratingReport(true);
-
+      
       const reportName = `report_${type}_${period}_${format(new Date(), 'yyyy-MM-dd')}`;
-
+      
       // Create report data based on type
       let exportData = [];
-
+      
       switch (type) {
         case 'advances':
           console.log('Exporting advances - activeAdvances:', activeAdvances);
@@ -2723,7 +2724,7 @@ const CompanyDashboard = () => {
             [t('common.batch')]: advance.batch_id || 'N/A'
           }));
           break;
-
+          
         case 'fees':
           exportData = activeAdvances.map(advance => ({
             [t('common.date')]: format(new Date(advance.created_at), 'dd/MM/yyyy'),
@@ -2735,7 +2736,7 @@ const CompanyDashboard = () => {
             'Processed At': advance.processed_at ? format(new Date(advance.processed_at), 'dd/MM/yyyy') : 'N/A'
           }));
           break;
-
+          
         case 'employees':
           exportData = employees.map(employee => ({
             [t('common.employee')]: `${employee.first_name} ${employee.last_name}`,
@@ -2752,7 +2753,7 @@ const CompanyDashboard = () => {
               .reduce((sum, adv) => sum + adv.requested_amount, 0)
           }));
           break;
-
+          
         case 'comprehensive':
           exportData = activeAdvances.map(advance => ({
             [t('common.date')]: format(new Date(advance.created_at), 'dd/MM/yyyy HH:mm'),
@@ -2835,20 +2836,20 @@ const CompanyDashboard = () => {
         });
         return;
       }
-
+      
       // Generate file based on format
       let fileName = '';
       let fileSize = '';
       const shouldUpload = options?.uploadToStorage !== false;
       const shouldAddRecent = options?.addToRecent !== false;
       let publicUrl: string | null = null;
-
+      
       if (formatChoice === 'excel') {
         const worksheet = XLSX.utils.json_to_sheet(exportData);
         autoFitColumns(worksheet, exportData);
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, 'Report');
-
+        
         fileName = `${reportName}.xlsx`;
         const wbout = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
         const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
@@ -2899,27 +2900,27 @@ const CompanyDashboard = () => {
         }
         fileSize = `${Math.round(JSON.stringify(exportData).length / 1024)} KB`;
       }
-
+      
       // Add to recent reports
       if (shouldAddRecent) {
-        const newReport = {
-          name: reportName,
+      const newReport = {
+        name: reportName,
           type,
           period,
           format: formatChoice,
-          createdAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
           size: fileSize,
           url: publicUrl || '',
           dataHash: options?.dataHash || ''
-        };
-        setRecentReports(prev => [newReport, ...prev.slice(0, 9)]); // Keep only last 10
+      };
+      setRecentReports(prev => [newReport, ...prev.slice(0, 9)]); // Keep only last 10
       }
-
+      
       toast({
         title: t('common.exportSuccess'),
         description: `${fileName} - ${exportData.length} ${t('company.requests')}`,
       });
-
+      
     } catch (error: any) {
       console.error("Error generating report:", error);
       toast({
@@ -3079,8 +3080,8 @@ const CompanyDashboard = () => {
       approved: activeAdvances.filter(a => a.status === 'completed' || a.status === 'approved').length,
       pending: activeAdvances.filter(a => a.status === 'pending' || a.status === 'processing').length,
       rejected: activeAdvances.filter(a => a.status === 'failed').length,
-      average: activeAdvances.length > 0
-        ? activeAdvances.reduce((s, a) => s + a.requested_amount, 0) / activeAdvances.length
+      average: activeAdvances.length > 0 
+        ? activeAdvances.reduce((s, a) => s + a.requested_amount, 0) / activeAdvances.length 
         : 0,
     };
 
@@ -3175,22 +3176,22 @@ const CompanyDashboard = () => {
     const currentDate = new Date();
     const companyName = company?.name || 'Empresa';
     const companyRif = company?.rif || 'N/A';
-
+    
     // Create new PDF document - auto switch to landscape for many columns
     const isWide = data && data.length > 0 && Object.keys(data[0]).length > 8;
     const pdf = new jsPDF(isWide ? 'l' : 'p', 'mm', 'a4');
-
+    
     // Simple header
     pdf.setFontSize(16);
     pdf.setFont('helvetica', 'bold');
     const reportTitle = type === 'advances' ? t('company.reports.advances') : t('company.reports.usageAnalysis');
     pdf.text(reportTitle, 20, 20);
-
+    
     pdf.setFontSize(10);
     pdf.setFont('helvetica', 'normal');
     pdf.text(`${companyName} - RIF: ${companyRif}`, 20, 28);
     pdf.text(`${t('common.generated')}: ${format(currentDate, 'dd/MM/yyyy HH:mm')}`, 20, 34);
-
+    
     // Summary: include for analytics and other types, but not for 'advances'
     if (type !== 'advances') {
       pdf.setFontSize(12);
@@ -3231,7 +3232,7 @@ const CompanyDashboard = () => {
         pdf.text(`${t('common.average')}: $${avgAmount.toFixed(2)}`, 20, 70);
       }
     }
-
+    
     // Add data in key-value pair style (like the dashboard UI)
     if (data.length > 0) {
       try {
@@ -3308,8 +3309,8 @@ const CompanyDashboard = () => {
             }
 
             pdf.text(`${key}: ${displayValue}`, 20, yPosition);
-            yPosition += 6;
-          });
+          yPosition += 6;
+        });
         }
 
       } catch (error) {
@@ -3321,7 +3322,7 @@ const CompanyDashboard = () => {
       pdf.setFontSize(10);
       pdf.text(t('common.noDataAvailable'), 20, 80);
     }
-
+    
     // Simple footer
     const pageCount = pdf.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
@@ -3331,36 +3332,36 @@ const CompanyDashboard = () => {
       pdf.text(`Página ${i} de ${pageCount}`, 20, pdf.internal.pageSize.height - 10);
       pdf.text(`Generado: ${format(currentDate, 'dd/MM/yyyy HH:mm')}`, pdf.internal.pageSize.width - 60, pdf.internal.pageSize.height - 10);
     }
-
+    
     return pdf;
   };
 
   // Process payment
   const processPayment = async () => {
     try {
-
+      
       setIsProcessingPayment(true);
-
+      
       // Get current company user
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         throw new Error("Usuario no autenticado");
       }
-
+      
       // Get company ID
       const { data: companyData, error: companyError } = await supabase
         .from("companies")
         .select("id")
         .eq("auth_user_id", user.id)
         .single();
-
+      
       if (companyError || !companyData) {
         throw new Error("No se pudo obtener la información de la empresa");
       }
-
+      
       const currentAmount = calculateRealTotalOutstanding();
       const today = new Date().toISOString().split('T')[0];
-
+      
       // Create payment record in Supabase (optional - continue if fails)
       try {
         const { data: paymentData, error: paymentError } = await supabase
@@ -3377,21 +3378,21 @@ const CompanyDashboard = () => {
             due_date: billingData.nextDueDate
           }])
           .select();
-
+        
         if (paymentError) {
           console.warn('Warning: Could not create payment record:', paymentError);
         }
       } catch (dbError) {
         console.warn('Database error (continuing with local updates):', dbError);
       }
-
+      
       // Always proceed with local updates regardless of database status
-
+      
       // Update employee fees status to 'paid' in the database
       try {
         const { error: feesUpdateError } = await supabase
           .from("employee_fees")
-          .update({
+          .update({ 
             status: 'paid',
             paid_at: new Date().toISOString(),
             paid_amount: 1.00,
@@ -3399,33 +3400,33 @@ const CompanyDashboard = () => {
           })
           .eq("company_id", companyData.id)
           .in("status", ["pending", "unpaid"]);
-
+        
         if (feesUpdateError) {
           console.warn('Warning: Could not update employee fees status:', feesUpdateError);
         }
       } catch (feesError) {
         console.warn('Error updating employee fees:', feesError);
       }
-
+      
       // Update advance transactions status to 'completed' in the database
       try {
         const { error: advancesUpdateError } = await supabase
           .from("advance_transactions")
-          .update({
+          .update({ 
             status: 'completed',
             processed_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           })
           .eq("company_id", companyData.id)
           .in("status", ["pending", "approved", "processing"]);
-
+        
         if (advancesUpdateError) {
           console.warn('Warning: Could not update advance transactions status:', advancesUpdateError);
         }
       } catch (advancesError) {
         console.warn('Error updating advance transactions:', advancesError);
       }
-
+      
       // Update local company data to reflect payment
       if (companyData) {
         // Update local company data immediately
@@ -3435,15 +3436,15 @@ const CompanyDashboard = () => {
           totalEmployeeRegistrationFees: 0
         };
         setCompany(updatedCompanyData);
-
+        
         // Note: Company data fields are computed from other tables
         // The actual reset happens through the payment record creation
       }
-
+      
       // Update local state - this will trigger the useEffect to update totalOutstanding
       setTotalOutstanding(0);
       setLastPaymentDate(today);
-
+      
       // Refresh company data from Supabase to ensure we have the latest values
       try {
         const { data: { user } } = await supabase.auth.getUser();
@@ -3453,7 +3454,7 @@ const CompanyDashboard = () => {
             .select("*")
             .eq("auth_user_id", user.id)
             .single();
-
+          
           if (!refreshError && updatedCompanyData) {
             setCompany(updatedCompanyData);
           }
@@ -3461,7 +3462,7 @@ const CompanyDashboard = () => {
       } catch (error) {
         console.warn('Could not refresh company data:', error);
       }
-
+      
       // Refresh payment history (optional)
       try {
         await fetchPaymentHistory();
@@ -3469,7 +3470,7 @@ const CompanyDashboard = () => {
         console.warn('Could not refresh payment history:', historyError);
         // Continue even if history refresh fails
       }
-
+      
       // Refresh employee fees data to reflect updated statuses
       try {
         const { data: updatedFeesData, error: feesRefreshError } = await supabase
@@ -3484,7 +3485,7 @@ const CompanyDashboard = () => {
           `)
           .eq("company_id", companyData.id)
           .order("created_at", { ascending: false });
-
+        
         if (feesRefreshError) {
           console.warn('Warning: Could not refresh employee fees:', feesRefreshError);
         } else {
@@ -3493,15 +3494,15 @@ const CompanyDashboard = () => {
       } catch (feesRefreshError) {
         console.warn('Error refreshing employee fees:', feesRefreshError);
       }
-
+      
       toast({
         title: t('company.billing.paymentProcessed'),
         description: t('company.billing.paymentProcessedDesc'),
       });
-
+      
       setShowPaymentModal(false);
       setPaymentDetails('');
-
+      
     } catch (error: any) {
       console.error('Error processing payment:', error);
       toast({
@@ -3518,9 +3519,9 @@ const CompanyDashboard = () => {
   const generateInvoice = async (invoiceData: any) => {
     try {
       console.log('Generating invoice with data:', invoiceData);
-
+      
       const doc = new jsPDF();
-
+      
       // Set up the PDF document
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
@@ -3532,66 +3533,66 @@ const CompanyDashboard = () => {
       const advanceFees = invoiceData.advanceFees || invoiceData.advance_fees || invoiceData.advances_amount || 0;
       const registrationFees = invoiceData.registrationFees || invoiceData.registration_fees || invoiceData.employee_fees || 0;
       const totalAmount = invoiceData.amount || invoiceData.total_amount || (advanceFees + registrationFees);
-
+      
       // Header
       doc.setFontSize(24);
       doc.setFont('helvetica', 'bold');
       doc.text('FACTURA', pageWidth - 60, 30);
-
+      
       // Company info
       doc.setFontSize(12);
       doc.setFont('helvetica', 'normal');
       doc.text('Pre-Sallery', 20, 50);
       doc.text('Sistema de Adelantos de Salario', 20, 60);
-
+      
       // Invoice details
       doc.setFontSize(14);
       doc.setFont('helvetica', 'bold');
       doc.text(`Factura #${invoiceNumber}`, pageWidth - 60, 50);
-
+      
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
       doc.text(`Fecha: ${format(new Date(), 'dd/MM/yyyy')}`, pageWidth - 60, 60);
       doc.text(`Período: ${period}`, pageWidth - 60, 70);
       doc.text(`Vence: ${dueDate}`, pageWidth - 60, 80);
-
+      
       // Client info
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
       doc.text('Datos del Cliente:', 20, 100);
-
+      
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
       doc.text(`Empresa: ${company?.name || 'N/A'}`, 20, 110);
       doc.text(`RIF: ${company?.rif || 'N/A'}`, 20, 120);
       doc.text(`Empleados activos: ${companyData.activeEmployees}`, 20, 130);
-
+      
       // Invoice items - simplified version
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
       doc.text('DETALLES DE FACTURACIÓN:', 20, 150);
-
+      
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
       doc.text(`Adelantos procesados: ${reportData?.approvedAdvances || 0}`, 20, 165);
       doc.text(`Monto total adelantos: $${Number(advanceFees).toFixed(2)}`, 20, 175);
       doc.text(`Empleados registrados: ${employeeFees?.length || 0}`, 20, 185);
       doc.text(`Tarifas de registro: $${Number(registrationFees).toFixed(2)}`, 20, 195);
-
+      
       // Total
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
       doc.text(`TOTAL A PAGAR: $${Number(totalAmount).toFixed(2)}`, pageWidth - 60, 220);
-
+      
       // Footer
       doc.setFontSize(8);
       doc.setFont('helvetica', 'normal');
       doc.text('Gracias por su confianza en Pre-Sallery', pageWidth / 2, pageHeight - 20, { align: 'center' });
       doc.text('Sistema de Adelantos de Salario', pageWidth / 2, pageHeight - 15, { align: 'center' });
-
+      
       // Save the PDF
       doc.save(`Factura_${invoiceData.invoiceNumber}.pdf`);
-
+      
       toast({
         title: "Factura generada",
         description: `Se ha generado la factura ${invoiceData.invoiceNumber} en formato PDF`,
@@ -3896,7 +3897,7 @@ const CompanyDashboard = () => {
                     </Button>
                   </div>
                 </div>
-
+                
                 {/* Date Filters */}
                 <div className="flex items-center space-x-4 mt-4">
                   <div className="flex items-center space-x-2">
@@ -3922,7 +3923,7 @@ const CompanyDashboard = () => {
                       </PopoverContent>
                     </Popover>
                   </div>
-
+                  
                   <div className="flex items-center space-x-2">
                     <Label className="text-sm font-medium">{t('common.to')}:</Label>
                     <Popover>
@@ -3946,7 +3947,7 @@ const CompanyDashboard = () => {
                       </PopoverContent>
                     </Popover>
                   </div>
-
+                  
                   {(dateFrom || dateTo) && (
                     <Button
                       variant="outline"
@@ -3971,13 +3972,13 @@ const CompanyDashboard = () => {
                     <div className="text-center py-8">
                       <DollarSign className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
                       <p className="text-muted-foreground">
-                        {activeAdvances.length === 0
+                        {activeAdvances.length === 0 
                           ? t('common.noData')
                           : t('company.reports.filtersDesc')
                         }
                       </p>
                       <p className="text-sm text-muted-foreground mt-1">
-                        {activeAdvances.length === 0
+                        {activeAdvances.length === 0 
                           ? t('common.noData')
                           : t('company.reports.filtersDesc')
                         }
@@ -3988,84 +3989,84 @@ const CompanyDashboard = () => {
                       const employeeName = `${advance.employees.first_name} ${advance.employees.last_name}`;
                       const advanceDate = new Date(advance.created_at);
                       const isToday = advanceDate.toDateString() === new Date().toDateString();
-                      const formattedDate = isToday
+                      const formattedDate = isToday 
                         ? `${t('employee.today')}, ${advanceDate.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`
                         : advanceDate.toLocaleDateString(undefined, {
-                          day: 'numeric',
-                          month: 'long',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        });
-
+                            day: 'numeric', 
+                            month: 'long', 
+                            hour: '2-digit', 
+                            minute: '2-digit' 
+                          });
+                      
                       return (
-                        <div key={advance.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
-                          <div className="flex items-center space-x-4">
-                            <div className="h-10 w-10 bg-gradient-primary rounded-full flex items-center justify-center">
-                              <span className="text-white text-sm font-medium">
+                    <div key={advance.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                      <div className="flex items-center space-x-4">
+                        <div className="h-10 w-10 bg-gradient-primary rounded-full flex items-center justify-center">
+                          <span className="text-white text-sm font-medium">
                                 {employeeName.split(' ').map(n => n[0]).join('')}
-                              </span>
-                            </div>
-                            <div>
+                          </span>
+                        </div>
+                        <div>
                               <div className="font-medium">{employeeName}</div>
                               <div className="text-sm text-muted-foreground">{formattedDate}</div>
-                            </div>
-                          </div>
-                          <div className="flex items-center space-x-4">
-                            <div>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-4">
+                        <div>
                               <div className="font-semibold">${advance.requested_amount.toFixed(2)}</div>
-                              <div className="text-sm text-muted-foreground">{t('company.request')}</div>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              {/* Action buttons on the left */}
-                              <div className="flex space-x-2">
-                                {/* Show reject button for pending and approved advances */}
-                                {(advance.status === 'pending' || advance.status === 'approved') && (
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => handleRejectClick(advance)}
-                                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                                  >
-                                    {t('company.reject')}
-                                  </Button>
-                                )}
-
+                          <div className="text-sm text-muted-foreground">{t('company.request')}</div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          {/* Action buttons on the left */}
+                        <div className="flex space-x-2">
+                            {/* Show reject button for pending and approved advances */}
+                            {(advance.status === 'pending' || advance.status === 'approved') && (
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                onClick={() => handleRejectClick(advance)}
+                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                              >
+                                {t('company.reject')}
+                              </Button>
+                            )}
+                            
                                 {/* Show approve button only for pending advances (cannot re-approve rejected/cancelled) */}
                                 {advance.status === 'pending' && (
-                                  <Button
-                                    size="sm"
-                                    variant="premium"
-                                    onClick={() => handleApproveClick(advance)}
-                                  >
-                                    {t('company.approve')}
-                                  </Button>
-                                )}
-                              </div>
-
-                              {/* Status badge on the right */}
-                              <div className="ml-auto">
-                                {advance.status === 'pending' && (
-                                  <Badge variant="outline" className="text-orange-600 border-orange-200 bg-orange-50">{t('employee.pending')}</Badge>
-                                )}
-                                {advance.status === 'approved' && (
-                                  <Badge className="bg-blue-100 text-blue-800">{t('company.approved') ?? 'Aprobado'}</Badge>
-                                )}
-                                {advance.status === 'completed' && (
-                                  <Badge className="bg-green-100 text-green-800">{t('employee.completed')}</Badge>
-                                )}
-                                {advance.status === 'processing' && (
-                                  <Badge className="bg-orange-100 text-orange-800">{t('common.processing')}</Badge>
-                                )}
-                                {advance.status === 'cancelled' && (
-                                  <Badge variant="outline" className="text-muted-foreground">{t('common.cancelled')}</Badge>
-                                )}
-                                {advance.status === 'failed' && (
-                                  <Badge variant="destructive">{t('common.failed')}</Badge>
-                                )}
-                              </div>
-                            </div>
+                              <Button 
+                                size="sm" 
+                                variant="premium"
+                                onClick={() => handleApproveClick(advance)}
+                              >
+                                {t('company.approve')}
+                              </Button>
+                            )}
                           </div>
+                          
+                          {/* Status badge on the right */}
+                          <div className="ml-auto">
+                          {advance.status === 'pending' && (
+                                  <Badge variant="outline" className="text-orange-600 border-orange-200 bg-orange-50">{t('employee.pending')}</Badge>
+                          )}
+                          {advance.status === 'approved' && (
+                            <Badge className="bg-blue-100 text-blue-800">{t('company.approved') ?? 'Aprobado'}</Badge>
+                          )}
+                          {advance.status === 'completed' && (
+                            <Badge className="bg-green-100 text-green-800">{t('employee.completed')}</Badge>
+                          )}
+                            {advance.status === 'processing' && (
+                                  <Badge className="bg-orange-100 text-orange-800">{t('common.processing')}</Badge>
+                            )}
+                            {advance.status === 'cancelled' && (
+                                  <Badge variant="outline" className="text-muted-foreground">{t('common.cancelled')}</Badge>
+                            )}
+                            {advance.status === 'failed' && (
+                                  <Badge variant="destructive">{t('common.failed')}</Badge>
+                          )}
                         </div>
+                      </div>
+                    </div>
+                </div>
                       );
                     })
                   )}
@@ -4079,7 +4080,7 @@ const CompanyDashboard = () => {
                         {t('common.showing')} {startIndex + 1} - {Math.min(endIndex, filteredAdvances.length)} {t('common.of')} {filteredAdvances.length} {t('company.requests')}
                       </span>
                     </div>
-
+                    
                     <div className="flex items-center space-x-2">
                       <Button
                         variant="outline"
@@ -4090,7 +4091,7 @@ const CompanyDashboard = () => {
                       >
                         <ChevronLeft className="h-4 w-4" />
                       </Button>
-
+                      
                       <div className="flex items-center space-x-1">
                         {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                           let pageNum;
@@ -4103,7 +4104,7 @@ const CompanyDashboard = () => {
                           } else {
                             pageNum = currentPage - 2 + i;
                           }
-
+                          
                           return (
                             <Button
                               key={pageNum}
@@ -4117,7 +4118,7 @@ const CompanyDashboard = () => {
                           );
                         })}
                       </div>
-
+                      
                       <Button
                         variant="outline"
                         size="sm"
@@ -4199,51 +4200,51 @@ const CompanyDashboard = () => {
                   </Card>
                 </div>
 
-                <Card className="border-none shadow-elegant">
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <CardTitle>{t('company.employeeManagement')}</CardTitle>
-                        <CardDescription>
-                          {t('company.managePayroll')}
-                        </CardDescription>
-                      </div>
-                      <div className="flex space-x-2">
-                        <div className="relative">
-                          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Card className="border-none shadow-elegant">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>{t('company.employeeManagement')}</CardTitle>
+                    <CardDescription>
+                      {t('company.managePayroll')}
+                    </CardDescription>
+                  </div>
+                  <div className="flex space-x-2">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                           <Input
                             placeholder={t('company.searchEmployee')}
                             className="pl-10 w-64"
                             value={employeeSearch}
                             onChange={(e) => setEmployeeSearch(e.target.value)}
                           />
-                        </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={refreshEmployees}
-                          disabled={isLoadingEmployees}
-                        >
-                          <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingEmployees ? 'animate-spin' : ''}`} />
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={refreshEmployees}
+                      disabled={isLoadingEmployees}
+                    >
+                      <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingEmployees ? 'animate-spin' : ''}`} />
                           {t('company.billing.refresh')}
-                        </Button>
-                        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                          <DialogTrigger asChild>
-                            <Button variant="hero">
-                              <Plus className="h-4 w-4 mr-2" />
-                              {t('company.addEmployee')}
-                            </Button>
-                          </DialogTrigger>
+                    </Button>
+                    <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                      <DialogTrigger asChild>
+                    <Button variant="hero">
+                      <Plus className="h-4 w-4 mr-2" />
+                      {t('company.addEmployee')}
+                    </Button>
+                      </DialogTrigger>
                           <DialogContent className="sm:max-w-md">
-                            <DialogHeader>
-                              <DialogTitle className="flex items-center space-x-2">
-                                <Users className="h-5 w-5" />
+                        <DialogHeader>
+                          <DialogTitle className="flex items-center space-x-2">
+                            <Users className="h-5 w-5" />
                                 <span>{t('company.addEmployeeTitle')}</span>
-                              </DialogTitle>
-                              <DialogDescription>
+                          </DialogTitle>
+                          <DialogDescription>
                                 {t('company.addEmployeeDesc')}
-                              </DialogDescription>
-                            </DialogHeader>
+                          </DialogDescription>
+                        </DialogHeader>
                             <div className="space-y-4">
                               <Button
                                 variant="outline"
@@ -4273,53 +4274,53 @@ const CompanyDashboard = () => {
                                 {t('common.cancel')}
                               </Button>
                             </DialogFooter>
-                          </DialogContent>
-                        </Dialog>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    {isLoadingEmployees ? (
-                      <div className="flex items-center justify-center py-8">
-                        <div className="text-center">
-                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {isLoadingEmployees ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="text-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
                           <p className="text-muted-foreground">{t('company.billing.loadingPayments')}</p>
-                        </div>
-                      </div>
-                    ) : employees.length === 0 ? (
-                      <div className="text-center py-8">
-                        <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    </div>
+                  </div>
+                ) : employees.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                         <p className="text-muted-foreground">{t('company.noEmployees')}</p>
                         <p className="text-sm text-muted-foreground mt-2">{t('company.addFirstEmployeeHint')}</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-4">
+                  </div>
+                ) : (
+                <div className="space-y-4">
                         {paginatedEmployees.map((employee) => (
-                          <div key={employee.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
-                            <div className="flex items-center space-x-4">
-                              <div className="h-10 w-10 bg-gradient-secondary rounded-full flex items-center justify-center">
-                                <span className="text-white text-sm font-medium">
-                                  {employee.first_name[0]}{employee.last_name[0]}
-                                </span>
-                              </div>
-                              <div>
-                                <div className="font-medium">{employee.first_name} {employee.last_name}</div>
-                                <div className="text-sm text-muted-foreground">{employee.cedula || employee.email}</div>
-                              </div>
-                            </div>
-                            <div className="flex items-center space-x-6">
-                              <div className="text-right">
-                                <div className="font-medium">${employee.monthly_salary}{t('company.month')}</div>
-                                <div className="text-sm text-muted-foreground">
+                    <div key={employee.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                      <div className="flex items-center space-x-4">
+                        <div className="h-10 w-10 bg-gradient-secondary rounded-full flex items-center justify-center">
+                          <span className="text-white text-sm font-medium">
+                              {employee.first_name[0]}{employee.last_name[0]}
+                          </span>
+                        </div>
+                        <div>
+                            <div className="font-medium">{employee.first_name} {employee.last_name}</div>
+                            <div className="text-sm text-muted-foreground">{employee.cedula || employee.email}</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-6">
+                        <div className="text-right">
+                            <div className="font-medium">${employee.monthly_salary}{t('company.month')}</div>
+                            <div className="text-sm text-muted-foreground">
                                   {employee.is_verified ? t('company.billing.employeeVerified') : t('employee.pending')}
-                                </div>
-                              </div>
-                              <div className="flex items-center space-x-2">
-                                {employee.is_active ? (
-                                  <Badge className="bg-green-100 text-green-800">{t('company.active')}</Badge>
-                                ) : (
-                                  <Badge variant="secondary">{t('common.pending')}</Badge>
-                                )}
+                            </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                            {employee.is_active ? (
+                            <Badge className="bg-green-100 text-green-800">{t('company.active')}</Badge>
+                            ) : (
+                            <Badge variant="secondary">{t('common.pending')}</Badge>
+                          )}
                                 <Button
                                   variant="outline"
                                   size="sm"
@@ -4328,10 +4329,10 @@ const CompanyDashboard = () => {
                                 >
                                   <Eye className="h-4 w-4" />
                                 </Button>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => handleEditEmployee(employee)}
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => handleEditEmployee(employee)}
                                   title={t('common.edit')}
                                 >
                                   <Edit className="h-4 w-4" />
@@ -4343,19 +4344,19 @@ const CompanyDashboard = () => {
                                   title={employee.is_active ? t('company.revokeAccess') : t('company.grantAccess')}
                                 >
                                   {employee.is_active ? <UserX className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />}
-                                </Button>
-                                <Button
-                                  variant="destructive"
-                                  size="sm"
-                                  onClick={() => openDeleteEmployee(employee)}
+                            </Button>
+                            <Button 
+                              variant="destructive" 
+                              size="sm"
+                              onClick={() => openDeleteEmployee(employee)}
                                   title={t('common.delete')}
-                                >
+                            >
                                   <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
+                            </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                         <Pagination
                           className="pt-4 border-t"
                           currentPage={employeeCurrentPage}
@@ -4364,10 +4365,10 @@ const CompanyDashboard = () => {
                           onPageChange={(p) => setEmployeeCurrentPage(Math.max(1, Math.min(p, employeeTotalPages)))}
                           onItemsPerPageChange={(n) => { setEmployeeItemsPerPage(n); setEmployeeCurrentPage(1); }}
                         />
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
+                </div>
+                )}
+              </CardContent>
+            </Card>
               </TabsContent>
 
               <TabsContent value="change-requests" className="space-y-6">
@@ -4594,17 +4595,6 @@ const CompanyDashboard = () => {
                               </div>
 
                               <div className="flex items-center space-x-2 ml-4">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => {
-                                    setViewingChangeRequest(request);
-                                    setShowChangeRequestModal(true);
-                                  }}
-                                >
-                                  <Eye className="h-4 w-4" />
-                                </Button>
-
                                 {request.status === 'pending' && (
                                   <>
                                     <Button
@@ -4635,26 +4625,73 @@ const CompanyDashboard = () => {
                                             .eq('auth_user_id', user?.id)
                                             .single();
 
-                                          // First, apply the changes to the employee's profile
-                                          const updateData: any = {};
-                                          if (request.field_name && request.requested_value) {
-                                            updateData[request.field_name] = request.requested_value;
-                                          } else {
-                                            console.warn('Missing field_name or requested_value:', {
-                                              field_name: request.field_name,
-                                              requested_value: request.requested_value
-                                            });
+                                          // Check if this is part of a full name change
+                                          const isNameChange = request.field_name === 'first_name' || request.field_name === 'last_name';
+                                          let partnerRequest = null;
+                                          
+                                          if (isNameChange) {
+                                            // Look for the partner name change request
+                                            const partnerFieldName = request.field_name === 'first_name' ? 'last_name' : 'first_name';
+                                            partnerRequest = changeRequests.find(req => 
+                                              req.employee_id === request.employee_id &&
+                                              req.field_name === partnerFieldName &&
+                                              req.status === 'pending' &&
+                                              req.details?.includes('Full Name Change')
+                                            );
                                           }
 
                                           // Update the employee's profile using EmployeeService
-
-                                          // Use EmployeeService to update the employee profile
-                                          const serviceResult = await EmployeeService.updateEmployeeField({
-                                            employee_id: request.employee_id,
-                                            field_name: request.field_name,
-                                            field_value: request.requested_value,
-                                            company_id: company?.id!
-                                          });
+                                          let serviceResult;
+                                          
+                                          if (isNameChange && partnerRequest) {
+                                            // This is a full name change - update both fields together
+                                            console.log('Processing full name change - updating both first_name and last_name');
+                                            
+                                            // Update first name
+                                            const firstNameResult = await EmployeeService.updateEmployeeField({
+                                              employee_id: request.employee_id,
+                                              field_name: 'first_name',
+                                              field_value: request.field_name === 'first_name' ? request.requested_value : partnerRequest.requested_value,
+                                              company_id: company?.id!
+                                            });
+                                            
+                                            if (!firstNameResult.success) {
+                                              throw new Error(`Failed to update first name: ${firstNameResult.message}`);
+                                            }
+                                            
+                                            // Update last name
+                                            const lastNameResult = await EmployeeService.updateEmployeeField({
+                                              employee_id: request.employee_id,
+                                              field_name: 'last_name',
+                                              field_value: request.field_name === 'last_name' ? request.requested_value : partnerRequest.requested_value,
+                                              company_id: company?.id!
+                                            });
+                                            
+                                            if (!lastNameResult.success) {
+                                              throw new Error(`Failed to update last name: ${lastNameResult.message}`);
+                                            }
+                                            
+                                            serviceResult = { success: true, data: lastNameResult.data };
+                                            
+                                            // Also approve the partner request
+                                            const partnerApprovalResult = await changeRequestService.updateChangeRequestStatus(
+                                              partnerRequest.id!,
+                                              'approved',
+                                              'Request approved as part of full name change'
+                                            );
+                                            
+                                            if (!partnerApprovalResult.success) {
+                                              console.warn('Failed to approve partner request:', partnerApprovalResult.error);
+                                            }
+                                          } else {
+                                            // Regular single field update
+                                            serviceResult = await EmployeeService.updateEmployeeField({
+                                              employee_id: request.employee_id,
+                                              field_name: request.field_name,
+                                              field_value: request.requested_value,
+                                              company_id: company?.id!
+                                            });
+                                          }
 
 
                                           if (!serviceResult.success) {
@@ -4708,9 +4745,13 @@ const CompanyDashboard = () => {
                                             // Also refresh employees list to show updated info
                                             refreshEmployees();
 
+                                            const successMessage = isNameChange && partnerRequest 
+                                              ? 'Full name change approved and employee profile updated successfully (both first and last name)'
+                                              : 'Change request approved and employee profile updated successfully';
+
                                             toast({
                                               title: 'Success',
-                                              description: 'Change request approved and employee profile updated successfully',
+                                              description: successMessage,
                                             });
                                           }
                                         } catch (error) {
@@ -4806,7 +4847,7 @@ const CompanyDashboard = () => {
                       </SelectContent>
                     </Select>
                   </div>
-
+                  
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">{t('company.reportTypeLabel')}</Label>
                     <Select value={reportType} onValueChange={setReportType}>
@@ -4821,7 +4862,7 @@ const CompanyDashboard = () => {
                       </SelectContent>
                     </Select>
                   </div>
-
+                  
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">{t('company.formatLabel')}</Label>
                     <Select value={reportFormat} onValueChange={setReportFormat}>
@@ -4835,10 +4876,10 @@ const CompanyDashboard = () => {
                       </SelectContent>
                     </Select>
                   </div>
-
+                  
                   <div className="flex items-end">
-                    <Button
-                      onClick={generateReport}
+                    <Button 
+                      onClick={generateReport} 
                       disabled={isGeneratingReport}
                       className="w-full"
                     >
@@ -4956,8 +4997,8 @@ const CompanyDashboard = () => {
                       <span className="font-medium">${reportData.averageAdvanceAmount.toFixed(2)}</span>
                     </div>
                   </div>
-                  <Button
-                    className="w-full"
+                  <Button 
+                    className="w-full" 
                     variant="outline"
                     onClick={() => handleExportClick('advances')}
                     disabled={isGeneratingReport}
@@ -5003,8 +5044,8 @@ const CompanyDashboard = () => {
                       </span>
                     </div>
                   </div>
-                  <Button
-                    className="w-full"
+                  <Button 
+                    className="w-full" 
                     variant="outline"
                     onClick={() => handleExportClick('analytics')}
                     disabled={isGeneratingReport}
@@ -5059,9 +5100,9 @@ const CompanyDashboard = () => {
                           </div>
                           {report.url ? (
                             <a href={report.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
-                              <Button variant="outline" size="sm">
-                                <Download className="h-4 w-4" />
-                              </Button>
+                          <Button variant="outline" size="sm">
+                            <Download className="h-4 w-4" />
+                          </Button>
                             </a>
                           ) : (
                             <Button variant="outline" size="sm" onClick={() => generateReportWithParams(report.type, report.period, report.format, { addToRecent: false, uploadToStorage: false })}>
@@ -5146,11 +5187,11 @@ const CompanyDashboard = () => {
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
-                    <DollarSign className="h-5 w-5" />
+                  <DollarSign className="h-5 w-5" />
                     <span>{t('company.billing.billingDetails')}</span>
                   </div>
-                  <Button
-                    variant="outline"
+                  <Button 
+                    variant="outline" 
                     size="sm"
                     onClick={refreshCompanyData}
                     className="h-8"
@@ -5177,15 +5218,15 @@ const CompanyDashboard = () => {
                         <span className="font-medium">${billingData.currentPeriodTotalAdvances.toFixed(2)}</span>
                       </div>
                       {!billingData.isFirstPeriod && (
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm text-muted-foreground">{t('company.billing.averageCommission')}:</span>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">{t('company.billing.averageCommission')}:</span>
                           <span className="font-medium">
                             {billingData.currentPeriodAdvancesCount > 0
                               ? ((billingData.currentPeriodCommissionFees / billingData.currentPeriodTotalAdvances) * 100).toFixed(1)
                               : '0.0'
                             }%
                           </span>
-                        </div>
+                      </div>
                       )}
                       <div className="flex justify-between items-center border-t pt-2">
                         <span className="text-sm font-medium">{t('company.billing.totalBilling')}:</span>
@@ -5195,29 +5236,29 @@ const CompanyDashboard = () => {
                   </div>
 
                   {!billingData.isFirstPeriod && (
-                    <div className="space-y-4">
+                  <div className="space-y-4">
                       <h4 className="font-semibold">
                         {t('company.billing.employeeFees')}
                       </h4>
-                      <div className="space-y-3">
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm text-muted-foreground">{t('company.billing.registeredEmployees')}:</span>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">{t('company.billing.registeredEmployees')}:</span>
                           <span className="font-medium">{activeEmployeesCount}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
+                      </div>
+                      <div className="flex justify-between items-center">
                           <span className="text-sm text-muted-foreground">{t('company.billing.feePerEmployeeMonth')}</span>
                           <span className="font-medium">$1.00/month</span>
                         </div>
                         <div className="flex justify-between items-center">
                           <span className="text-sm text-muted-foreground">{t('company.billing.monthlyFee')}:</span>
                           <span className="font-medium">${(activeEmployeesCount * 1.00).toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between items-center border-t pt-2">
-                          <span className="text-sm font-medium">{t('company.billing.totalFees')}:</span>
+                      </div>
+                      <div className="flex justify-between items-center border-t pt-2">
+                        <span className="text-sm font-medium">{t('company.billing.totalFees')}:</span>
                           <span className="font-bold text-lg">${(activeEmployeesCount * 1.00).toFixed(2)}</span>
-                        </div>
                       </div>
                     </div>
+                  </div>
                   )}
                 </div>
 
@@ -5234,8 +5275,8 @@ const CompanyDashboard = () => {
                       )}
                     </div>
                     <div className="flex space-x-2">
-                      <Button
-                        variant="outline"
+                      <Button 
+                        variant="outline" 
                         onClick={() => generateInvoice({
                           invoiceNumber: currentBillingPeriod.invoiceNumber,
                           period: currentBillingPeriod.description,
@@ -5248,7 +5289,7 @@ const CompanyDashboard = () => {
                         <Download className="h-4 w-4 mr-2" />
                         {t('company.billing.downloadInvoice')}
                       </Button>
-                      <Button
+                      <Button 
                         variant="premium"
                         disabled={billingData.totalOutstanding <= 0 || !isBillingDate()}
                         onClick={() => {
@@ -5352,52 +5393,52 @@ const CompanyDashboard = () => {
                   {billingData.paymentHistory
                     .slice((paymentPage - 1) * paymentsPerPage, paymentPage * paymentsPerPage)
                     .map((invoice) => (
-                      <div key={invoice.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors">
-                        <div className="flex items-center space-x-4">
-                          <div className="h-12 w-12 bg-blue-100 rounded-full flex items-center justify-center">
-                            <FileText className="h-6 w-6 text-blue-600" />
-                          </div>
-                          <div>
-                            <div className="font-semibold text-lg">{invoice.invoiceNumber}</div>
-                            <div className="text-sm text-muted-foreground">{invoice.period}</div>
-                          </div>
+                    <div key={invoice.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors">
+                      <div className="flex items-center space-x-4">
+                        <div className="h-12 w-12 bg-blue-100 rounded-full flex items-center justify-center">
+                          <FileText className="h-6 w-6 text-blue-600" />
                         </div>
-                        <div className="flex items-center space-x-6">
-                          <div className="text-right">
-                            <div className="font-bold text-xl">${invoice.amount.toFixed(2)}</div>
-                            <Badge
-                              className={`mt-1 ${invoice.status === 'paid'
-                                  ? 'bg-green-100 text-green-700 border-green-200'
-                                  : 'bg-orange-100 text-orange-700 border-orange-200'
-                                }`}
-                              variant="outline"
-                            >
-                              {invoice.status === 'paid' ? t('company.billing.paid') : t('company.billing.pending')}
-                            </Badge>
-                          </div>
-                          <div className="flex space-x-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => generateInvoice(invoice)}
-                              className="h-8 w-8 p-0"
-                            >
-                              <Download className="h-4 w-4" />
-                            </Button>
-                            {invoice.status === 'pending' && (
-                              <Button
-                                variant="default"
-                                size="sm"
-                                className="bg-blue-600 hover:bg-blue-700 text-white"
-                                onClick={() => setShowPaymentModal(true)}
-                              >
-                                {t('company.billing.pay')}
-                              </Button>
-                            )}
-                          </div>
+                        <div>
+                          <div className="font-semibold text-lg">{invoice.invoiceNumber}</div>
+                          <div className="text-sm text-muted-foreground">{invoice.period}</div>
                         </div>
                       </div>
-                    ))}
+                      <div className="flex items-center space-x-6">
+                        <div className="text-right">
+                          <div className="font-bold text-xl">${invoice.amount.toFixed(2)}</div>
+                          <Badge 
+                              className={`mt-1 ${invoice.status === 'paid'
+                                ? 'bg-green-100 text-green-700 border-green-200' 
+                                : 'bg-orange-100 text-orange-700 border-orange-200'
+                            }`}
+                            variant="outline"
+                          >
+                            {invoice.status === 'paid' ? t('company.billing.paid') : t('company.billing.pending')}
+                          </Badge>
+                        </div>
+                        <div className="flex space-x-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => generateInvoice(invoice)}
+                            className="h-8 w-8 p-0"
+                          >
+                            <Download className="h-4 w-4" />
+                          </Button>
+                          {invoice.status === 'pending' && (
+                            <Button 
+                              variant="default" 
+                              size="sm"
+                              className="bg-blue-600 hover:bg-blue-700 text-white"
+                              onClick={() => setShowPaymentModal(true)}
+                            >
+                              {t('company.billing.pay')}
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </CardContent>
             </Card>
@@ -5481,7 +5522,7 @@ const CompanyDashboard = () => {
 
 
           </DialogHeader>
-          <EmployeeInfoForm
+          <EmployeeInfoForm 
             key={editingEmployee?.id || 'new'}
             onSave={handleUpdateEmployee}
             onCancel={() => {
@@ -5602,14 +5643,14 @@ const CompanyDashboard = () => {
               {t('company.billing.completePaymentData')} ${billingData.totalOutstanding.toFixed(2)}
               <br />
               <span className="text-xs text-muted-foreground">
-                {t('company.billing.modalState')} {showPaymentModal ? t('company.billing.open') : t('company.billing.close')} |
-                {t('company.billing.realTotal')} ${calculateRealTotalOutstanding().toFixed(2)} |
-                {t('company.billing.advancesAmount')} ${billingData.currentMonthAdvances.toFixed(2)} |
+                {t('company.billing.modalState')} {showPaymentModal ? t('company.billing.open') : t('company.billing.close')} | 
+                {t('company.billing.realTotal')} ${calculateRealTotalOutstanding().toFixed(2)} | 
+                {t('company.billing.advancesAmount')} ${billingData.currentMonthAdvances.toFixed(2)} | 
                 {t('company.billing.feesAmount')} ${billingData.currentMonthRegistrationFees.toFixed(2)}
               </span>
             </DialogDescription>
           </DialogHeader>
-
+          
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="payment-method">{t('company.billing.paymentMethod')}</Label>
@@ -5624,7 +5665,7 @@ const CompanyDashboard = () => {
                 </SelectContent>
               </Select>
             </div>
-
+            
             <div className="space-y-2">
               <Label htmlFor="payment-details">{t('company.billing.paymentDetails')}</Label>
               <Input
@@ -5634,7 +5675,7 @@ const CompanyDashboard = () => {
                 onChange={(e) => setPaymentDetails(e.target.value)}
               />
             </div>
-
+            
             <div className="bg-gray-50 p-4 rounded-lg">
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
@@ -5655,16 +5696,16 @@ const CompanyDashboard = () => {
               </div>
             </div>
           </div>
-
+          
           <DialogFooter className="flex space-x-2">
-            <Button
-              variant="outline"
+            <Button 
+              variant="outline" 
               onClick={() => setShowPaymentModal(false)}
               disabled={isProcessingPayment}
             >
               {t('company.billing.cancel')}
             </Button>
-            <Button
+            <Button 
               onClick={processPayment}
               disabled={billingData.totalOutstanding <= 0 || !paymentDetails.trim() || isProcessingPayment}
               className="bg-blue-600 hover:bg-blue-700"
@@ -6030,6 +6071,9 @@ const CompanyDashboard = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Scroll to Top Button */}
+      <ScrollToTopButton />
     </div>
   );
 };
