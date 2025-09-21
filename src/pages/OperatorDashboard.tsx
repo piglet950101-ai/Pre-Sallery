@@ -36,10 +36,11 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
 import Header from "@/components/Header";
 import { useLanguage } from "@/contexts/LanguageContext";
+import BillingDashboard from "@/components/operator/BillingDashboard";
 
 const OperatorDashboard = () => {
   const { toast } = useToast();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { user } = useAuth();
   const [selectedTab, setSelectedTab] = useState<string>("pending");
   const [isProcessing, setIsProcessing] = useState(false);
@@ -73,18 +74,11 @@ const OperatorDashboard = () => {
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [previewFile, setPreviewFile] = useState<any>(null);
 
-  // Employee fees state
-  const [employeeFees, setEmployeeFees] = useState<any[]>([]);
-  const [isLoadingEmployeeFees, setIsLoadingEmployeeFees] = useState(false);
 
   // Calculate totals from real data
   const totalPendingAmount = pendingAdvances.reduce((sum, advance) => sum + (advance.requested_amount || 0), 0);
   const totalPendingFees = pendingAdvances.reduce((sum, advance) => sum + (advance.fee_amount || 0), 0);
 
-  // Calculate employee registration fees
-  const totalEmployeeRegistrationFees = employeeFees.reduce((sum, fee) => sum + (fee.fee_amount || 0), 0);
-  const pendingEmployeeFees = employeeFees.filter(fee => fee.status === 'pending').length;
-  const paidEmployeeFees = employeeFees.filter(fee => fee.status === 'paid').length;
 
   // Calculate totals for selected advances only
   const selectedAdvancesList = pendingAdvances.filter(advance => selectedAdvances.has(advance.id));
@@ -412,7 +406,6 @@ const OperatorDashboard = () => {
       fetchPendingAdvances();
       fetchProcessedBatches();
       fetchConfirmations();
-      fetchEmployeeFees();
       setHasInitialLoad(true);
     }
   }, [hasInitialLoad]);
@@ -422,8 +415,7 @@ const OperatorDashboard = () => {
     await Promise.all([
       fetchPendingAdvances(),
       fetchProcessedBatches(),
-      fetchConfirmations(),
-      fetchEmployeeFees()
+      fetchConfirmations()
     ]);
   };
 
@@ -521,51 +513,6 @@ const OperatorDashboard = () => {
     }
   };
 
-  // Fetch employee fees
-  const fetchEmployeeFees = async () => {
-    try {
-      setIsLoadingEmployeeFees(true);
-
-      const { data, error } = await supabase
-        .from("employee_fees")
-        .select(`
-          *,
-          employees!inner(
-            first_name,
-            last_name
-          ),
-          companies!inner(
-            name,
-            rif
-          )
-        `)
-        .order("created_at", { ascending: false });
-
-
-      if (error) {
-        if (error.message.includes("Could not find the table")) {
-          setEmployeeFees([]);
-          return;
-        }
-        console.error("❌ Database error:", error);
-        throw new Error(`Error al cargar tarifas de empleados: ${error.message}`);
-      }
-
-      setEmployeeFees(data || []);
-    } catch (error: any) {
-      console.error("❌ Error fetching employee fees:", error);
-      if (!error.message.includes("Could not find the table")) {
-        toast({
-          title: t('common.error'),
-          description: error?.message ?? t('company.billing.couldNotLoadEmployees'),
-          variant: "destructive"
-        });
-      }
-      setEmployeeFees([]);
-    } finally {
-      setIsLoadingEmployeeFees(false);
-    }
-  };
 
   // Fetch confirmations
   const fetchConfirmations = async () => {
@@ -884,17 +831,17 @@ const OperatorDashboard = () => {
             variant="outline"
             size="sm"
             onClick={refreshData}
-            disabled={isLoadingAdvances || isLoadingBatches || isLoadingConfirmations || isLoadingEmployeeFees}
+            disabled={isLoadingAdvances || isLoadingBatches || isLoadingConfirmations}
             className="flex items-center space-x-2"
           >
-            <RefreshCw className={`h-4 w-4 ${(isLoadingAdvances || isLoadingBatches || isLoadingConfirmations || isLoadingEmployeeFees) ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`h-4 w-4 ${(isLoadingAdvances || isLoadingBatches || isLoadingConfirmations) ? 'animate-spin' : ''}`} />
             <span>{t('company.billing.refresh')}</span>
           </Button>
         </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
-          <Card className="border-none shadow-card">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <Card className="border-none shadow-card w-full">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">{t('operator.pendingAdvances')}</CardTitle>
               <Clock className="h-4 w-4 text-orange-500" />
@@ -907,7 +854,7 @@ const OperatorDashboard = () => {
             </CardContent>
           </Card>
 
-          <Card className="border-none shadow-card">
+          <Card className="border-none shadow-card w-full">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">{t('company.reports.commissions')}</CardTitle>
               <DollarSign className="h-4 w-4 text-green-500" />
@@ -920,7 +867,7 @@ const OperatorDashboard = () => {
             </CardContent>
           </Card>
 
-          <Card className="border-none shadow-card">
+          <Card className="border-none shadow-card w-full">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">{t('operator.currentBatch')}</CardTitle>
               <Calendar className="h-4 w-4 text-blue-500" />
@@ -935,12 +882,12 @@ const OperatorDashboard = () => {
                 }).length}
               </div>
               <p className="text-xs text-muted-foreground">
-                11:00 AM y 3:00 PM
+                {t('operator.batchTimes')}
               </p>
             </CardContent>
           </Card>
 
-          <Card className="border-none shadow-card">
+          <Card className="border-none shadow-card w-full">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">{t('company.totalYear')}</CardTitle>
               <Banknote className="h-4 w-4 text-purple-500" />
@@ -955,20 +902,6 @@ const OperatorDashboard = () => {
             </CardContent>
           </Card>
 
-          <Card className="border-none shadow-card">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">{t('company.billing.monthlyEmployeeFees') || 'Monthly Employee Fees'}</CardTitle>
-              <Users className="h-4 w-4 text-indigo-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-indigo-600">
-                ${isLoadingEmployeeFees ? '...' : totalEmployeeRegistrationFees.toFixed(2)}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {isLoadingEmployeeFees ? '...' : `${employeeFees.length} ${t('operator.activeEmployees') || 'active employees'}`}
-              </p>
-            </CardContent>
-          </Card>
         </div>
 
         <Tabs defaultValue="pending" className="space-y-6">
@@ -982,8 +915,8 @@ const OperatorDashboard = () => {
               )}
             </TabsTrigger>
             <TabsTrigger value="batches">{t('operator.processedBatches')}</TabsTrigger>
+            <TabsTrigger value="billing">{t('operator.billing')}</TabsTrigger>
             <TabsTrigger value="confirmations">{t('operator.confirmationsTab')}</TabsTrigger>
-            <TabsTrigger value="employee-fees">{t('operator.employeeFeesTab')}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="pending" className="space-y-6">
@@ -1031,7 +964,7 @@ const OperatorDashboard = () => {
                       {isAllSelected ? (
                         <>
                           <CheckSquare className="h-4 w-4 mr-2" />
-                          Deseleccionar Todo
+                          {t('operator.deselectAll')}
                         </>
                       ) : (
                         <>
@@ -1156,11 +1089,12 @@ const OperatorDashboard = () => {
                   ) : (
                     paginatedProcessedBatches.map((batch) => {
                       const batchDate = batch.created_at ? new Date(batch.created_at) : new Date();
-                      const formattedDate = batchDate.toLocaleDateString('es-ES', {
+                      const locale = language === 'en' ? 'en-US' : 'es-ES';
+                      const formattedDate = batchDate.toLocaleDateString(locale, {
                         day: 'numeric',
                         month: 'short'
                       });
-                      const formattedTime = batchDate.toLocaleTimeString('es-ES', {
+                      const formattedTime = batchDate.toLocaleTimeString(locale, {
                         hour: '2-digit',
                         minute: '2-digit'
                       });
@@ -1184,14 +1118,14 @@ const OperatorDashboard = () => {
                           </div>
                           <div className="flex items-center space-x-6">
                             <div className="text-right">
-                              <div className="font-semibold">{batch.advance_count || 0} adelantos</div>
+                              <div className="font-semibold">{batch.advance_count || 0} {t('operator.advances')}</div>
                               <div className="text-sm text-muted-foreground">
-                                Total: ${(batch.total_amount || 0).toFixed(2)}
+                                {t('common.total')}: ${(batch.total_amount || 0).toFixed(2)}
                               </div>
                             </div>
                             <div className="flex items-center space-x-2">
                               <Badge className="bg-green-100 text-green-800">
-                                {batch.status === 'completed' ? t('employee.completed') : batch.status || 'Unknown'}
+                                {batch.status === 'completed' ? t('employee.completed') : batch.status || t('common.unknown')}
                               </Badge>
                               <Button variant="outline" size="sm" onClick={(e) => {
                                 e.stopPropagation();
@@ -1222,6 +1156,11 @@ const OperatorDashboard = () => {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Billing Dashboard Tab */}
+          <TabsContent value="billing" className="space-y-6">
+            <BillingDashboard />
           </TabsContent>
 
           <TabsContent value="confirmations" className="space-y-6">
@@ -1373,68 +1312,6 @@ const OperatorDashboard = () => {
             </Card>
           </TabsContent>
 
-          <TabsContent value="employee-fees" className="space-y-6">
-            <Card className="border-none shadow-elegant">
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Users className="h-5 w-5" />
-                  <span>{t('operator.employeeFeesTitle')}</span>
-                </CardTitle>
-                <CardDescription>
-                  {t('operator.employeeFeesDesc')}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {isLoadingEmployeeFees ? (
-                  <div className="flex items-center justify-center p-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                  </div>
-                ) : employeeFees.length === 0 ? (
-                  <div className="text-center p-8 text-muted-foreground">
-                    <AlertCircle className="h-12 w-12 mx-auto mb-4" />
-                    <p>{t('operator.noEmployeeFees')}</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {employeeFees.map((fee) => (
-                      <div key={fee.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
-                        <div className="flex items-center space-x-4">
-                          <div className="h-10 w-10 bg-gradient-primary rounded-full flex items-center justify-center">
-                            <span className="text-white text-xs font-medium">
-                              {fee.employees?.first_name?.[0]}{fee.employees?.last_name?.[0]}
-                            </span>
-                          </div>
-                          <div>
-                            <div className="font-medium text-sm">
-                              {fee.employees?.first_name} {fee.employees?.last_name}
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              {t('footer.company')}: {fee.companies?.name} ({fee.companies?.rif})
-                            </div>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="font-bold text-lg text-primary">${fee.fee_amount.toFixed(2)}</div>
-                          <div className="text-xs text-muted-foreground mb-1">
-                            {t('operator.monthlyFee') || 'Monthly fee'}
-                          </div>
-                          <Badge
-                            variant={fee.status === 'paid' ? 'default' : fee.status === 'overdue' ? 'destructive' : 'secondary'}
-                            className="text-xs"
-                          >
-                            {fee.status === 'paid' ? t('company.billing.paid') : fee.status === 'overdue' ? t('operator.overdue') : t('company.billing.pending')}
-                          </Badge>
-                          <div className="text-xs text-muted-foreground mt-1">
-                            {fee.created_at ? new Date(fee.created_at).toLocaleDateString('es-ES') : ''}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
         </Tabs>
 
         {/* Batch Detail Modal */}
@@ -1443,10 +1320,10 @@ const OperatorDashboard = () => {
             <DialogHeader>
               <DialogTitle className="flex items-center space-x-2">
                 <CheckCircle className="h-5 w-5 text-green-500" />
-                <span>Detalles del Lote</span>
+                <span>{t('operator.batchDetails')}</span>
               </DialogTitle>
               <DialogDescription>
-                {selectedBatch?.batch_name || 'Lote sin nombre'} - {selectedBatch?.created_at ? new Date(selectedBatch.created_at).toLocaleString('es-ES') : ''}
+                {selectedBatch?.batch_name || t('operator.unnamedBatch')} - {selectedBatch?.created_at ? new Date(selectedBatch.created_at).toLocaleString(language === 'en' ? 'en-US' : 'es-ES') : ''}
               </DialogDescription>
             </DialogHeader>
 
@@ -1456,40 +1333,41 @@ const OperatorDashboard = () => {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-muted/50 rounded-lg">
                   <div className="text-center">
                     <div className="text-2xl font-bold text-primary">{selectedBatch.advance_count || 0}</div>
-                    <div className="text-sm text-muted-foreground">Adelantos</div>
+                    <div className="text-sm text-muted-foreground">{t('operator.advances')}</div>
                   </div>
                   <div className="text-center">
                     <div className="text-2xl font-bold text-green-600">${(selectedBatch.total_amount || 0).toFixed(2)}</div>
-                    <div className="text-sm text-muted-foreground">Total Bruto</div>
+                    <div className="text-sm text-muted-foreground">{t('operator.grossTotal')}</div>
                   </div>
                   <div className="text-center">
                     <div className="text-2xl font-bold text-orange-600">${(selectedBatch.total_fees || 0).toFixed(2)}</div>
-                    <div className="text-sm text-muted-foreground">Comisiones</div>
+                    <div className="text-sm text-muted-foreground">{t('operator.commissions')}</div>
                   </div>
                 </div>
 
                 {/* Advances List */}
                 <div>
-                  <h3 className="text-lg font-semibold mb-4">Adelantos del Lote</h3>
+                  <h3 className="text-lg font-semibold mb-4">{t('operator.batchAdvances')}</h3>
                   {isLoadingBatchAdvances ? (
                     <div className="text-center py-8">
                       <Clock className="h-8 w-8 text-muted-foreground mx-auto mb-3 animate-spin" />
-                      <p className="text-muted-foreground">Cargando adelantos...</p>
+                      <p className="text-muted-foreground">{t('operator.loadingAdvances')}</p>
                     </div>
                   ) : batchAdvances.length === 0 ? (
                     <div className="text-center py-8">
                       <AlertCircle className="h-8 w-8 text-orange-500 mx-auto mb-3" />
-                      <p className="text-muted-foreground">No se encontraron adelantos para este lote</p>
+                      <p className="text-muted-foreground">{t('operator.noAdvancesFound')}</p>
                     </div>
                   ) : (
                     <div className="space-y-3">
                       {batchAdvances.map((advance) => {
                         const employeeName = advance.employees
                           ? `${advance.employees.first_name || ''} ${advance.employees.last_name || ''}`.trim()
-                          : 'Empleado desconocido';
-                        const companyName = advance.companies?.name || 'Empresa desconocida';
+                          : t('operator.unknownEmployee');
+                        const companyName = advance.companies?.name || t('operator.unknownCompany');
                         const advanceDate = new Date(advance.created_at);
-                        const formattedTime = advanceDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+                        const locale = language === 'en' ? 'en-US' : 'es-ES';
+                        const formattedTime = advanceDate.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
 
                         return (
                           <div key={advance.id} className="flex items-center justify-between p-3 border rounded-lg">
@@ -1503,7 +1381,7 @@ const OperatorDashboard = () => {
                                 <div className="font-medium text-sm">{employeeName}</div>
                                 <div className="text-xs text-muted-foreground">{companyName}</div>
                                 <div className="text-xs text-muted-foreground">
-                                  {advance.payment_method === 'pagomovil' ? 'PagoMóvil' : 'Transferencia'}: {advance.payment_details}
+                                  {advance.payment_method === 'pagomovil' ? t('operator.pagomovil') : t('operator.transfer')}: {advance.payment_details}
                                 </div>
                               </div>
                             </div>
@@ -1511,16 +1389,16 @@ const OperatorDashboard = () => {
                               <div className="text-right">
                                 <div className="font-semibold text-sm">${advance.requested_amount.toFixed(2)}</div>
                                 <div className="text-xs text-muted-foreground">
-                                  Comisión: ${advance.fee_amount.toFixed(2)}
+                                  {t('operator.commission')}: ${advance.fee_amount.toFixed(2)}
                                 </div>
                                 <div className="text-xs text-primary font-medium">
-                                  Neto: ${advance.net_amount.toFixed(2)}
+                                  {t('operator.net')}: ${advance.net_amount.toFixed(2)}
                                 </div>
                               </div>
                               <div className="text-right">
                                 <div className="text-xs text-muted-foreground">{formattedTime}</div>
                                 <Badge variant="secondary" className="text-xs">
-                                  {advance.status === 'completed' ? 'Completado' : advance.status}
+                                  {advance.status === 'completed' ? t('employee.completed') : advance.status}
                                 </Badge>
                               </div>
                             </div>
@@ -1544,26 +1422,26 @@ const OperatorDashboard = () => {
                 <span>{t('operator.uploadCTAButton')}</span>
               </DialogTitle>
               <DialogDescription>
-                Selecciona los archivos de comprobantes de transferencia
+                {t('operator.selectTransferReceipts')}
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4">
               {/* Instructions */}
               <div className="bg-muted/50 p-4 rounded-lg">
-                <h4 className="font-semibold mb-2">Instrucciones:</h4>
+                <h4 className="font-semibold mb-2">{t('operator.instructions')}:</h4>
                 <ul className="text-sm text-muted-foreground space-y-1">
-                  <li>• Sube comprobantes de PagoMóvil o transferencias bancarias</li>
-                  <li>• Los archivos deben estar en formato PDF o imagen</li>
-                  <li>• Cada comprobante debe corresponder a un adelanto específico</li>
-                  <li>• El sistema marcará automáticamente los adelantos como completados</li>
+                  <li>• {t('operator.uploadReceiptsInstruction1')}</li>
+                  <li>• {t('operator.uploadReceiptsInstruction2')}</li>
+                  <li>• {t('operator.uploadReceiptsInstruction3')}</li>
+                  <li>• {t('operator.uploadReceiptsInstruction4')}</li>
                 </ul>
               </div>
 
               {/* File Input */}
               <div>
                 <Label htmlFor="file-upload" className="text-sm font-medium mb-2 block">
-                  Seleccionar archivos
+                  {t('operator.selectFiles')}
                 </Label>
                 <Input
                   id="file-upload"
@@ -1574,14 +1452,14 @@ const OperatorDashboard = () => {
                   className="cursor-pointer"
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  Formatos permitidos: PDF, JPG, PNG (máx. 10MB por archivo)
+                  {t('operator.allowedFormats')}
                 </p>
               </div>
 
               {/* Selected Files */}
               {selectedFiles.length > 0 && (
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium">Archivos seleccionados:</Label>
+                  <Label className="text-sm font-medium">{t('operator.selectedFiles')}:</Label>
                   <div className="space-y-1 max-h-32 overflow-y-auto">
                     {selectedFiles.map((file, index) => (
                       <div key={index} className="flex items-center justify-between p-2 bg-muted/50 rounded text-sm">
@@ -1607,7 +1485,7 @@ const OperatorDashboard = () => {
                   disabled={uploadingFiles}
                 >
                   <X className="h-4 w-4 mr-2" />
-                  Cancelar
+                  {t('common.cancel')}
                 </Button>
                 <Button
                   onClick={uploadConfirmation}
@@ -1618,12 +1496,12 @@ const OperatorDashboard = () => {
                   {uploadingFiles ? (
                     <div className="flex items-center space-x-2">
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                      <span>Subiendo...</span>
+                      <span>{t('operator.uploading')}</span>
                     </div>
                   ) : (
                     <div className="flex items-center space-x-2">
                       <Upload className="h-4 w-4" />
-                      <span>Subir Archivos</span>
+                      <span>{t('operator.uploadFiles')}</span>
                     </div>
                   )}
                 </Button>
