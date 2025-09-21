@@ -213,13 +213,9 @@ const CompanyManagement: React.FC = () => {
         return;
       }
       
-      console.log('Revoking company:', company.name, 'Reason:', rejectionReason);
-      console.log('Company ID:', company.id);
-      console.log('Is revocation:', isRevocation);
       
       // Get current user ID
       const { data: { user } } = await supabase.auth.getUser();
-      console.log('Current user:', user?.id);
       
       const updateData = {
         is_approved: false,
@@ -231,7 +227,6 @@ const CompanyManagement: React.FC = () => {
         approved_by: isRevocation ? null : company.approved_by
       };
       
-      console.log('Update data:', updateData);
       
       const { data: updateResult, error } = await supabase
         .from('companies')
@@ -239,8 +234,6 @@ const CompanyManagement: React.FC = () => {
         .eq('id', company.id)
         .select();
 
-      console.log('Update result:', updateResult);
-      console.log('Update error:', error);
 
       if (error) {
         throw new Error(`Error ${isRevocation ? 'revoking' : 'rejecting'} company: ${error.message}`);
@@ -297,7 +290,6 @@ const CompanyManagement: React.FC = () => {
   // Handle delete company
   const handleDeleteCompany = (company: Company) => {
     // TODO: Implement delete company functionality
-    console.log('Delete company:', company);
   };
 
   // Handle toggle permission (grant/revoke access)

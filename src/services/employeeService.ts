@@ -50,17 +50,8 @@ export class EmployeeService {
    */
   static async updateEmployeeField(data: EmployeeUpdateData) {
     try {
-      console.log('=== EMPLOYEE SERVICE UPDATE ===');
-      console.log('Field name:', data.field_name);
-      console.log('Field value:', data.field_value);
-      console.log('Employee ID:', data.employee_id);
-      console.log('Company ID:', data.company_id);
-      console.log('===============================');
       
       // Validate field name
-      console.log('Validating field name:', data.field_name);
-      console.log('Valid fields:', this.VALID_EMPLOYEE_FIELDS);
-      console.log('Is valid:', this.validateFieldName(data.field_name));
       
       if (!this.validateFieldName(data.field_name)) {
         throw new Error(`Invalid field name: ${data.field_name}. Valid fields are: ${this.VALID_EMPLOYEE_FIELDS.join(', ')}`);
@@ -100,13 +91,6 @@ export class EmployeeService {
       // This bypasses RLS by using a more specific query
       const updateData = { [data.field_name]: data.field_value }
       
-      console.log('=== DATABASE UPDATE ===');
-      console.log('Update data object:', updateData);
-      console.log('Field to update:', data.field_name);
-      console.log('New value:', data.field_value);
-      console.log('Employee ID:', data.employee_id);
-      console.log('Company ID:', data.company_id);
-      console.log('======================');
       
       const { data: updateResult, error: updateError } = await supabase
         .from('employees')
@@ -115,11 +99,6 @@ export class EmployeeService {
         .eq('company_id', data.company_id) // Double-check company_id for security
         .select()
 
-      console.log('=== UPDATE RESULT ===');
-      console.log('Update result:', updateResult);
-      console.log('Update error:', updateError);
-      console.log('Rows affected:', updateResult?.length || 0);
-      console.log('====================');
 
       if (updateError) {
         console.error('EmployeeService: Update error:', updateError)
@@ -131,7 +110,6 @@ export class EmployeeService {
         throw new Error('No rows were updated. This might be due to Row Level Security policies.')
       }
 
-      console.log('EmployeeService: Update successful:', updateResult[0])
 
       // Log the update for audit purposes
       await supabase

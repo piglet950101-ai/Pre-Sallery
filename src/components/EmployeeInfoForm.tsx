@@ -76,10 +76,8 @@ export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialD
   const { toast } = useToast();
   const { t, language } = useLanguage();
 
-  console.log("EmployeeInfoForm rendered with initialData:", initialData);
 
   const [formData, setFormData] = useState<EmployeeInfo>(() => {
-    console.log("Initializing formData with initialData:", initialData);
     return {
       firstName: initialData?.firstName || "",
       lastName: initialData?.lastName || "",
@@ -113,8 +111,6 @@ export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialD
 
   // Update form data when initialData changes
   useEffect(() => {
-    console.log("EmployeeInfoForm useEffect triggered with initialData:", initialData);
-    console.log("Current formData before update:", formData);
     if (initialData && (initialData.firstName || initialData.lastName)) {
       const newFormData = {
         firstName: initialData.firstName || "",
@@ -142,11 +138,8 @@ export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialD
         accountType: initialData.accountType || "",
         notes: initialData.notes || "",
       };
-      console.log("Setting form data to:", newFormData);
       setFormData(newFormData);
-      console.log("Form data set, component should re-render");
     } else {
-      console.log("No initialData provided or initialData is empty, keeping current formData");
     }
   }, [initialData]);
 
@@ -201,7 +194,6 @@ export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialD
   };
 
   const renderStepContent = () => {
-    console.log("renderStepContent called with formData:", formData);
 
     switch (currentStep) {
       case 1:
