@@ -1593,8 +1593,6 @@ const CompanyDashboard = () => {
             })
             .eq('id', employee.id);
 
-          console.log(`Updated employee ${employee.id} with auth_user_id:`, updateResult);
-
           if (updateResult.error) {
             console.error(`Failed to update employee with auth_user_id:`, updateResult.error);
             throw new Error(`Failed to link auth user to employee: ${updateResult.error.message}`);
@@ -1723,7 +1721,6 @@ const CompanyDashboard = () => {
       accountType: employee.account_type || "",
       notes: employee.notes || "",
     };
-    console.log("mapEmployeeToFormData returning mapped data:", mappedData);
     return mappedData;
   };
 
@@ -1754,7 +1751,6 @@ const CompanyDashboard = () => {
       setIsLoading(true);
       
       // First, check for any remaining foreign key references
-      console.log("Starting cascade delete for employee:", employeeToDelete.id);
 
       // Check for any remaining references in all possible tables
       const tablesToCheck = ['audit_logs', 'employee_fees', 'change_requests', 'advance_transactions'];
@@ -1766,77 +1762,46 @@ const CompanyDashboard = () => {
           .limit(1);
 
         if (checkError) {
-          console.log(`Table ${table} check error:`, checkError);
+          // Handle check error silently
         } else if (remainingRecords && remainingRecords.length > 0) {
-          console.log(`Found remaining records in ${table}:`, remainingRecords);
-        } else {
-          console.log(`No remaining records in ${table}`);
+          // Found remaining records
         }
       }
 
       // Skip audit logs deletion due to RLS policies
       // The foreign key constraint should handle this with CASCADE DELETE
-      console.log("Skipping audit logs deletion - relying on CASCADE DELETE from foreign key constraint...");
-
-      // Just verify what audit logs exist for debugging
-      const { data: existingAuditLogs, error: auditCheckError } = await supabase
-        .from("audit_logs")
-        .select("id, action, created_at")
-        .eq("employee_id", employeeToDelete.id);
-      
-      console.log("Existing audit logs for employee:", existingAuditLogs);
-      console.log("Audit check error:", auditCheckError);
-
-      if (existingAuditLogs && existingAuditLogs.length > 0) {
-        console.log(`Found ${existingAuditLogs.length} audit logs that should be deleted by CASCADE DELETE`);
-      } else {
-        console.log("No audit logs found for this employee");
-      }
 
       // Delete employee fees for this employee
-      console.log("Deleting employee fees...");
       const { error: feeError } = await supabase
         .from("employee_fees")
         .delete()
         .eq("employee_id", employeeToDelete.id);
       
       if (feeError) {
-        console.error("Error deleting employee fees:", feeError);
         throw new Error(`Failed to delete employee fees: ${feeError.message}`);
-      } else {
-        console.log("Employee fees deleted successfully");
       }
 
       // Delete change requests for this employee
-      console.log("Deleting change requests...");
       const { error: changeRequestError } = await supabase
         .from("change_requests")
         .delete()
         .eq("employee_id", employeeToDelete.id);
       
       if (changeRequestError) {
-        console.error("Error deleting change requests:", changeRequestError);
         throw new Error(`Failed to delete change requests: ${changeRequestError.message}`);
-      } else {
-        console.log("Change requests deleted successfully");
       }
 
       // Delete advance transactions for this employee
-      console.log("Deleting advance transactions...");
       const { error: advanceError } = await supabase
         .from("advance_transactions")
         .delete()
         .eq("employee_id", employeeToDelete.id);
-
+      
       if (advanceError) {
-        console.error("Error deleting advance transactions:", advanceError);
         throw new Error(`Failed to delete advance transactions: ${advanceError.message}`);
-      } else {
-        console.log("Advance transactions deleted successfully");
       }
 
       // Final verification: Check if any references still exist (excluding audit_logs)
-      console.log("Final verification - checking for remaining references...");
       const tablesToCheckExcludingAudit = tablesToCheck.filter(table => table !== 'audit_logs');
 
       for (const table of tablesToCheckExcludingAudit) {
@@ -1847,40 +1812,20 @@ const CompanyDashboard = () => {
           .limit(1);
 
         if (finalCheckError) {
-          console.log(`Final check error for ${table}:`, finalCheckError);
+          // Handle check error silently
         } else if (finalCheck && finalCheck.length > 0) {
-          console.error(`CRITICAL: Still found references in ${table}:`, finalCheck);
           throw new Error(`Cannot delete employee: still has references in ${table}`);
-        } else {
-          console.log(`Final check passed for ${table}`);
         }
       }
 
-      // Check audit logs separately for debugging
-      const { data: finalAuditCheck } = await supabase
-        .from('audit_logs')
-        .select('id')
-        .eq('employee_id', employeeToDelete.id)
-        .limit(1);
-
-      if (finalAuditCheck && finalAuditCheck.length > 0) {
-        console.log(`Note: ${finalAuditCheck.length} audit logs still exist, but will be handled by CASCADE DELETE`);
-      } else {
-        console.log("No audit logs found in final check");
-      }
-
       // Now delete the employee
-      console.log("Deleting employee record...");
       const { error } = await supabase
         .from("employees")
         .delete()
         .eq("id", employeeToDelete.id);
-      
+
       if (error) {
-        console.error("Error deleting employee:", error);
         throw new Error(`Failed to delete employee: ${error.message}`);
-      } else {
-        console.log("Employee deleted successfully");
       }
 
       // Remove from local state
@@ -2180,7 +2125,6 @@ const CompanyDashboard = () => {
                 }
               });
 
-              console.log(`Auth user creation result for ${user.email}:`, { authData, authError });
 
               if (authError) {
                 console.error(`Auth user creation failed for ${user.email}:`, authError);
@@ -2218,7 +2162,6 @@ const CompanyDashboard = () => {
                   })
                   .eq('id', employee.id);
 
-                console.log(`Updated employee ${employee.id} with auth_user_id:`, updateResult);
 
                 if (updateResult.error) {
                   console.error(`Failed to update employee with auth_user_id:`, updateResult.error);
@@ -2520,9 +2463,9 @@ const CompanyDashboard = () => {
     
     // Filter by search term
     if (employeeSearch.trim()) {
-    const term = employeeSearch.trim().toLowerCase();
+      const term = employeeSearch.trim().toLowerCase();
       filtered = filtered.filter(e =>
-      `${e.first_name} ${e.last_name}`.toLowerCase().includes(term) ||
+        `${e.first_name} ${e.last_name}`.toLowerCase().includes(term) ||
         (e.cedula?.toLowerCase().includes(term)) ||
         (e.auth_email?.toLowerCase().includes(term)) ||
         (e.email?.toLowerCase().includes(term))
@@ -2619,13 +2562,9 @@ const CompanyDashboard = () => {
       let serviceResult = { success: false, data: null };
       
       if (isFullNameChange) {
-        console.log('Processing full name change request');
-        console.log('Request details:', request);
+        // Processing full name change request
       } else if (isEmailChange) {
         // Email changes are disabled - reject the request
-        console.log('Email change request detected - rejecting as email changes are disabled');
-        console.log('Current email:', request.current_value);
-        console.log('Requested email:', request.requested_value);
         
         // Reject the change request
         const rejectResult = await changeRequestService.updateChangeRequestStatus(
@@ -2657,18 +2596,10 @@ const CompanyDashboard = () => {
       } else if (isNameChange) {
         // Look for the partner name change request
         const partnerFieldName = request.field_name === 'first_name' ? 'last_name' : 'first_name';
-        console.log('Looking for partner request:', {
-          employee_id: request.employee_id,
-          partnerFieldName,
-          currentFieldName: request.field_name,
-          details: request.details
-        });
-        
         // Debug: Show all pending change requests for this employee
         const employeeRequests = changeRequests.filter(req => 
           req.employee_id === request.employee_id && req.status === 'pending'
         );
-        console.log('All pending requests for this employee:', employeeRequests);
         
         partnerRequest = changeRequests.find(req => 
           req.employee_id === request.employee_id &&
@@ -2677,15 +2608,11 @@ const CompanyDashboard = () => {
           (req.details?.includes('Full Name Change') || req.details?.includes('Full Name Change -'))
         );
         
-        console.log('Partner request found:', partnerRequest);
       }
 
       // Update the employee's profile using EmployeeService
       if (isFullNameChange) {
         // This is a full name change - update both fields together
-        console.log('Processing full name change - updating both first_name and last_name');
-        console.log('Current value:', request.current_value);
-        console.log('Requested value:', request.requested_value);
         
         // Split the full names
         const currentNames = request.current_value.split(' ');
@@ -2694,8 +2621,6 @@ const CompanyDashboard = () => {
         const firstNameValue = requestedNames[0] || '';
         const lastNameValue = requestedNames.slice(1).join(' ') || '';
         
-        console.log('Extracted first name:', firstNameValue);
-        console.log('Extracted last name:', lastNameValue);
         
         // Update first name
         const firstNameResult = await EmployeeService.updateEmployeeField({
@@ -2725,9 +2650,6 @@ const CompanyDashboard = () => {
         
       } else if (isNameChange && partnerRequest) {
         // This is a full name change - update both fields together
-        console.log('Processing full name change - updating both first_name and last_name');
-        console.log('Current request:', request);
-        console.log('Partner request:', partnerRequest);
         
         // Get the correct values for each field and split them properly
         const firstNameValue = request.field_name === 'first_name' ? 
@@ -2737,11 +2659,6 @@ const CompanyDashboard = () => {
           request.requested_value.split(' ').slice(1).join(' ') : 
           partnerRequest.requested_value.split(' ').slice(1).join(' ');
         
-        console.log('First name value:', firstNameValue);
-        console.log('Last name value:', lastNameValue);
-        console.log('Splitting logic - request field:', request.field_name);
-        console.log('Splitting logic - request value:', request.requested_value);
-        console.log('Splitting logic - partner value:', partnerRequest.requested_value);
         
         // Update first name
         const firstNameResult = await EmployeeService.updateEmployeeField({
@@ -2781,9 +2698,6 @@ const CompanyDashboard = () => {
         }
       } else if (isNameChange && !partnerRequest) {
         // Single name change - handle it normally but with proper splitting
-        console.log('Processing single name change - no partner request found');
-        console.log('Request field:', request.field_name);
-        console.log('Request value:', request.requested_value);
         
         // For single name changes, we need to extract the correct part
         let fieldValue;
@@ -2795,7 +2709,6 @@ const CompanyDashboard = () => {
           fieldValue = request.requested_value;
         }
         
-        console.log('Extracted field value:', fieldValue);
         
         serviceResult = await EmployeeService.updateEmployeeField({
           employee_id: request.employee_id,
@@ -2806,7 +2719,6 @@ const CompanyDashboard = () => {
       } else {
         // Regular single field update - but skip email fields as they're handled by auth
         if (request.field_name === 'email') {
-          console.log('Email field detected in general update - skipping as it should be handled by auth system');
           serviceResult = { success: true, data: { email: request.requested_value } };
         } else {
           serviceResult = await EmployeeService.updateEmployeeField({
@@ -3133,11 +3045,6 @@ const CompanyDashboard = () => {
       
       switch (type) {
         case 'advances':
-          console.log('Exporting advances - activeAdvances:', activeAdvances);
-          console.log('Exporting advances - activeAdvances length:', activeAdvances.length);
-          if (activeAdvances.length > 0) {
-            console.log('First advance sample:', activeAdvances[0]);
-          }
           exportData = activeAdvances.map(advance => ({
             [t('common.date')]: format(new Date(advance.created_at), 'dd/MM/yyyy HH:mm'),
             [t('common.employee')]: `${advance.employees.first_name} ${advance.employees.last_name}`,
@@ -3209,10 +3116,6 @@ const CompanyDashboard = () => {
           
         case 'analytics':
           // Generate analytics report with summary data
-          console.log('Exporting analytics - activeAdvances:', activeAdvances);
-          console.log('Exporting analytics - employees:', employees);
-          console.log('Exporting analytics - activeAdvances length:', activeAdvances.length);
-          console.log('Exporting analytics - employees length:', employees.length);
           // Access the global reportData object (defined outside this function)
           const globalReportData = {
             totalAdvances: activeAdvances.reduce((sum, advance) => sum + advance.requested_amount, 0),
@@ -3251,12 +3154,9 @@ const CompanyDashboard = () => {
             'Export Date': format(new Date(), 'dd/MM/yyyy HH:mm')
           };
           exportData = [analyticsData];
-          console.log('Analytics exportData:', exportData);
           break;
       }
       
-      console.log('Final exportData for', type, ':', exportData);
-      console.log('Final exportData length:', exportData.length);
       
       if (exportData.length === 0) {
         toast({
@@ -3595,13 +3495,6 @@ const CompanyDashboard = () => {
 
   // Generate PDF report using jsPDF
   const generatePDFReport = (data: any[], type: string, reportName: string) => {
-    console.log('PDF Generation - data:', data);
-    console.log('PDF Generation - type:', type);
-    console.log('PDF Generation - data length:', data.length);
-    if (data.length > 0) {
-      console.log('PDF Generation - first row keys:', Object.keys(data[0]));
-      console.log('PDF Generation - first row:', data[0]);
-    }
     
     const currentDate = new Date();
     const companyName = company?.name || 'Empresa';
@@ -3947,7 +3840,6 @@ const CompanyDashboard = () => {
   // Generate invoice
   const generateInvoice = async (invoiceData: any) => {
     try {
-      console.log('Generating invoice with data:', invoiceData);
       
       const doc = new jsPDF();
       
@@ -5864,9 +5756,7 @@ const CompanyDashboard = () => {
             isLoading={isLoading}
             {...(editingEmployee ? {
               initialData: (() => {
-                console.log("CompanyDashboard editingEmployee:", editingEmployee);
                 const mappedData = mapEmployeeToFormData(editingEmployee);
-                console.log("CompanyDashboard passing initialData to EmployeeInfoForm:", mappedData);
                 return mappedData;
               })()
             } : {})}

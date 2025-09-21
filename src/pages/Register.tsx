@@ -99,7 +99,6 @@ const Register = () => {
       }
       
       // Validate email format (very permissive - just check for @ and .)
-      console.log("🔍 Email validation check:", {
         originalEmail: employeeEmail,
         cleanedEmail: cleanEmail,
         hasAt: cleanEmail.includes('@'),
@@ -116,7 +115,6 @@ const Register = () => {
       
       // Additional check: make sure there's at least one character before @ and after .
       const emailParts = cleanEmail.split('@');
-      console.log("🔍 Email parts analysis:", {
         emailParts: emailParts,
         partsLength: emailParts.length,
         beforeAtLength: emailParts[0]?.length || 0,
@@ -133,13 +131,8 @@ const Register = () => {
       }
       
       // Debug: Log the inputs
-      console.log("Original Activation Code:", activationCode);
-      console.log("Cleaned Activation Code:", cleanActivationCode);
-      console.log("Original Employee Email:", employeeEmail);
-      console.log("Cleaned Employee Email:", cleanEmail);
       
       // Check activation code and email directly
-      console.log("🔍 Looking up employee with:", {
         activationCode: cleanActivationCode,
         employeeEmail: cleanEmail
       });
@@ -151,25 +144,17 @@ const Register = () => {
         .eq("email", cleanEmail)
         .single();
       
-      console.log("📊 Employee lookup result:", employeeData);
-      console.log("❌ Employee lookup error:", employeeError);
       
       // Additional debugging: check if employee exists with just email
       if (employeeError && employeeError.code === 'PGRST116') {
-        console.log("🔍 No exact match found, checking if email exists...");
         const { data: emailCheck, error: emailError } = await supabase
           .from("employees")
           .select("email, activation_code")
           .eq("email", cleanEmail)
           .single();
         
-        console.log("📧 Email check result:", emailCheck);
-        console.log("📧 Email check error:", emailError);
         
         if (emailCheck) {
-          console.log("⚠️ Email exists but activation code doesn't match");
-          console.log("Expected code:", activationCode);
-          console.log("Actual code:", emailCheck.activation_code);
         }
       }
       
@@ -208,7 +193,6 @@ const Register = () => {
       
       if (data.user) {
         // Update employee record with auth_user_id and activate account
-        console.log("Updating employee record:", {
           id: employeeData.id,
           auth_user_id: data.user.id,
           is_active: true,
@@ -250,14 +234,12 @@ const Register = () => {
               console.error("Function error:", functionError);
               throw new Error('Could not activate employee account. Contact support.');
             } else {
-              console.log("Employee activated via function");
             }
           } catch (funcErr) {
             console.error("Function call failed:", funcErr);
             throw new Error('Could not activate employee account. Contact support.');
           }
         } else {
-          console.log("Employee record updated successfully - is_active set to true");
         }
       }
       

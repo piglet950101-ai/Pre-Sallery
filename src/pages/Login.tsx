@@ -59,7 +59,6 @@ const Login = () => {
       
       // If the user is a company, check if they're approved
       if (role === 'company') {
-        console.log('Checking company status for user:', data.session.user.id);
         const { data: companyData, error: companyError } = await supabase
           .from('companies')
           .select('is_approved, rejection_reason, rejected_at, name')
@@ -75,17 +74,11 @@ const Login = () => {
             variant: "destructive"
           });
         } else if (companyData) {
-          console.log('Company data:', companyData);
-          console.log('Company name:', companyData.name);
-          console.log('Is approved:', companyData.is_approved);
-          console.log('Rejection reason:', companyData.rejection_reason);
-          console.log('Rejected at:', companyData.rejected_at);
           
           if (!companyData.is_approved) {
             // Company is not approved - check if it was rejected
             if (companyData.rejection_reason && companyData.rejection_reason.trim()) {
               // Company was rejected - show rejection reason
-              console.log('Company rejected, reason:', companyData.rejection_reason);
               toast({
                 title: t('login.companyRejected') ?? 'Empresa Rechazada',
                 description: `${t('login.rejectionReason') ?? 'Motivo del rechazo'}: ${companyData.rejection_reason}`,
@@ -96,7 +89,6 @@ const Login = () => {
               return;
             } else {
               // Company is pending approval
-              console.log('Company pending approval');
               toast({
                 title: t('login.companyPending') ?? 'Empresa Pendiente de Aprobación',
                 description: t('login.companyPendingDesc') ?? 'Su empresa está pendiente de aprobación por parte de un operador. Por favor, espere a ser contactado.',
@@ -107,14 +99,12 @@ const Login = () => {
               return;
             }
           } else {
-            console.log('Company approved, allowing login');
           }
         }
       }
       
       // If the user is an employee, check if they're active and approved
       if (role === 'employee') {
-        console.log('Checking employee status for user:', data.session.user.id);
         const { data: employeeData, error: employeeError } = await supabase
           .from('employees')
           .select('is_active, is_approved, rejection_reason, rejected_at, first_name, last_name')
@@ -129,17 +119,11 @@ const Login = () => {
             variant: "destructive"
           });
         } else if (employeeData) {
-          console.log('Employee data:', employeeData);
-          console.log('Employee name:', `${employeeData.first_name} ${employeeData.last_name}`);
-          console.log('Is active:', employeeData.is_active);
-          console.log('Is approved:', employeeData.is_approved);
-          console.log('Rejection reason:', employeeData.rejection_reason);
           
           if (!employeeData.is_active) {
             // Employee is not active - check if they were rejected
             if (employeeData.rejection_reason && employeeData.rejection_reason.trim()) {
               // Employee was rejected - show rejection reason
-              console.log('Employee rejected, reason:', employeeData.rejection_reason);
               toast({
                 title: t('login.employeeRejected') ?? 'Solicitud Rechazada',
                 description: `${t('login.rejectionReason') ?? 'Motivo del rechazo'}: ${employeeData.rejection_reason}`,
@@ -150,7 +134,6 @@ const Login = () => {
               return;
             } else {
               // Employee is pending approval
-              console.log('Employee pending approval');
               toast({
                 title: t('login.employeePending') ?? 'Solicitud Pendiente de Aprobación',
                 description: t('login.employeePendingDesc') ?? 'Su solicitud está pendiente de aprobación por parte de su empresa. Por favor, espere a ser contactado.',
@@ -164,7 +147,6 @@ const Login = () => {
             // Employee is active but not approved - check if they were rejected
             if (employeeData.rejection_reason && employeeData.rejection_reason.trim()) {
               // Employee was rejected - show rejection reason
-              console.log('Employee rejected, reason:', employeeData.rejection_reason);
               toast({
                 title: t('login.employeeRejected') ?? 'Solicitud Rechazada',
                 description: `${t('login.rejectionReason') ?? 'Motivo del rechazo'}: ${employeeData.rejection_reason}`,
@@ -175,7 +157,6 @@ const Login = () => {
               return;
             } else {
               // Employee is pending approval
-              console.log('Employee pending approval');
               toast({
                 title: t('login.employeePending') ?? 'Solicitud Pendiente de Aprobación',
                 description: t('login.employeePendingDesc') ?? 'Su solicitud está pendiente de aprobación por parte de su empresa. Por favor, espere a ser contactado.',
@@ -186,7 +167,6 @@ const Login = () => {
               return;
             }
           } else {
-            console.log('Employee approved and active, allowing login');
           }
         }
       }

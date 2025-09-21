@@ -23,7 +23,6 @@ serve(async (req) => {
 
     // For demo purposes, we'll just log the SMS
     // In production, you would integrate with an SMS service like Twilio, AWS SNS, etc.
-    console.log(`Sending verification SMS to ${phone} with code ${code} for type ${type}`)
 
     // Example SMS message
     const smsMessage = `Pre-Sallery verification code: ${code}. This code expires in 15 minutes. If you didn't request this change, please ignore this message.`

@@ -485,28 +485,17 @@ const Profile = () => {
 
   const handleSaveEmail = async () => {
     try {
-      console.log('=== EMAIL SAVE DEBUG ===');
-      console.log('Employee:', employee);
-      console.log('Email data:', emailData);
-      console.log('Email changed:', emailData.email !== user?.email);
-      console.log('========================');
 
       if (!user) {
-        console.log('No user data, returning');
         return;
       }
 
       const emailChanged = emailData.email.trim() !== user.email?.trim();
-      console.log('Email changed check:', emailChanged);
-      console.log('Current email:', user.email);
-      console.log('New email:', emailData.email);
 
       if (emailChanged) {
         // Validate email format
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        console.log('Email validation:', emailRegex.test(emailData.email));
         if (!emailRegex.test(emailData.email)) {
-          console.log('Email validation failed');
           toast({
             title: t('common.error'),
             description: t('employee.profile.emailInvalid'),
@@ -516,9 +505,7 @@ const Profile = () => {
         }
 
         // Validate reason
-        console.log('Reason validation:', emailData.reason.trim().length > 0);
         if (!emailData.reason.trim()) {
-          console.log('Reason validation failed');
           toast({
             title: t('common.error'),
             description: t('employee.profile.reasonRequired'),
@@ -528,16 +515,6 @@ const Profile = () => {
         }
 
         // Create change request instead of direct update
-        console.log('Creating change request with data:', {
-          employee_id: employee.id,
-          field_name: 'email',
-          current_value: user.email,
-          requested_value: emailData.email,
-          reason: emailData.reason,
-          details: `Email change request from ${user.email} to ${emailData.email}`,
-          category: 'contact',
-          priority: 'normal'
-        });
 
         const result = await changeRequestService.createChangeRequest({
           employee_id: employee.id,
@@ -550,10 +527,8 @@ const Profile = () => {
           priority: 'normal'
         });
 
-        console.log('Change request result:', result);
 
         if (!result.success) {
-          console.log('Change request failed:', result.error);
           throw new Error(result.error || 'Failed to create change request');
         }
 
@@ -562,7 +537,6 @@ const Profile = () => {
           description: t('employee.profile.emailChangeRequested'),
         });
       } else {
-        console.log('Email not changed, no request needed');
         toast({
           title: t('common.error'),
           description: t('employee.profile.noEmailChange'),
@@ -597,13 +571,8 @@ const Profile = () => {
 
   const handleSaveFullName = async () => {
     try {
-      console.log('=== FULL NAME SAVE DEBUG ===');
-      console.log('Employee:', employee);
-      console.log('Full name data:', fullNameData);
-      console.log('============================');
 
       if (!employee) {
-        console.log('No employee data, returning');
         return;
       }
 
@@ -611,15 +580,10 @@ const Profile = () => {
       const lastNameChanged = fullNameData.lastName.trim() !== employee.last_name?.trim();
       const nameChanged = firstNameChanged || lastNameChanged;
 
-      console.log('Name changed check:', nameChanged);
-      console.log('First name changed:', firstNameChanged);
-      console.log('Last name changed:', lastNameChanged);
 
       if (nameChanged) {
         // Validate reason
-        console.log('Reason validation:', fullNameData.reason.trim().length > 0);
         if (!fullNameData.reason.trim()) {
-          console.log('Reason validation failed');
           toast({
             title: t('common.error'),
             description: t('employee.profile.reasonRequired'),
@@ -629,16 +593,6 @@ const Profile = () => {
         }
 
         // Create change request for full name change
-        console.log('Creating full name change request with data:', {
-          employee_id: employee.id,
-          field_name: 'first_name',
-          current_value: employee.first_name,
-          requested_value: fullNameData.firstName,
-          reason: fullNameData.reason,
-          details: `Full Name Change Request: ${employee.first_name} ${employee.last_name} → ${fullNameData.firstName} ${fullNameData.lastName}`,
-          category: 'profile',
-          priority: 'normal'
-        });
 
         // Create single change request for full name change
         const result = await changeRequestService.createChangeRequest({
@@ -652,10 +606,8 @@ const Profile = () => {
           priority: 'normal'
         });
 
-        console.log('Full name change request result:', result);
 
         if (!result.success) {
-          console.log('Full name change request failed:', result.error);
           throw new Error(result.error || 'Failed to create change request');
         }
 
@@ -664,7 +616,6 @@ const Profile = () => {
           description: t('employee.profile.fullNameChangeRequested'),
         });
       } else {
-        console.log('Name not changed, no request needed');
         toast({
           title: t('common.error'),
           description: t('employee.profile.noNameChange'),
@@ -699,10 +650,6 @@ const Profile = () => {
 
   const handleSaveBankName = async () => {
     try {
-      console.log('=== BANK NAME SAVE DEBUG ===');
-      console.log('Current bank name:', employee?.bank_name);
-      console.log('New bank name:', bankNameData.bankName);
-      console.log('Reason:', bankNameData.reason);
 
       if (!employee) return;
 
@@ -765,10 +712,6 @@ const Profile = () => {
 
   const handleSaveAccountNumber = async () => {
     try {
-      console.log('=== ACCOUNT NUMBER SAVE DEBUG ===');
-      console.log('Current account number:', employee?.account_number);
-      console.log('New account number:', accountNumberData.accountNumber);
-      console.log('Reason:', accountNumberData.reason);
 
       if (!employee) return;
 
@@ -831,10 +774,6 @@ const Profile = () => {
 
   const handleSaveAccountType = async () => {
     try {
-      console.log('=== ACCOUNT TYPE SAVE DEBUG ===');
-      console.log('Current account type:', employee?.account_type);
-      console.log('New account type:', accountTypeData.accountType);
-      console.log('Reason:', accountTypeData.reason);
 
       if (!employee) return;
 
@@ -989,10 +928,6 @@ const Profile = () => {
         }
 
         // Create change request for first name
-        console.log('=== CREATING FIRST NAME CHANGE REQUEST ===');
-        console.log('First name:', changeRequestFirstName.trim());
-        console.log('Current first name:', employee.first_name);
-        console.log('Reason:', changeRequestReason);
         
         const firstNameResult = await changeRequestService.createChangeRequest({
           employee_id: employee.id,
@@ -1005,13 +940,8 @@ const Profile = () => {
           priority: 'normal'
         });
 
-        console.log('First name result:', firstNameResult);
 
         // Create change request for last name
-        console.log('=== CREATING LAST NAME CHANGE REQUEST ===');
-        console.log('Last name:', changeRequestLastName.trim());
-        console.log('Current last name:', employee.last_name);
-        console.log('Reason:', changeRequestReason);
         
         const lastNameResult = await changeRequestService.createChangeRequest({
           employee_id: employee.id,
@@ -1024,7 +954,6 @@ const Profile = () => {
           priority: 'normal'
         });
 
-        console.log('Last name result:', lastNameResult);
 
         if (firstNameResult.success && lastNameResult.success) {
           setChangeRequests(prev => [...prev, firstNameResult.data!, lastNameResult.data!]);
