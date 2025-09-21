@@ -45,6 +45,8 @@ interface Company {
   outstanding_balance: number;
   employee_count: number;
   last_activity?: string;
+  auth_user_id?: string;
+  auth_email?: string;
 }
 
 const CompanyManagement: React.FC = () => {
@@ -66,9 +68,9 @@ const CompanyManagement: React.FC = () => {
     try {
       setIsLoading(true);
       
-      // First, get all companies
+      // Get companies with auth user email using the view
       const { data: companiesData, error: companiesError } = await supabase
-        .from('companies')
+        .from('companies_with_auth')
         .select('*')
         .order('created_at', { ascending: false });
 
@@ -116,7 +118,9 @@ const CompanyManagement: React.FC = () => {
           total_transactions: totalTransactions,
           outstanding_balance: outstandingBalance,
           employee_count: employeeCount || 0,
-          last_activity: company.updated_at
+          last_activity: company.updated_at,
+          auth_user_id: company.auth_user_id,
+          auth_email: company.auth_email
         };
       }));
 
@@ -142,7 +146,8 @@ const CompanyManagement: React.FC = () => {
       filtered = filtered.filter(company =>
         company.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         company.rif.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        company.email.toLowerCase().includes(searchTerm.toLowerCase())
+        company.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (company.auth_email && company.auth_email.toLowerCase().includes(searchTerm.toLowerCase()))
       );
     }
 
@@ -443,7 +448,9 @@ const CompanyManagement: React.FC = () => {
                     </div>
                     <div>
                       <div className="font-medium">{company.name}</div>
-                      <div className="text-sm text-muted-foreground">{company.rif}</div>
+                      <div className="text-sm text-muted-foreground">
+                        {company.auth_email || company.email || company.rif}
+                      </div>
                     </div>
                   </div>
                   <div className="flex items-center space-x-6">
@@ -537,7 +544,7 @@ const CompanyManagement: React.FC = () => {
                     </div>
                     <div>
                       <label className="text-sm font-medium text-muted-foreground">{t('operator.email')}</label>
-                      <p className="text-lg font-semibold">{selectedCompany.email}</p>
+                      <p className="text-lg font-semibold">{selectedCompany.auth_email || selectedCompany.email}</p>
                     </div>
                     <div>
                       <label className="text-sm font-medium text-muted-foreground">{t('operator.phone')}</label>

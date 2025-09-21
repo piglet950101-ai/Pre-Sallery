@@ -234,6 +234,15 @@ const Header = ({ showNavigation = true, className = "" }: HeaderProps) => {
                 <span>{t('nav.employeePanel') ?? 'Employee Panel'}</span>
               </Link>
             )}
+            {actualUserRole === 'operator' && (
+              <Link 
+                to="/operator" 
+                className="text-muted-foreground hover:text-foreground transition-colors flex items-center space-x-2"
+              >
+                <Shield className="h-4 w-4" />
+                <span>{t('nav.operatorPanel') ?? 'Operator Panel'}</span>
+              </Link>
+            )}
             
             {/* Role-specific navigation items */}
           </div>
