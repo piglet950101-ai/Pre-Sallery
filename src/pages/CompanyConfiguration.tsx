@@ -350,6 +350,14 @@ const CompanyConfiguration = () => {
         return;
       }
 
+      // Check if company is approved
+      if (!company.is_approved) {
+        console.warn('Company is not approved. Redirecting to login.');
+        await supabase.auth.signOut();
+        window.location.href = '/login';
+        return;
+      }
+
       const companyData = {
         name: company.name || "",
         rif: company.rif || "",

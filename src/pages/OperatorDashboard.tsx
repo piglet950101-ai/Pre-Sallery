@@ -37,6 +37,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import Header from "@/components/Header";
 import { useLanguage } from "@/contexts/LanguageContext";
 import BillingDashboard from "@/components/operator/BillingDashboard";
+import CompanyManagement from "@/components/operator/CompanyManagement";
 
 const OperatorDashboard = () => {
   const { toast } = useToast();
@@ -905,7 +906,7 @@ const OperatorDashboard = () => {
         </div>
 
         <Tabs defaultValue="pending" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="pending" className="relative">
               {t('operator.pendingAdvances')}
               {pendingAdvances.length > 0 && (
@@ -916,6 +917,7 @@ const OperatorDashboard = () => {
             </TabsTrigger>
             <TabsTrigger value="batches">{t('operator.processedBatches')}</TabsTrigger>
             <TabsTrigger value="billing">{t('operator.billing')}</TabsTrigger>
+            <TabsTrigger value="companies">{t('operator.companyManagement')}</TabsTrigger>
             <TabsTrigger value="confirmations">{t('operator.confirmationsTab')}</TabsTrigger>
           </TabsList>
 
@@ -1161,6 +1163,10 @@ const OperatorDashboard = () => {
           {/* Billing Dashboard Tab */}
           <TabsContent value="billing" className="space-y-6">
             <BillingDashboard />
+          </TabsContent>
+
+          <TabsContent value="companies" className="space-y-6">
+            <CompanyManagement />
           </TabsContent>
 
           <TabsContent value="confirmations" className="space-y-6">
