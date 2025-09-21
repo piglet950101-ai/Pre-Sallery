@@ -4320,6 +4320,8 @@ const CompanyDashboard = () => {
                 </Badge>
               )}
             </TabsTrigger>
+            <TabsTrigger value="reports">{t('company.reports')}</TabsTrigger>
+            <TabsTrigger value="billing">{t('company.billing')}</TabsTrigger>
             <TabsTrigger value="employees" className="relative">
               {t('company.employees')}
               {totalPendingItems > 0 && (
@@ -4328,8 +4330,6 @@ const CompanyDashboard = () => {
                 </Badge>
               )}
             </TabsTrigger>
-            <TabsTrigger value="reports">{t('company.reports')}</TabsTrigger>
-            <TabsTrigger value="billing">{t('company.billing')}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="advances" className="space-y-6">

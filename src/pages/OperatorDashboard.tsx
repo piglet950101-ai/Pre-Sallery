@@ -917,8 +917,8 @@ const OperatorDashboard = () => {
             </TabsTrigger>
             <TabsTrigger value="batches">{t('operator.processedBatches')}</TabsTrigger>
             <TabsTrigger value="billing">{t('operator.billing')}</TabsTrigger>
-            <TabsTrigger value="companies">{t('operator.companyManagement')}</TabsTrigger>
             <TabsTrigger value="confirmations">{t('operator.confirmationsTab')}</TabsTrigger>
+            <TabsTrigger value="companies">{t('operator.companyManagement')}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="pending" className="space-y-6">
