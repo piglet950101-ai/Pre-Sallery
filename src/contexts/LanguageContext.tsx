@@ -457,6 +457,15 @@ const translations: Translations = {
   'language.spanish': { en: 'Spanish', es: 'Español' },
   'language.switch': { en: 'Switch Language', es: 'Cambiar Idioma' },
 
+  // Days of the week
+  'days.monday': { en: 'Monday', es: 'Lunes' },
+  'days.tuesday': { en: 'Tuesday', es: 'Martes' },
+  'days.wednesday': { en: 'Wednesday', es: 'Miércoles' },
+  'days.thursday': { en: 'Thursday', es: 'Jueves' },
+  'days.friday': { en: 'Friday', es: 'Viernes' },
+  'days.saturday': { en: 'Saturday', es: 'Sábado' },
+  'days.sunday': { en: 'Sunday', es: 'Domingo' },
+
   // Dashboard Pages
   'employee.dashboard.title': { en: 'Employee Dashboard', es: 'Panel de Empleado' },
   'company.dashboard.title': { en: 'Company Dashboard', es: 'Panel de Empresa' },
@@ -1022,6 +1031,8 @@ const translations: Translations = {
   'company.approved': { en: 'Approved', es: 'Aprobado' },
   'company.rejected': { en: 'Rejected', es: 'Rechazado' },
   'company.pendingApproval': { en: 'Pending Approval', es: 'Pendiente de Aprobación' },
+  'company.filterByStatus': { en: 'Filter by Status', es: 'Filtrar por Estado' },
+  'company.allStatuses': { en: 'All Statuses', es: 'Todos los Estados' },
   'company.approveEmployee': { en: 'Approve Employee', es: 'Aprobar Empleado' },
   'company.rejectEmployee': { en: 'Reject Employee', es: 'Rechazar Empleado' },
   'company.approveEmployeeDesc': { en: 'Are you sure you want to approve {name}? This will grant them access to the platform.', es: '¿Estás seguro de que quieres aprobar a {name}? Esto les dará acceso a la plataforma.' },

@@ -249,6 +249,22 @@ const CompanyDashboard = () => {
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [recentReports, setRecentReports] = useState<any[]>([]);
   
+  // Recent Reports pagination state
+  const [recentReportsPage, setRecentReportsPage] = useState(1);
+  const [recentReportsPerPage] = useState(5);
+  
+  // Calculate pagination for recent reports
+  const totalRecentReportsPages = Math.ceil(recentReports.length / recentReportsPerPage);
+  const paginatedRecentReports = recentReports.slice(
+    (recentReportsPage - 1) * recentReportsPerPage,
+    recentReportsPage * recentReportsPerPage
+  );
+  
+  // Handle recent reports page change
+  const handleRecentReportsPageChange = (page: number) => {
+    setRecentReportsPage(page);
+  };
+  
   // Export format selection states
   const [showFormatDialog, setShowFormatDialog] = useState(false);
   const [pendingExportType, setPendingExportType] = useState<string | null>(null);
@@ -302,6 +318,7 @@ const CompanyDashboard = () => {
   const [showRejectChangeRequestModal, setShowRejectChangeRequestModal] = useState(false);
   const [changeRequestToAction, setChangeRequestToAction] = useState<ChangeRequest | null>(null);
   const [employeeSearch, setEmployeeSearch] = useState<string>("");
+  const [employeeStatusFilter, setEmployeeStatusFilter] = useState<string>("all");
   const [employeeCurrentPage, setEmployeeCurrentPage] = useState<number>(1);
   const [employeeItemsPerPage, setEmployeeItemsPerPage] = useState<number>(10);
 
@@ -394,7 +411,7 @@ const CompanyDashboard = () => {
       ? activeAdvances.reduce((sum, advance) => sum + (advance.requested_amount || 0), 0) / activeAdvances.length
       : 0,
     mostActiveEmployees: employees.filter(emp => emp.is_active).length > 0 ? employees.filter(emp => emp.is_active).length : 0,
-    mostActiveDay: 'Lunes', // Placeholder until computed from timestamps
+    mostActiveDay: t('days.monday'), // Placeholder until computed from timestamps
     peakHour: '10:00 AM', // Placeholder until computed from timestamps
     monthlyGrowth: monthlyChangePercent
   };
@@ -577,7 +594,6 @@ const CompanyDashboard = () => {
       if (deleteError) {
         console.warn('Error clearing mockup data:', deleteError);
       } else {
-        console.log('Mockup data cleared successfully');
       }
     } catch (error) {
       console.warn('Error clearing mockup data:', error);
@@ -892,20 +908,9 @@ const CompanyDashboard = () => {
           throw new Error(`Error al cargar empleados: ${employeesError.message}`);
         }
         
-        console.log('Fetched employees data:', employeesData);
-        
         // For now, just use the existing employee data
         // The auth_user_id field might not be populated yet
         const employeesWithEmails = employeesData || [];
-        
-        // Log each employee's email data for debugging
-        employeesWithEmails.forEach(emp => {
-          console.log(`Employee ${emp.first_name} ${emp.last_name}:`, {
-            email: emp.email,
-            auth_email: emp.auth_email,
-            cedula: emp.cedula
-          });
-        });
         
         setEmployees(employeesWithEmails);
         
@@ -1324,7 +1329,6 @@ const CompanyDashboard = () => {
 
       // Create auth user for the employee
       try {
-        console.log(`Creating auth user for ${employeeEmail}...`);
 
         // Store current user session to restore later
         const { data: { session: currentSession } } = await supabase.auth.getSession();
@@ -1342,7 +1346,6 @@ const CompanyDashboard = () => {
           }
         });
 
-        console.log(`Auth user creation result for ${employeeEmail}:`, { authData, authError });
 
         if (authError) {
           console.error(`Auth user creation failed for ${employeeEmail}:`, authError);
@@ -1375,7 +1378,6 @@ const CompanyDashboard = () => {
             })
             .eq('id', employeeData.id);
 
-          console.log(`Updated employee ${employeeData.id} with auth_user_id:`, updateResult);
 
           if (updateResult.error) {
             console.error(`Failed to update employee with auth_user_id:`, updateResult.error);
@@ -1386,7 +1388,6 @@ const CompanyDashboard = () => {
         // Restore the original user session to prevent automatic sign-in
         if (currentSession) {
           await supabase.auth.setSession(currentSession);
-          console.log(`Restored original user session for company admin`);
         }
 
       } catch (authError) {
@@ -1414,7 +1415,6 @@ const CompanyDashboard = () => {
         console.error('Error creating employee fee:', feeError);
         // Don't fail the employee creation, just log the error
       } else {
-        console.log('Employee fee created successfully for:', employeeInfo.firstName, employeeInfo.lastName);
       }
       
       // Refresh fees after adding new employee fee
@@ -1544,7 +1544,6 @@ const CompanyDashboard = () => {
 
       // Create auth user for the employee
       try {
-        console.log(`Creating auth user for ${employeeEmail}...`);
 
         // Store current user session to restore later
         const { data: { session: currentSession } } = await supabase.auth.getSession();
@@ -1562,7 +1561,6 @@ const CompanyDashboard = () => {
           }
         });
 
-        console.log(`Auth user creation result for ${employeeEmail}:`, { authData, authError });
 
         if (authError) {
           console.error(`Auth user creation failed for ${employeeEmail}:`, authError);
@@ -1606,7 +1604,6 @@ const CompanyDashboard = () => {
         // Restore the original user session to prevent automatic sign-in
         if (currentSession) {
           await supabase.auth.setSession(currentSession);
-          console.log(`Restored original user session for company admin`);
         }
 
       } catch (authError) {
@@ -1671,7 +1668,6 @@ const CompanyDashboard = () => {
   };
 
   const handleEditEmployee = async (employee: Employee) => {
-    console.log("handleEditEmployee called with employee:", employee);
     try {
       // Fetch the most up-to-date employee data
       const { data: updatedEmployee, error } = await supabase
@@ -1680,25 +1676,20 @@ const CompanyDashboard = () => {
         .eq("id", employee.id)
         .single();
       
-      console.log("Fetched employee data:", updatedEmployee);
       
       if (error) {
         console.error("Error fetching employee data:", error);
         // Fallback to the employee data we already have
-        console.log("Setting editingEmployee to fallback employee:", employee);
         setEditingEmployee(employee);
       } else {
-        console.log("Setting editingEmployee to updated employee:", updatedEmployee);
         setEditingEmployee(updatedEmployee);
       }
       
       // Open modal immediately - the key prop will ensure proper re-rendering
-      console.log("Opening edit dialog");
       setIsEditDialogOpen(true);
     } catch (error) {
       console.error("Error in handleEditEmployee:", error);
       // Fallback to the employee data we already have
-      console.log("Setting editingEmployee to fallback employee (catch):", employee);
       setEditingEmployee(employee);
       setIsEditDialogOpen(true);
     }
@@ -1706,7 +1697,6 @@ const CompanyDashboard = () => {
 
   // Helper function to map database employee data to form data
   const mapEmployeeToFormData = (employee: Employee) => {
-    console.log("mapEmployeeToFormData called with employee:", employee);
     const mappedData = {
       firstName: employee.first_name || "",
       lastName: employee.last_name || "",
@@ -2173,7 +2163,6 @@ const CompanyDashboard = () => {
             // Create auth user for the employee
             let authUserCreated = false;
             try {
-              console.log(`Creating auth user for ${employeeEmail}...`);
 
               // Store current user session to restore later
               const { data: { session: currentSession } } = await supabase.auth.getSession();
@@ -2244,7 +2233,6 @@ const CompanyDashboard = () => {
               // Restore the original user session to prevent automatic sign-in
               if (currentSession) {
                 await supabase.auth.setSession(currentSession);
-                console.log(`Restored original user session for company admin`);
               }
 
             } catch (authError) {
@@ -2526,20 +2514,44 @@ const CompanyDashboard = () => {
   const endIndex = startIndex + itemsPerPage;
   const paginatedAdvances = filteredAdvances.slice(startIndex, endIndex);
 
-  // Filter employees by search
+  // Filter employees by search and status
   const filteredEmployees = useMemo(() => {
-    if (!employeeSearch.trim()) return employees;
+    let filtered = employees;
+    
+    // Filter by search term
+    if (employeeSearch.trim()) {
     const term = employeeSearch.trim().toLowerCase();
-    return employees.filter(e =>
+      filtered = filtered.filter(e =>
       `${e.first_name} ${e.last_name}`.toLowerCase().includes(term) ||
-      (e.cedula?.toLowerCase().includes(term))
-    );
-  }, [employees, employeeSearch]);
+        (e.cedula?.toLowerCase().includes(term)) ||
+        (e.auth_email?.toLowerCase().includes(term)) ||
+        (e.email?.toLowerCase().includes(term))
+      );
+    }
+    
+    // Filter by status
+    if (employeeStatusFilter !== "all") {
+      filtered = filtered.filter(e => {
+        switch (employeeStatusFilter) {
+          case "approved":
+            return e.is_approved === true;
+          case "pending":
+            return e.is_approved === false && !e.rejection_reason;
+          case "rejected":
+            return e.is_approved === false && e.rejection_reason;
+          default:
+            return true;
+        }
+      });
+    }
+    
+    return filtered;
+  }, [employees, employeeSearch, employeeStatusFilter]);
 
-  // Reset to first page when search changes
+  // Reset to first page when search or status filter changes
   useEffect(() => {
     setEmployeeCurrentPage(1);
-  }, [employeeSearch]);
+  }, [employeeSearch, employeeStatusFilter]);
 
   const employeeTotalPages = Math.max(1, Math.ceil(filteredEmployees.length / employeeItemsPerPage));
   const employeeStartIndex = (employeeCurrentPage - 1) * employeeItemsPerPage;
@@ -3213,7 +3225,7 @@ const CompanyDashboard = () => {
               ? (employees.filter(emp => emp.is_active && activeAdvances.some(adv => adv.employee_id === emp.id)).length / employees.length) * 100
               : 0,
             mostActiveEmployees: employees.filter(emp => emp.is_active).length,
-            mostActiveDay: 'Monday', // This would need to be calculated based on actual data
+            mostActiveDay: t('days.monday'), // This would need to be calculated based on actual data
             peakHour: '9:00 AM', // This would need to be calculated based on actual data
             monthlyGrowth: 0, // This would need to be calculated based on actual data
             approvedAdvances: activeAdvances.filter(adv => adv.status === 'completed' || adv.status === 'approved').length,
@@ -4673,6 +4685,17 @@ const CompanyDashboard = () => {
                         onChange={(e) => setEmployeeSearch(e.target.value)}
                       />
                     </div>
+                    <Select value={employeeStatusFilter} onValueChange={setEmployeeStatusFilter}>
+                      <SelectTrigger className="w-40">
+                        <SelectValue placeholder={t('company.filterByStatus')} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">{t('company.allStatuses')}</SelectItem>
+                        <SelectItem value="approved">{t('company.approved')}</SelectItem>
+                        <SelectItem value="pending">{t('company.pendingApproval')}</SelectItem>
+                        <SelectItem value="rejected">{t('company.rejected')}</SelectItem>
+                      </SelectContent>
+                    </Select>
                     <Button 
                       variant="outline" 
                       size="sm"
@@ -5371,7 +5394,8 @@ const CompanyDashboard = () => {
                       <p className="text-muted-foreground">{t('company.reports.noReports')}</p>
                     </div>
                   ) : (
-                    recentReports.map((report, index) => (
+                    <>
+                      {paginatedRecentReports.map((report, index) => (
                       <div key={index} className="flex items-center justify-between p-4 border rounded-lg">
                         <div className="flex items-center space-x-4">
                           <div className="h-10 w-10 bg-gradient-primary rounded-full flex items-center justify-center">
@@ -5406,7 +5430,20 @@ const CompanyDashboard = () => {
                           )}
                         </div>
                       </div>
-                    ))
+                      ))}
+                      
+                      {/* Pagination for Recent Reports */}
+                      {recentReports.length > recentReportsPerPage && (
+                        <div className="pt-4 border-t">
+                          <Pagination
+                            currentPage={recentReportsPage}
+                            totalItems={recentReports.length}
+                            itemsPerPage={recentReportsPerPage}
+                            onPageChange={handleRecentReportsPageChange}
+                          />
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               </CardContent>

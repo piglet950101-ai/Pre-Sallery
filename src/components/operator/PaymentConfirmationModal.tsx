@@ -84,15 +84,18 @@ const PaymentConfirmationModal: React.FC<PaymentConfirmationModalProps> = ({
       const filePath = `payment-proofs/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
-        .from('operator-documents')
-        .upload(filePath, file);
+        .from('transfer-confirmations')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
 
       if (uploadError) {
         throw new Error(`Upload failed: ${uploadError.message}`);
       }
 
       const { data } = supabase.storage
-        .from('operator-documents')
+        .from('transfer-confirmations')
         .getPublicUrl(filePath);
 
       return data.publicUrl;
@@ -198,7 +201,7 @@ const PaymentConfirmationModal: React.FC<PaymentConfirmationModalProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CheckCircle className="h-5 w-5 text-green-600" />
@@ -323,7 +326,7 @@ const PaymentConfirmationModal: React.FC<PaymentConfirmationModalProps> = ({
           </Card>
 
           {/* Actions */}
-          <div className="flex justify-end space-x-4">
+          <div className="flex justify-end space-x-4 pt-4 border-t bg-background sticky bottom-0">
             <Button
               variant="outline"
               onClick={handleClose}
