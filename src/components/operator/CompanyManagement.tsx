@@ -480,14 +480,14 @@ const CompanyManagement: React.FC = () => {
                       >
                         {company.is_approved ? <UserX className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />}
                       </Button>
-                      <Button 
+                      {/* <Button 
                         variant="destructive" 
                         size="sm"
                         onClick={() => handleDeleteCompany(company)}
                         title={t('common.delete')}
                       >
                         <Trash2 className="h-4 w-4" />
-                      </Button>
+                      </Button> */}
                     </div>
                   </div>
                 </div>
