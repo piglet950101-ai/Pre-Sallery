@@ -65,15 +65,19 @@ serve(async (req) => {
     
     console.log(`Fetched USD/VES rate: ${rate} for date: ${today}`);
 
-    // Insert/update the rate in the database
+    // Delete existing rate for today and insert new one to update timestamp
+    await supabase
+      .from('exchange_rates')
+      .delete()
+      .eq('as_of_date', today);
+
+    // Insert the new rate (this will set created_at to current timestamp)
     const { error } = await supabase
       .from('exchange_rates')
-      .upsert({ 
+      .insert({ 
         as_of_date: today, 
         usd_to_ves: rate, 
         source: 'fawaz-currency-api-hourly' 
-      }, { 
-        onConflict: 'as_of_date' 
       });
 
     if (error) {

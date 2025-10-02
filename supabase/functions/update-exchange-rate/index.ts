@@ -64,9 +64,16 @@ serve(async (req) => {
       source = body?.source || 'manual';
     }
 
+    // Delete existing rate for the date and insert new one to update timestamp
+    await supabase
+      .from('exchange_rates')
+      .delete()
+      .eq('as_of_date', asOfDate);
+
+    // Insert the new rate (this will set created_at to current timestamp)
     const { error } = await supabase
       .from('exchange_rates')
-      .upsert({ as_of_date: asOfDate, usd_to_ves: rate, source }, { onConflict: 'as_of_date' });
+      .insert({ as_of_date: asOfDate, usd_to_ves: rate, source });
     if (error) throw error;
 
     return new Response(JSON.stringify({ ok: true, asOfDate, rate }), { status: 200, headers: { "Content-Type": "application/json", ...cors() } });
