@@ -32,11 +32,12 @@ export const CompanySelector = ({ onCompanySelect, selectedCompanyId }: CompanyS
       try {
         const { data, error } = await supabase
           .from('companies')
-          .select('id, name')
+          .select('id, name, is_approved')
+          .eq('is_approved', true)
           .order('name');
 
         if (error) throw error;
-        setCompanies(data || []);
+        setCompanies((data || []).map(({ id, name }) => ({ id, name })));
       } catch (error) {
         console.error('Error fetching companies:', error);
       } finally {

@@ -68,11 +68,11 @@ const CompanyManagement: React.FC = () => {
     try {
       setIsLoading(true);
       
-      // Get companies with auth user email using the view
-      const { data: companiesData, error: companiesError } = await supabase
-        .from('companies_with_auth')
-        .select('*')
-        .order('created_at', { ascending: false });
+       // Get companies directly from base table
+        const { data: companiesData, error: companiesError } = await supabase
+          .from('companies')
+          .select('*')
+          .order('created_at', { ascending: false });
 
       if (companiesError) {
         throw new Error(`Error fetching companies: ${companiesError.message}`);
@@ -167,18 +167,28 @@ const CompanyManagement: React.FC = () => {
   // Handle company approval
   const handleApproval = async (company: Company) => {
     try {
+      // Get current user ID for approved_by field
+      const { data: { user } } = await supabase.auth.getUser();
+      
       const { error } = await supabase
         .from('companies')
         .update({
           is_approved: true,
           approved_at: new Date().toISOString(),
-          approved_by: 'operator' // In real app, this would be the actual operator ID
+          approved_by: user?.id || null,
+          // Clear any rejection fields when approving
+          rejection_reason: null,
+          rejected_at: null,
+          rejected_by: null
         })
         .eq('id', company.id);
 
       if (error) {
         throw new Error(`Error approving company: ${error.message}`);
       }
+
+      // Send activation email notification
+      await sendCompanyActivationEmail(company);
 
       toast({
         title: t('operator.companyApproved'),
@@ -195,6 +205,57 @@ const CompanyManagement: React.FC = () => {
         description: error?.message || 'Failed to approve company',
         variant: 'destructive'
       });
+    }
+  };
+
+  // Send company activation email
+  const sendCompanyActivationEmail = async (company: Company) => {
+    try {
+      // Try to send real email via Edge Function if available
+      try {
+        const toEmail = company.email || (company as any).auth_email || '';
+        if (toEmail) {
+          await supabase.functions.invoke('send-company-activated-email', {
+            body: {
+              to: toEmail,
+              subject: t('email.companyActivated.title'),
+              companyName: company.name,
+              message: t('email.companyActivated.message').replace('{companyName}', company.name)
+            }
+          });
+        }
+      } catch (fnErr) {
+        console.warn('Email function not available or failed. Falling back to notification.', fnErr);
+      }
+
+      // Always insert an in-app notification as fallback
+      const { error } = await supabase
+        .from('notifications')
+        .insert({
+          user_id: company.auth_user_id,
+          type: 'company_activated',
+          title: t('email.companyActivated.title'),
+          message: t('email.companyActivated.message').replace('{companyName}', company.name),
+          data: {
+            company_id: company.id,
+            company_name: company.name,
+            activation_date: new Date().toISOString()
+          },
+          is_read: false,
+          created_at: new Date().toISOString()
+        });
+
+      if (error) {
+        console.error('Error creating activation notification:', error);
+        // Don't throw error here as the main approval should still succeed
+      }
+
+      // Log the activation for audit purposes
+      console.log(`Company ${company.name} (${company.id}) has been activated and notification sent`);
+      
+    } catch (error) {
+      console.error('Error sending activation email:', error);
+      // Don't throw error here as the main approval should still succeed
     }
   };
 
@@ -545,7 +606,8 @@ const CompanyManagement: React.FC = () => {
                     <div className="md:col-span-2">
                       <label className="text-sm font-medium text-muted-foreground">{t('operator.address')}</label>
                       <p className="text-lg font-semibold">
-                        {selectedCompany.address}, {selectedCompany.city}, {selectedCompany.state} {selectedCompany.postal_code}
+                        {selectedCompany.address} 
+                        {selectedCompany.city} {selectedCompany.state} {selectedCompany.postal_code}
                       </p>
                     </div>
                   </div>

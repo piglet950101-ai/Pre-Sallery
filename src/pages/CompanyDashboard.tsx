@@ -241,6 +241,13 @@ const CompanyDashboard = () => {
   const [selectedCsvRows, setSelectedCsvRows] = useState<Set<number>>(new Set());
   const [csvCurrentPage, setCsvCurrentPage] = useState(1);
   const [csvItemsPerPage] = useState(10);
+  const [showCsvResultsModal, setShowCsvResultsModal] = useState(false);
+  const [csvUploadResults, setCsvUploadResults] = useState<{
+    successCount: number;
+    errorCount: number;
+    totalCount: number;
+    errors: string[];
+  } | null>(null);
   
   // Report states
   const [reportPeriod, setReportPeriod] = useState('thisMonth');
@@ -1291,7 +1298,7 @@ const CompanyDashboard = () => {
           company_id: companyData.id,
           first_name: employeeInfo.firstName,
           last_name: employeeInfo.lastName,
-          email: employeeEmail,
+          // email removed from employees table; keep only in auth
           phone: employeeInfo.phone || null,
           cedula: employeeInfo.cedula || null,
           birth_date: employeeInfo.birthDate,
@@ -1501,7 +1508,7 @@ const CompanyDashboard = () => {
           company_id: companyData.id,
           first_name: employeeData.firstName,
           last_name: employeeData.lastName,
-          email: employeeEmail,
+          // email removed from employees table; keep only in auth
           phone: null,
           cedula: null,
           birth_date: null,
@@ -2057,7 +2064,6 @@ const CompanyDashboard = () => {
           const employeeData = {
             first_name: row.firstname || row.first_name || row['first name'] || '',
             last_name: row.lastname || row.last_name || row['last name'] || '',
-            email: employeeEmail,
             phone: row.phone || row.phone_number || row['phone number'] || '',
             monthly_salary: parseFloat(row.salary || row.monthly_salary || row['monthly salary'] || '0') || 0,
             weekly_hours: parseFloat(row.hours || row.weekly_hours || row['weekly hours'] || '0') || 0,
@@ -2086,6 +2092,13 @@ const CompanyDashboard = () => {
           // Validate required fields
           if (!employeeData.first_name || !employeeData.last_name || !employeeEmail) {
             errors.push(`Row ${row.rowNumber}: Missing required fields (first name, last name, email)`);
+            errorCount++;
+            continue;
+          }
+
+          // Validate cedula format
+          if (employeeData.cedula && !validateCedula(employeeData.cedula)) {
+            errors.push(`Row ${row.rowNumber}: Invalid cedula format. Must be E or V followed by 6-8 digits (e.g., V12345678 or E1234567)`);
             errorCount++;
             continue;
           }
@@ -2120,7 +2133,8 @@ const CompanyDashboard = () => {
                   data: {
                     role: 'employee',
                     employee_id: employee.id,
-                    company_id: companyData.id
+                    company_id: companyData.id,
+                    must_change_password: true
                   }
                 }
               });
@@ -2222,30 +2236,22 @@ const CompanyDashboard = () => {
         }
       }
 
-      // Show results
+      // Set results and show modal
+      setCsvUploadResults({
+        successCount,
+        errorCount,
+        totalCount: selectedRows.length,
+        errors
+      });
+      
+      // Refresh employees list without reloading the page
       if (successCount > 0) {
-        toast({
-          title: t('company.csvUpload.importSuccess'),
-          description: `Successfully imported ${successCount} out of ${selectedRows.length} selected employees. Employees can log in with the company email and password 'pre123456'. Note: If login fails, check if email confirmation is required in Supabase settings.`,
-        });
-        
-        // Refresh employees list without reloading the page
         await refreshEmployees();
       }
 
-      if (errorCount > 0) {
-        toast({
-          title: t('company.csvUpload.importErrors'),
-          description: errors.slice(0, 5).join(', ') + (errors.length > 5 ? '...' : ''),
-          variant: "destructive"
-        });
-      }
-
-      // Reset form
-      setCsvUploadStep('upload');
-      setCsvFile(null);
-      setCsvData([]);
+      // Close upload modal and show results modal
       setShowCsvUploadModal(false);
+      setShowCsvResultsModal(true);
       
     } catch (error: any) {
       toast({
@@ -2258,6 +2264,7 @@ const CompanyDashboard = () => {
     }
   };
 
+  // Reset CSV upload form
   const resetCsvUpload = () => {
     setCsvUploadStep('upload');
     setCsvFile(null);
@@ -2265,6 +2272,14 @@ const CompanyDashboard = () => {
     setSelectedCsvRows(new Set());
     setCsvCurrentPage(1);
     setShowCsvUploadModal(false);
+    setShowCsvResultsModal(false);
+    setCsvUploadResults(null);
+  };
+
+  // Cedula validation function
+  const validateCedula = (cedula: string): boolean => {
+    const cedulaPattern = /^[EV]\d{6,8}$/;
+    return cedulaPattern.test(cedula);
   };
 
   // CSV selection and pagination helpers
@@ -6157,6 +6172,134 @@ const CompanyDashboard = () => {
             <Button variant="outline" onClick={resetCsvUpload}>
               {t('company.csvUpload.cancel')}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* CSV Upload Results Modal */}
+      <Dialog open={showCsvResultsModal} onOpenChange={setShowCsvResultsModal}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center space-x-2">
+              <FileSpreadsheet className="h-5 w-5" />
+              <span>{t('company.csvUpload.resultsTitle')}</span>
+            </DialogTitle>
+            <DialogDescription>
+              {t('company.csvUpload.resultsDescription')}
+            </DialogDescription>
+          </DialogHeader>
+          
+          {csvUploadResults && (
+            <div className="space-y-6">
+              {/* Summary Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                    <span className="text-sm font-medium text-green-800">
+                      {t('company.csvUpload.successful')}
+                    </span>
+                  </div>
+                  <div className="text-2xl font-bold text-green-900 mt-1">
+                    {csvUploadResults.successCount}
+                  </div>
+                  <div className="text-xs text-green-700">
+                    {t('company.csvUpload.outOf')} {csvUploadResults.totalCount}
+                  </div>
+                </div>
+                
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                    <span className="text-sm font-medium text-red-800">
+                      {t('company.csvUpload.failed')}
+                    </span>
+                  </div>
+                  <div className="text-2xl font-bold text-red-900 mt-1">
+                    {csvUploadResults.errorCount}
+                  </div>
+                  <div className="text-xs text-red-700">
+                    {t('company.csvUpload.outOf')} {csvUploadResults.totalCount}
+                  </div>
+                </div>
+                
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                    <span className="text-sm font-medium text-blue-800">
+                      {t('company.csvUpload.total')}
+                    </span>
+                  </div>
+                  <div className="text-2xl font-bold text-blue-900 mt-1">
+                    {csvUploadResults.totalCount}
+                  </div>
+                  <div className="text-xs text-blue-700">
+                    {t('company.csvUpload.employees')}
+                  </div>
+                </div>
+              </div>
+
+              {/* Success Message */}
+              {csvUploadResults.successCount > 0 && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <div className="flex items-start space-x-2">
+                    <div className="w-5 h-5 text-green-500 mt-0.5">
+                      <svg fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-medium text-green-800">
+                        {t('company.csvUpload.importSuccess')}
+                      </h4>
+                      <p className="text-sm text-green-700 mt-1">
+                        {t('company.csvUpload.successMessage')}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Error Details */}
+              {csvUploadResults.errorCount > 0 && (
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-5 h-5 text-red-500">
+                      <svg fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <h4 className="text-sm font-medium text-red-800">
+                      {t('company.csvUpload.errorDetails')} ({csvUploadResults.errorCount})
+                    </h4>
+                  </div>
+                  
+                  <div className="bg-red-50 border border-red-200 rounded-lg max-h-60 overflow-y-auto">
+                    <div className="p-4 space-y-2">
+                      {csvUploadResults.errors.map((error, index) => (
+                        <div key={index} className="text-sm text-red-700 bg-white border border-red-100 rounded p-2">
+                          {error}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={resetCsvUpload}>
+              {t('company.csvUpload.close')}
+            </Button>
+            {csvUploadResults && csvUploadResults.errorCount > 0 && (
+              <Button onClick={() => {
+                setShowCsvResultsModal(false);
+                setShowCsvUploadModal(true);
+              }}>
+                {t('company.csvUpload.tryAgain')}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

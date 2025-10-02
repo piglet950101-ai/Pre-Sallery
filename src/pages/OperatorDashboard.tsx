@@ -38,6 +38,9 @@ import Header from "@/components/Header";
 import { useLanguage } from "@/contexts/LanguageContext";
 import BillingDashboard from "@/components/operator/BillingDashboard";
 import CompanyManagement from "@/components/operator/CompanyManagement";
+import { ExchangeRateAlert } from "@/components/ExchangeRateAlert";
+import { ExchangeRateDeviationAlert } from "@/components/ExchangeRateDeviationAlert";
+import { ExchangeRateChangeAlert } from "@/components/ExchangeRateChangeAlert";
 
 const OperatorDashboard = () => {
   const { toast } = useToast();
@@ -839,6 +842,11 @@ const OperatorDashboard = () => {
             <span>{t('company.billing.refresh')}</span>
           </Button>
         </div>
+
+        {/* Exchange Rate Alerts */}
+        <ExchangeRateAlert />
+        <ExchangeRateDeviationAlert />
+        <ExchangeRateChangeAlert />
 
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">

@@ -147,11 +147,43 @@ export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialD
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
+  // Cedula validation function
+  const validateCedula = (cedula: string): boolean => {
+    const cedulaPattern = /^[EV]\d{6,8}$/;
+    return cedulaPattern.test(cedula);
+  };
+
+  // Handle cedula input with validation
+  const handleCedulaChange = (value: string) => {
+    // Clean the input - only allow E, V, and digits
+    let cleaned = value.replace(/[^EV0-9]/gi, '');
+    
+    // Ensure first character is E or V
+    if (cleaned.length > 0 && !['E', 'V'].includes(cleaned[0].toUpperCase())) {
+      cleaned = cleaned.substring(1);
+    }
+    
+    // Convert to uppercase
+    if (cleaned.length > 0) {
+      cleaned = cleaned[0].toUpperCase() + cleaned.substring(1);
+    }
+    
+    // Limit to 9 characters (E/V + 8 digits max)
+    cleaned = cleaned.substring(0, 9);
+    
+    // Ensure only digits after the first character
+    if (cleaned.length > 1) {
+      cleaned = cleaned[0] + cleaned.substring(1).replace(/\D/g, '');
+    }
+    
+    updateField("cedula", cleaned);
+  };
+
 
   const validateStep = (step: number): boolean => {
     switch (step) {
       case 1: // Personal Information
-        return !!(formData.firstName && formData.lastName && formData.yearOfEmployment > 0 && formData.weeklyHours > 0 && formData.livingExpenses >= 0);
+        return !!(formData.firstName && formData.lastName && formData.cedula && validateCedula(formData.cedula) && formData.yearOfEmployment > 0 && formData.weeklyHours > 0 && formData.livingExpenses >= 0);
       case 2: // Employment Information
         return !!(formData.position && formData.employmentStartDate && formData.employmentType && formData.monthlySalary > 0);
       case 3: // Financial Information
@@ -223,6 +255,35 @@ export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialD
               </div>
             </div>
 
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="phone">{t('employeeForm.phone')}</Label>
+                <Input
+                  id="phone"
+                  value={formData.phone}
+                  onChange={(e) => updateField("phone", e.target.value)}
+                  placeholder={language === 'en' ? '+1 415 555-0123' : '+58 414 987-6543'}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="cedula">{t('employeeForm.cedula')} *</Label>
+                <Input
+                  id="cedula"
+                  value={formData.cedula}
+                  onChange={(e) => handleCedulaChange(e.target.value)}
+                  placeholder={language === 'en' ? 'V12345678' : 'V12345678'}
+                  maxLength={9}
+                />
+                {formData.cedula && !validateCedula(formData.cedula) && (
+                  <p className="text-xs text-red-500">
+                    {language === 'en' 
+                      ? 'Must be E or V followed by 6-8 digits (e.g., V12345678 or E1234567)'
+                      : 'Debe ser E o V seguido de 6-8 dígitos (ej., V12345678 o E1234567)'
+                    }
+                  </p>
+                )}
+              </div>
+            </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">

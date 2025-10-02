@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -43,6 +43,7 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const { toast } = useToast();
   const { t } = useLanguage();
+  const [fxRate, setFxRate] = useState<number | null>(null);
 
   const feeRate = 0.05; // 5%
   const minFee = 1; // $1 minimum
@@ -61,6 +62,7 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
 
   const calculateFee = (amount: number) => Math.max(amount * feeRate, minFee);
   const netAmount = requestAmount - calculateFee(requestAmount);
+  const vesAmount = fxRate ? netAmount * fxRate : null;
 
   const quickAmounts = [20, 50, 100, 200, Math.floor(maxAvailable)];
 
@@ -118,6 +120,29 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
     }
 
     setShowConfirmModal(true);
+  };
+
+  // Load latest exchange rate from DB
+  useEffect(() => {
+    const loadRate = async () => {
+      const { data, error } = await supabase
+        .from('exchange_rate_latest')
+        .select('usd_to_ves')
+        .maybeSingle();
+      if (!error && data?.usd_to_ves) {
+        setFxRate(Number(data.usd_to_ves));
+      }
+    };
+    loadRate();
+  }, []);
+
+  const formatVES = (value: number) => {
+    try {
+      return new Intl.NumberFormat('es-VE', { style: 'currency', currency: 'VES', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
+    } catch {
+      // Fallback when VES currency code is not supported in the runtime
+      return new Intl.NumberFormat('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value) + ' VES';
+    }
   };
 
   const handleConfirmSubmit = async () => {
@@ -335,6 +360,19 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
                   disabled={hasPendingAdvance}
                 />
               </div>
+              {fxRate && requestAmount > 0 && requestAmount <= maxAvailable && (
+                <div className="mt-2 text-sm text-muted-foreground">
+                  <div>
+                    {t('employee.youWillReceive') || 'You will receive:'} <span className="font-semibold">${netAmount.toFixed(2)}</span>
+                  </div>
+                  <div>
+                    {t('fx.usdToVes') || 'USD to VES'}: 1 USD = {Number(fxRate).toFixed(6)} VES
+                  </div>
+                  <div>
+                    ≈ {formatVES(vesAmount!)}
+                  </div>
+                </div>
+              )}
               {requestAmount > maxAvailable && (
                 <div className="flex items-center space-x-2 mt-2 text-destructive text-sm">
                   <AlertCircle className="h-4 w-4" />

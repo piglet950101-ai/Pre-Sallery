@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { AdvanceRequestForm } from "@/components/AdvanceRequestForm";
+import { KYCUpload } from "@/components/KYCUpload";
 import { 
   DollarSign, 
   Clock, 
@@ -94,6 +95,11 @@ const EmployeeDashboard = () => {
   const [advanceRequests, setAdvanceRequests] = useState<AdvanceRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [mustChangePassword, setMustChangePassword] = useState<boolean>(true);
+  const [mustUploadCedula, setMustUploadCedula] = useState<boolean>(true);
+  const [isCompanyApproved, setIsCompanyApproved] = useState<boolean>(false);
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState<boolean>(false);
+  const [passwordData, setPasswordData] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [advanceToCancel, setAdvanceToCancel] = useState<AdvanceRequest | null>(null);
   const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
@@ -101,6 +107,7 @@ const EmployeeDashboard = () => {
   const [filteredAdvanceRequests, setFilteredAdvanceRequests] = useState<AdvanceRequest[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(5);
+  const [justSubmittedKyc, setJustSubmittedKyc] = useState<boolean>(false);
   
   
 
@@ -180,6 +187,13 @@ const EmployeeDashboard = () => {
           throw new Error(t('employee.error.unauthenticated'));
         }
 
+        // Read auth user metadata for gating flags
+        const meta: any = (user as any)?.user_metadata || {};
+        // Show password change screen ONLY if explicitly set by company registration flow
+        setMustChangePassword(meta.must_change_password === true);
+        // Require KYC upload for all employees unless already done
+        setMustUploadCedula(meta.kyc_cedula_uploaded === true ? false : true);
+
         // Get employee data
         const { data: employeeData, error: employeeError } = await supabase
           .from("employees")
@@ -192,6 +206,28 @@ const EmployeeDashboard = () => {
         }
 
         setEmployee(employeeData);
+
+        // Company approval state for info messaging later
+        if (employeeData?.company_id) {
+          const { data: companyData } = await supabase
+            .from("companies")
+            .select("is_approved")
+            .eq("id", employeeData.company_id)
+            .maybeSingle();
+          const rawApproved: any = companyData?.is_approved;
+          const approved = (
+            rawApproved === true ||
+            rawApproved === 'true' ||
+            rawApproved === 't' ||
+            rawApproved === 1
+          );
+          setIsCompanyApproved(approved);
+          if (approved) {
+            setJustSubmittedKyc(false);
+          }
+        } else {
+          setIsCompanyApproved(false);
+        }
 
         // Get advance requests
         const { data: requestsData, error: requestsError } = await supabase
@@ -437,6 +473,60 @@ const EmployeeDashboard = () => {
     setCurrentPage(1);
   };
 
+  // Change password handler (first-login gating)
+  const handlePasswordChange = async () => {
+    try {
+      setIsUpdatingPassword(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user?.email) {
+        throw new Error('User not found');
+      }
+
+      if (!passwordData.currentPassword) {
+        toast({ title: t('common.error'), description: t('employee.profile.passwordRequired'), variant: "destructive" });
+        return;
+      }
+      if (passwordData.newPassword !== passwordData.confirmPassword) {
+        toast({ title: t('common.error'), description: t('employee.profile.passwordMismatch'), variant: "destructive" });
+        return;
+      }
+      if ((passwordData.newPassword || '').length < 6) {
+        toast({ title: t('common.error'), description: t('employee.profile.passwordTooShort'), variant: "destructive" });
+        return;
+      }
+
+      const { error: signInError } = await supabase.auth.signInWithPassword({ email: user.email, password: passwordData.currentPassword });
+      if (signInError) {
+        toast({ title: t('common.error'), description: t('employee.profile.passwordIncorrect'), variant: "destructive" });
+        return;
+      }
+
+      const { error: updateError } = await supabase.auth.updateUser({ password: passwordData.newPassword, data: { must_change_password: false } as any });
+      if (updateError) throw updateError;
+
+      setMustChangePassword(false);
+      setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "" });
+      toast({ title: t('common.success'), description: t('employee.profile.passwordUpdated') });
+    } catch (error: any) {
+      console.error('Error changing password:', error);
+      toast({ title: t('common.error'), description: error?.message ?? 'Failed to change password', variant: "destructive" });
+    } finally {
+      setIsUpdatingPassword(false);
+    }
+  };
+
+  // Temporary: mark cedula uploaded after using KYC component
+  const handleMarkCedulaUploaded = async () => {
+    try {
+      const { error } = await supabase.auth.updateUser({ data: { kyc_cedula_uploaded: true } as any });
+      if (error) throw error;
+      setMustUploadCedula(false);
+      toast({ title: t('common.success'), description: language === 'en' ? 'ID document submitted.' : 'Documento de cédula enviado.' });
+    } catch (error: any) {
+      toast({ title: t('common.error'), description: error?.message ?? 'Failed to mark as uploaded', variant: "destructive" });
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -465,6 +555,124 @@ const EmployeeDashboard = () => {
   }
 
   const employeeName = `${employee.first_name} ${employee.last_name}`;
+
+  // Gate the dashboard until password is changed, then until cedula image is uploaded
+  if (mustChangePassword) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <div className="container mx-auto px-4 py-8 max-w-xl">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <AlertCircle className="h-5 w-5 text-orange-600" />
+                <span>{language === 'en' ? 'Action required: Change your password' : 'Acción requerida: Cambia tu contraseña'}</span>
+              </CardTitle>
+              <CardDescription>
+                {language === 'en' ? 'For your security, please change your password to continue.' : 'Por tu seguridad, por favor cambia tu contraseña para continuar.'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>{t('employee.profile.oldPassword')}</Label>
+                <Input type="password" value={passwordData.currentPassword} onChange={(e) => setPasswordData(p => ({ ...p, currentPassword: e.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <Label>{t('employee.profile.newPassword')}</Label>
+                <Input type="password" value={passwordData.newPassword} onChange={(e) => setPasswordData(p => ({ ...p, newPassword: e.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <Label>{t('employee.profile.confirmPassword')}</Label>
+                <Input type="password" value={passwordData.confirmPassword} onChange={(e) => setPasswordData(p => ({ ...p, confirmPassword: e.target.value }))} />
+              </div>
+              <div className="pt-2">
+                <Button onClick={handlePasswordChange} disabled={isUpdatingPassword}>
+                  {isUpdatingPassword ? (language === 'en' ? 'Saving...' : 'Guardando...') : (language === 'en' ? 'Change password' : 'Cambiar contraseña')}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  if (mustUploadCedula) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <div className="container mx-auto px-4 py-8 max-w-3xl space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <AlertCircle className="h-5 w-5 text-orange-600" />
+                <span>{language === 'en' ? 'Upload your ID (Cédula)' : 'Sube tu Cédula de Identidad'}</span>
+              </CardTitle>
+              <CardDescription>
+                {language === 'en' ? 'Please upload front and back of your ID to continue.' : 'Por favor sube el frente y reverso de tu cédula para continuar.'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <KYCUpload 
+                userType='employee' 
+                employeeId={employee.id} 
+                onCompleted={() => {
+                  setMustUploadCedula(false);
+                  setJustSubmittedKyc(true);
+                }}
+              />
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  const isEmployeeApproved = employee?.is_verified === true;
+
+  // Gate all features until company approval AND employee approval, even after password change and KYC upload
+  if (justSubmittedKyc || !isCompanyApproved || !isEmployeeApproved) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <div className="container mx-auto px-4 py-8 max-w-xl">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <AlertCircle className="h-5 w-5 text-orange-600" />
+                <span>{language === 'en' 
+                  ? (!isCompanyApproved ? 'Awaiting company approval' : 'Awaiting administrator approval')
+                  : (!isCompanyApproved ? 'En espera de aprobación de la empresa' : 'En espera de aprobación del administrador')}
+                </span>
+              </CardTitle>
+              <CardDescription>
+                {language === 'en'
+                  ? 'Your account is ready, but you cannot access features until your company administrator approves your profile.'
+                  : 'Tu cuenta está lista, pero no podrás acceder a las funciones hasta que el administrador de tu empresa apruebe tu perfil.'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="text-sm text-muted-foreground">
+                {language === 'en'
+                  ? (!isCompanyApproved 
+                      ? 'We will notify you as soon as your company is approved.'
+                      : 'We will notify you as soon as your administrator approves your access to request advances.')
+                  : (!isCompanyApproved 
+                      ? 'Te notificaremos tan pronto se apruebe tu empresa.'
+                      : 'Te notificaremos tan pronto el administrador apruebe tu acceso a solicitar adelantos.')}
+              </div>
+              <div className="pt-2">
+                <Button variant="outline" onClick={refreshData} disabled={isRefreshing}>
+                  <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+                  {t('employee.refresh')}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -590,27 +798,41 @@ const EmployeeDashboard = () => {
                   </div>
                 )}
 
-                {/* Request Form */}
-                {!isBillingDate() ? (
-                  <AdvanceRequestForm 
-                    employeeData={{
-                      name: employeeName,
-                      monthlySalary,
-                      earnedAmount,
-                      availableAmount,
-                      usedAmount,
-                      workedDays,
-                      totalDays
-                    }}
-                    onAdvanceSubmitted={refreshData}
-                    existingAdvanceRequests={advanceRequests}
-                  />
+                {/* Request Form - explicitly disabled until company approval */}
+                {isCompanyApproved ? (
+                  !isBillingDate() ? (
+                    <AdvanceRequestForm 
+                      employeeData={{
+                        name: employeeName,
+                        monthlySalary,
+                        earnedAmount,
+                        availableAmount,
+                        usedAmount,
+                        workedDays,
+                        totalDays
+                      }}
+                      onAdvanceSubmitted={refreshData}
+                      existingAdvanceRequests={advanceRequests}
+                    />
+                  ) : (
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
+                      <AlertCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                      <h3 className="text-lg font-semibold text-gray-600 mb-2">{t('employee.billing.formNotAvailable')}</h3>
+                      <p className="text-gray-500">
+                        {t('employee.billing.formDisabledMessage')}
+                      </p>
+                    </div>
+                  )
                 ) : (
-                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
-                    <AlertCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold text-gray-600 mb-2">{t('employee.billing.formNotAvailable')}</h3>
-                    <p className="text-gray-500">
-                      {t('employee.billing.formDisabledMessage')}
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
+                    <AlertCircle className="h-12 w-12 text-yellow-600 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold text-yellow-800 mb-2">
+                      {language === 'en' ? 'Waiting for company approval' : 'Esperando aprobación de la empresa'}
+                    </h3>
+                    <p className="text-yellow-700">
+                      {language === 'en' 
+                        ? 'You will be able to request an advance after your company administrator approves you.' 
+                        : 'Podrás solicitar un adelanto cuando el administrador de tu empresa te apruebe.'}
                     </p>
                   </div>
                 )}

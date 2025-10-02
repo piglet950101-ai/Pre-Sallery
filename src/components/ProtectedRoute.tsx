@@ -7,6 +7,9 @@ import { supabase } from "@/lib/supabase";
 interface EmployeeStatus {
   is_active: boolean;
 }
+interface CompanyStatus {
+  is_approved: boolean;
+}
 
 const ProtectedRoute = ({ children, role }: { children: ReactNode; role?: string }) => {
   const { user, isLoading } = useAuth();
@@ -15,6 +18,8 @@ const ProtectedRoute = ({ children, role }: { children: ReactNode; role?: string
   const [isCheckingRole, setIsCheckingRole] = useState(false);
   const [isEmployeeActive, setIsEmployeeActive] = useState<boolean | null>(null);
   const [isCheckingEmployeeStatus, setIsCheckingEmployeeStatus] = useState(false);
+  const [isCompanyApproved, setIsCompanyApproved] = useState<boolean | null>(null);
+  const [isCheckingCompanyStatus, setIsCheckingCompanyStatus] = useState(false);
 
   // Get actual user role from database when user is available
   useEffect(() => {
@@ -42,6 +47,23 @@ const ProtectedRoute = ({ children, role }: { children: ReactNode; role?: string
             }
             setIsCheckingEmployeeStatus(false);
           }
+
+          // If user is a company, ensure approved
+          if (roleFromDb === 'company') {
+            setIsCheckingCompanyStatus(true);
+            const { data, error } = await supabase
+              .from('companies')
+              .select('is_approved')
+              .eq('auth_user_id', user.id)
+              .maybeSingle();
+            if (error) {
+              console.error('Error checking company approval:', error);
+              setIsCompanyApproved(false);
+            } else {
+              setIsCompanyApproved((data as CompanyStatus)?.is_approved ?? false);
+            }
+            setIsCheckingCompanyStatus(false);
+          }
         } catch (error) {
           console.error("Error fetching actual user role:", error);
         } finally {
@@ -53,7 +75,7 @@ const ProtectedRoute = ({ children, role }: { children: ReactNode; role?: string
     fetchActualRole();
   }, [user, role]);
 
-  if (isLoading || isCheckingRole || isCheckingEmployeeStatus) {
+  if (isLoading || isCheckingRole || isCheckingEmployeeStatus || isCheckingCompanyStatus) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -74,8 +96,11 @@ const ProtectedRoute = ({ children, role }: { children: ReactNode; role?: string
       return <PermissionDenied requiredRole={role} userRole={actualUserRole} />;
     }
     
-    // If user is an employee, check if they're active
-    if (role === 'employee' && isEmployeeActive === false) {
+    // Employees should still access onboarding (password/KYC) even if not active
+    // Do not block route here; gating is handled inside EmployeeDashboard
+
+    // If user is a company, block when not approved
+    if (role === 'company' && isCompanyApproved === false) {
       return <Navigate to="/pending-approval" replace />;
     }
   }

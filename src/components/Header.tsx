@@ -21,6 +21,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth, getUserRole, getActualUserRole } from "@/contexts/AuthContext";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useState, useEffect } from "react";
+import ExchangeRateBar from "@/components/ExchangeRateBar";
 import { supabase } from "@/lib/supabase";
 import { log } from "console";
 
@@ -118,6 +119,7 @@ const Header = ({ showNavigation = true, className = "" }: HeaderProps) => {
   // Show loading state
   if (isLoading || isCheckingRole) {
     return (
+      <>
       <nav className={`border-b bg-background/95 backdrop-blur-md sticky top-0 z-50 shadow-sm ${className}`}>
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
@@ -134,12 +136,15 @@ const Header = ({ showNavigation = true, className = "" }: HeaderProps) => {
           </div>
         </div>
       </nav>
+      <div className="sticky top-16 z-40"><ExchangeRateBar /></div>
+      </>
     );
   }
 
   // Not logged in - show public navigation
   if (!user) {
     return (
+      <>
       <nav className={`border-b bg-background/95 backdrop-blur-md sticky top-0 z-50 shadow-sm ${className}`}>
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
@@ -181,11 +186,14 @@ const Header = ({ showNavigation = true, className = "" }: HeaderProps) => {
           </div>
         </div>
       </nav>
+      <div className="sticky top-16 z-40"><ExchangeRateBar /></div>
+      </>
     );
   }
 
   // Logged in - show role-based navigation
   return (
+    <>
     <nav className={`border-b bg-background/95 backdrop-blur-md sticky top-0 z-50 shadow-sm ${className}`}>
       <div className="container mx-auto px-4 py-4">
         <div className="flex items-center justify-between">
@@ -284,6 +292,17 @@ const Header = ({ showNavigation = true, className = "" }: HeaderProps) => {
                     </Link>
                   </DropdownMenuItem>
                 )}
+                {actualUserRole === 'operator' && (
+                  <DropdownMenuItem
+                    onClick={() => {
+                      try { window.dispatchEvent(new Event('open-fx-edit')); } catch {}
+                    }}
+                    className="flex items-center space-x-2"
+                  >
+                    <Settings className="h-4 w-4" />
+                    <span>{t('fx.setRate')}</span>
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem onClick={handleLogout} className="flex items-center space-x-2 text-red-600">
                   <LogOut className="h-4 w-4" />
                   <span>{t('nav.logout')}</span>
@@ -294,6 +313,8 @@ const Header = ({ showNavigation = true, className = "" }: HeaderProps) => {
         </div>
       </div>
     </nav>
+    <div className="sticky top-16 z-40"><ExchangeRateBar /></div>
+    </>
   );
 };
 

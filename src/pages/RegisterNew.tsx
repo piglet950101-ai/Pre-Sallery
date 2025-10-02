@@ -27,6 +27,65 @@ const Register = () => {
   const [companyAddress, setCompanyAddress] = useState("");
   const [companyPhone, setCompanyPhone] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  // Validation states and RIF image
+  const [companyNameError, setCompanyNameError] = useState("");
+  const [companyEmailError, setCompanyEmailError] = useState("");
+  const [companyPhoneError, setCompanyPhoneError] = useState("");
+  const [companyRifError, setCompanyRifError] = useState("");
+  const [companyRifImage, setCompanyRifImage] = useState<File | null>(null);
+
+  // Helpers
+  const isValidCompanyName = (name: string) => name.trim().length >= 2;
+  const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(email.trim());
+  const isValidPhone = (phone: string) => phone.replace(/\D/g, '').length >= 7;
+  const isValidRif = (rif: string) => /^[VJG]\d{9}$/.test(rif);
+
+  const handleCompanyRifChange = (value: string) => {
+    let cleaned = value.replace(/[^VJG0-9]/gi, '');
+    if (cleaned.length > 0 && !['V','J','G'].includes(cleaned[0].toUpperCase())) {
+      cleaned = cleaned.substring(1);
+    }
+    if (cleaned.length > 0) {
+      cleaned = cleaned[0].toUpperCase() + cleaned.substring(1);
+    }
+    cleaned = cleaned.substring(0, 10);
+    if (cleaned.length > 1) {
+      cleaned = cleaned[0] + cleaned.substring(1).replace(/\D/g, '');
+    }
+    setCompanyRif(cleaned);
+    if (cleaned.length === 10) {
+      setCompanyRifError(isValidRif(cleaned) ? "" : t('registration.rifInvalid'));
+    } else if (cleaned.length > 0) {
+      setCompanyRifError(t('registration.rifLength'));
+    } else {
+      setCompanyRifError("");
+    }
+  };
+
+  const handleCompanyRifImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/') && file.type !== 'application/pdf') {
+      setCompanyRifImage(null);
+      toast({ title: t('common.error'), description: t('registration.rifImageFormats'), variant: 'destructive' });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setCompanyRifImage(null);
+      toast({ title: t('common.error'), description: t('registration.rifImageFormats'), variant: 'destructive' });
+      return;
+    }
+    setCompanyRifImage(file);
+  };
+
+  const isCompanyFormValid = () => {
+    return isValidCompanyName(companyName)
+      && isValidEmail(companyEmail)
+      && isValidPhone(companyPhone)
+      && isValidRif(companyRif)
+      && !!companyRifImage
+      && !companyNameError && !companyEmailError && !companyPhoneError && !companyRifError;
+  };
   
   // Employee signup state
   const [employeeEmail, setEmployeeEmail] = useState("");
@@ -40,10 +99,31 @@ const Register = () => {
   const signUpCompany = async () => {
     try {
       setIsLoading(true);
+      // Validate client-side before submit
+      const nameOk = isValidCompanyName(companyName);
+      const emailOk = isValidEmail(companyEmail);
+      const phoneOk = isValidPhone(companyPhone);
+      const rifOk = isValidRif(companyRif);
+      const rifImgOk = !!companyRifImage;
+
+      setCompanyNameError(nameOk ? "" : t('registration.companyNameRequired'));
+      setCompanyEmailError(emailOk ? "" : t('registration.emailInvalid'));
+      setCompanyPhoneError(phoneOk ? "" : t('registration.phoneInvalid'));
+      setCompanyRifError(rifOk ? "" : t('registration.rifInvalid'));
+
+      if (!nameOk || !emailOk || !phoneOk || !rifOk || !rifImgOk) {
+        throw new Error(t('common.error'));
+      }
       
+      // Create auth user first
+      // Normalize inputs
+      const cleanEmail = companyEmail.trim().toLowerCase();
+      const cleanPassword = companyPassword.trim();
+
+      // Create auth user and include metadata so the DB trigger can create companies row
       const { data, error } = await supabase.auth.signUp({
-        email: companyEmail,
-        password: companyPassword,
+        email: cleanEmail,
+        password: cleanPassword,
         options: {
           emailRedirectTo: `${window.location.origin}/login`,
           data: {
@@ -57,14 +137,43 @@ const Register = () => {
       if (error) throw error;
       
       if (data.user) {
-        // Create company record
+        // Best-effort: set metadata after account creation
+        try {
+          await supabase.auth.updateUser({
+            data: {
+              role: 'company',
+              company_name: companyName,
+              company_rif: companyRif
+            }
+          });
+        } catch (metaErr) {
+          console.error('Metadata update error:', metaErr);
+        }
+        // Upload RIF image to storage (public bucket)
+        let rifImageUrl: string | null = null;
+        if (companyRifImage) {
+          const fileExt = companyRifImage.name.split('.').pop()?.toLowerCase() || 'jpg';
+          const objectKey = `rif/${data.user.id}/${Date.now()}.${fileExt}`;
+          const { error: uploadErr } = await supabase.storage
+            .from('company-docs')
+            .upload(objectKey, companyRifImage, { upsert: true, contentType: companyRifImage.type });
+          if (uploadErr) {
+            console.error('RIF upload error:', uploadErr);
+          } else {
+            const { data: pubUrl } = supabase.storage.from('company-docs').getPublicUrl(objectKey);
+            rifImageUrl = pubUrl.publicUrl;
+          }
+        }
+
+        // Create company record with rif_image_url
         const { error: companyError } = await ensureCompanyRecord(data.user.id, {
           name: companyName,
           rif: companyRif,
           address: companyAddress,
           phone: companyPhone,
           email: companyEmail,
-        });
+          rif_image_url: rifImageUrl || undefined,
+        } as any);
       }
       toast({ title: t('register.successTitle') });
       navigate('/login');
@@ -105,22 +214,8 @@ const Register = () => {
         throw new Error(t('register.invalidEmailFormat').replace('{email}', employeeEmail));
       }
       
-      // Check if email already exists in employees table
-      const { data: existingEmployee, error: checkError } = await supabase
-        .from("employees")
-        .select("id")
-        .eq("email", cleanEmail)
-        .maybeSingle();
-      
-      if (checkError) {
-        console.error("Error checking existing employee:", checkError);
-        throw new Error(`Error checking data: ${checkError.message}`);
-      }
-      
-      if (existingEmployee) {
-        throw new Error(t('register.emailAlreadyExists'));
-      }
-      
+      // Skip checking employees table for email (column removed). Auth will enforce uniqueness.
+
       // Create Supabase auth user
       const { data, error } = await supabase.auth.signUp({
         email: cleanEmail,
@@ -132,6 +227,7 @@ const Register = () => {
             first_name: employeeFirstName,
             last_name: employeeLastName,
             company_id: selectedCompanyId
+            // Self-registered employees do NOT need to change password on first login
           }
         }
       });
@@ -146,7 +242,6 @@ const Register = () => {
           company_id: selectedCompanyId,
           first_name: employeeFirstName,
           last_name: employeeLastName,
-          email: cleanEmail,
           phone: employeePhone || null,
           // Required fields with placeholder values that satisfy check constraints
           year_of_employment: new Date().getFullYear(),
@@ -262,21 +357,59 @@ const Register = () => {
                   <Input
                     id="company-name"
                     placeholder={t('register.companyNamePlaceholder')}
-                    className="h-12 text-base"
+                    className={`h-12 text-base ${companyNameError ? 'border-red-500' : ''}`}
                     value={companyName}
-                    onChange={(e) => setCompanyName(e.target.value)}
+                    onChange={(e) => {
+                      const v = e.target.value; setCompanyName(v);
+                      if (!v) setCompanyNameError(t('registration.companyNameRequired'));
+                      else if (!isValidCompanyName(v)) setCompanyNameError(t('registration.companyNameTooShort'));
+                      else setCompanyNameError('');
+                    }}
                   />
+                  {companyNameError && (<p className="text-sm text-red-500">{companyNameError}</p>)}
                 </div>
                 
                 <div className="space-y-3">
                   <Label htmlFor="company-rif" className="text-base">{t('register.companyRifLabel')}</Label>
                   <Input
                     id="company-rif"
-                    placeholder="J-12345678-9"
-                    className="h-12 text-base"
+                    placeholder="J123456789"
+                    className={`h-12 text-base ${companyRifError ? 'border-red-500' : ''}`}
                     value={companyRif}
-                    onChange={(e) => setCompanyRif(e.target.value)}
+                    onChange={(e) => handleCompanyRifChange(e.target.value)}
                   />
+                  {companyRifError && (<p className="text-sm text-red-500">{companyRifError}</p>)}
+                  <p className="text-xs text-muted-foreground">{t('registration.rifFormat')}</p>
+
+                  {/* RIF Image Upload */}
+                  <div className="mt-3">
+                    <Label htmlFor="company-rif-image" className="text-base">{t('registration.rifImage')} *</Label>
+                    <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-4">
+                      <input id="company-rif-image" type="file" accept="image/*,.pdf" className="hidden" onChange={handleCompanyRifImageUpload} />
+                      {!companyRifImage ? (
+                        <div className="text-center space-y-2">
+                          <Button variant="outline" onClick={() => document.getElementById('company-rif-image')?.click()}>
+                            {t('registration.rifImageSelect')}
+                          </Button>
+                          <div className="text-xs text-muted-foreground">
+                            <p>• {t('registration.rifImageRequirements')}</p>
+                            <p>• {t('registration.rifImageValid')}</p>
+                            <p>• {t('registration.rifImageFormats')}</p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-sm">
+                          <p className="font-medium">{companyRifImage.name}</p>
+                          <p className="text-xs text-muted-foreground">{(companyRifImage.size/1024/1024).toFixed(2)} MB</p>
+                          <div className="mt-2">
+                            <Button variant="outline" onClick={() => setCompanyRifImage(null)}>
+                              {t('common.remove') || 'Remove'}
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
                 
                 <div className="space-y-3">
@@ -297,20 +430,22 @@ const Register = () => {
                       id="company-email"
                       type="email"
                       placeholder={t('register.companyEmailPlaceholder')}
-                      className="h-12 text-base"
+                    className={`h-12 text-base ${companyEmailError ? 'border-red-500' : ''}`}
                       value={companyEmail}
-                      onChange={(e) => setCompanyEmail(e.target.value)}
+                    onChange={(e) => { const v = e.target.value; setCompanyEmail(v); setCompanyEmailError(!v ? t('registration.emailRequired') : (!isValidEmail(v) ? t('registration.emailInvalid') : '')); }}
                     />
+                  {companyEmailError && (<p className="text-sm text-red-500">{companyEmailError}</p>)}
                   </div>
                   <div className="space-y-3">
                     <Label htmlFor="company-phone" className="text-base">{t('register.companyPhoneLabel')}</Label>
                     <Input
                       id="company-phone"
                       placeholder={t('register.companyPhonePlaceholder')}
-                      className="h-12 text-base"
+                    className={`h-12 text-base ${companyPhoneError ? 'border-red-500' : ''}`}
                       value={companyPhone}
-                      onChange={(e) => setCompanyPhone(e.target.value)}
+                    onChange={(e) => { const v = e.target.value; setCompanyPhone(v); setCompanyPhoneError(!v ? t('registration.phoneRequired') : (!isValidPhone(v) ? t('registration.phoneInvalid') : '')); }}
                     />
+                  {companyPhoneError && (<p className="text-sm text-red-500">{companyPhoneError}</p>)}
                   </div>
                 </div>
 
@@ -346,7 +481,7 @@ const Register = () => {
                 <Button
                   className="w-full h-14 text-base mt-2"
                   variant="hero"
-                  disabled={isLoading}
+                  disabled={isLoading || !isCompanyFormValid()}
                   onClick={signUpCompany}
                 >
                   {t('register.createCompanyButton')}

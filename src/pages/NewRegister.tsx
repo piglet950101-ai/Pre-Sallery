@@ -105,21 +105,7 @@ const Register = () => {
         throw new Error(t('register.invalidEmailFormat').replace('{email}', employeeEmail));
       }
       
-      // Check if email already exists in employees table
-      const { data: existingEmployee, error: checkError } = await supabase
-        .from("employees")
-        .select("id")
-        .eq("email", cleanEmail)
-        .maybeSingle();
-      
-      if (checkError) {
-        console.error("Error checking existing employee:", checkError);
-        throw new Error(`Error checking data: ${checkError.message}`);
-      }
-      
-      if (existingEmployee) {
-        throw new Error(t('register.emailAlreadyExists'));
-      }
+      // Skip checking employees table for email (column removed). Auth will enforce uniqueness.
       
       // Create Supabase auth user
       const { data, error } = await supabase.auth.signUp({
@@ -131,7 +117,8 @@ const Register = () => {
             role: 'employee',
             first_name: employeeFirstName,
             last_name: employeeLastName,
-            company_id: selectedCompanyId
+            company_id: selectedCompanyId,
+            must_change_password: true
           }
         }
       });
@@ -146,7 +133,6 @@ const Register = () => {
           company_id: selectedCompanyId,
           first_name: employeeFirstName,
           last_name: employeeLastName,
-          email: cleanEmail,
           phone: employeePhone || null,
           // Required fields with placeholder values
           year_of_employment: new Date().getFullYear(),
@@ -245,7 +231,7 @@ const Register = () => {
                   <Label htmlFor="company-rif">{t('register.companyRifLabel')}</Label>
                   <Input
                     id="company-rif"
-                    placeholder="J-12345678-9"
+                    placeholder="J123456789"
                     className="h-12"
                     value={companyRif}
                     onChange={(e) => setCompanyRif(e.target.value)}
