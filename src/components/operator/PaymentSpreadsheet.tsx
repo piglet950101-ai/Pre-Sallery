@@ -55,7 +55,7 @@ const PaymentSpreadsheet: React.FC = () => {
           payment_details,
           status,
           created_at,
-          employees!inner (
+          employee:employees!inner (
             first_name,
             last_name,
             cedula,
@@ -64,7 +64,7 @@ const PaymentSpreadsheet: React.FC = () => {
             account_number,
             account_type
           ),
-          companies!inner (
+          company:companies!inner (
             name
           )
         `)
@@ -73,7 +73,7 @@ const PaymentSpreadsheet: React.FC = () => {
 
       if (error) throw error;
       
-      setPaymentRequests(data || []);
+      setPaymentRequests((data as any) || []);
     } catch (error: any) {
       console.error('Error fetching payment requests:', error);
       toast({
@@ -255,13 +255,15 @@ const PaymentSpreadsheet: React.FC = () => {
                 <TableBody>
                   {paymentRequests.map((request) => {
                     const netAmountWithFee = request.requested_amount * 0.95;
+                    const emp = (request as any).employee || {};
+                    const comp = (request as any).company || {};
                     return (
                       <TableRow key={request.id}>
                         <TableCell className="font-medium">
-                          {request.employee.first_name} {request.employee.last_name}
+                          {emp.first_name ?? 'N/A'} {emp.last_name ?? ''}
                         </TableCell>
-                        <TableCell>{request.employee.cedula || 'N/A'}</TableCell>
-                        <TableCell>{request.employee.phone || 'N/A'}</TableCell>
+                        <TableCell>{emp.cedula || 'N/A'}</TableCell>
+                        <TableCell>{emp.phone || 'N/A'}</TableCell>
                         <TableCell>
                           <Badge variant={request.payment_method === 'pagomovil' ? 'default' : 'secondary'}>
                             {request.payment_method === 'pagomovil' ? 'PagoMóvil' : 'Bank Transfer'}
@@ -275,16 +277,16 @@ const PaymentSpreadsheet: React.FC = () => {
                         <TableCell>
                           {request.payment_method === 'bank_transfer' ? (
                             <div className="text-sm">
-                              <div className="font-medium">{request.employee.bank_name}</div>
+                              <div className="font-medium">{emp.bank_name || 'N/A'}</div>
                               <div className="text-muted-foreground">
-                                {request.employee.account_number} ({request.employee.account_type})
+                                {(emp.account_number || 'N/A')} ({emp.account_type || 'N/A'})
                               </div>
                             </div>
                           ) : (
                             <span className="text-muted-foreground">N/A</span>
                           )}
                         </TableCell>
-                        <TableCell className="text-sm">{request.company.name}</TableCell>
+                        <TableCell className="text-sm">{comp.name || 'N/A'}</TableCell>
                         <TableCell className="font-mono">
                           ${request.requested_amount.toFixed(2)}
                         </TableCell>
