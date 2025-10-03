@@ -23,6 +23,22 @@ const Login = () => {
   const [adminEmail, setAdminEmail] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState("employee");
+
+  // Handle Enter key press
+  const handleKeyPress = (event: React.KeyboardEvent) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      
+      if (activeTab === 'employee') {
+        signIn(employeeEmail, employeePassword, "/employee", "employee");
+      } else if (activeTab === 'company') {
+        signIn(companyEmail, companyPassword, "/company", "company");
+      } else if (activeTab === 'admin') {
+        signIn(adminEmail, adminPassword, "/operator", "operator");
+      }
+    }
+  };
 
   const signIn = async (email: string, password: string, fallbackRedirect: string, roleToSet?: string) => {
     try {
@@ -173,19 +189,37 @@ const Login = () => {
           err?.message?.includes('Wrong password') ||
           err?.message?.includes('incorrect password') ||
           err?.message?.includes('Invalid password') ||
+          err?.message?.includes('Email not confirmed') ||
           err?.status === 400) {
         errorTitle = t('login.incorrectPassword') ?? 'Incorrect Password';
         errorDescription = t('login.incorrectPasswordDesc') ?? 'The password you entered is incorrect. Please try again.';
       } else if (err?.message?.includes('User not found') ||
                  err?.message?.includes('No user found') ||
-                 err?.message?.includes('Email not found')) {
+                 err?.message?.includes('Email not found') ||
+                 err?.message?.includes('Invalid email') ||
+                 err?.message?.includes('User does not exist')) {
         errorTitle = t('login.userNotFound') ?? 'User Not Found';
         errorDescription = t('login.userNotFoundDesc') ?? 'No account found with this email address. Please check your email or create a new account.';
       } else if (err?.message?.includes('Too many requests') ||
                  err?.message?.includes('Rate limit') ||
-                 err?.message?.includes('Too many attempts')) {
+                 err?.message?.includes('Too many attempts') ||
+                 err?.message?.includes('Rate limit exceeded')) {
         errorTitle = t('login.tooManyRequests') ?? 'Too Many Attempts';
         errorDescription = t('login.tooManyRequestsDesc') ?? 'Too many login attempts. Please wait a few minutes before trying again.';
+      } else if (err?.message?.includes('Email not confirmed') ||
+                 err?.message?.includes('Please confirm your email')) {
+        errorTitle = t('login.emailNotConfirmed') ?? 'Email Not Confirmed';
+        errorDescription = t('login.emailNotConfirmedDesc') ?? 'Please check your email and click the confirmation link before signing in.';
+      } else if (err?.message?.includes('Network error') ||
+                 err?.message?.includes('Failed to fetch') ||
+                 err?.message?.includes('Connection failed')) {
+        errorTitle = t('login.networkError') ?? 'Network Error';
+        errorDescription = t('login.networkErrorDesc') ?? 'Please check your internet connection and try again.';
+      } else if (err?.message?.includes('Server error') ||
+                 err?.message?.includes('Internal server error') ||
+                 err?.status >= 500) {
+        errorTitle = t('login.serverError') ?? 'Server Error';
+        errorDescription = t('login.serverErrorDesc') ?? 'There was a server error. Please try again later.';
       }
       
       toast({
@@ -220,8 +254,8 @@ const Login = () => {
           <CardHeader className="space-y-1 pb-4">
             <CardTitle className="text-2xl text-center text-gray-800 font-semibold">{t('login.title')}</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <Tabs defaultValue="employee" className="w-full">
+          <CardContent className="space-y-4" onKeyDown={handleKeyPress}>
+            <Tabs defaultValue="employee" value={activeTab} onValueChange={setActiveTab} className="w-full">
               <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="employee" className="flex items-center space-x-2">
                   <User className="h-4 w-4" />

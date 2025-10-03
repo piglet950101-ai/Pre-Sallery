@@ -22,6 +22,7 @@ const Register = () => {
   // Company signup state
   const [companyEmail, setCompanyEmail] = useState("");
   const [companyPassword, setCompanyPassword] = useState("");
+  const [companyConfirmPassword, setCompanyConfirmPassword] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [companyRif, setCompanyRif] = useState("");
   const [companyAddress, setCompanyAddress] = useState("");
@@ -32,13 +33,32 @@ const Register = () => {
   const [companyEmailError, setCompanyEmailError] = useState("");
   const [companyPhoneError, setCompanyPhoneError] = useState("");
   const [companyRifError, setCompanyRifError] = useState("");
+  const [companyPasswordError, setCompanyPasswordError] = useState("");
+  const [companyConfirmPasswordError, setCompanyConfirmPasswordError] = useState("");
   const [companyRifImage, setCompanyRifImage] = useState<File | null>(null);
+  const [activeTab, setActiveTab] = useState("company");
 
   // Helpers
   const isValidCompanyName = (name: string) => name.trim().length >= 2;
   const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(email.trim());
   const isValidPhone = (phone: string) => phone.replace(/\D/g, '').length >= 7;
   const isValidRif = (rif: string) => /^[VJG]\d{9}$/.test(rif);
+  const isValidPassword = (password: string) => password.length >= 6;
+  const passwordsMatch = (password: string, confirmPassword: string) => password === confirmPassword;
+
+  // Handle Enter key press
+  const handleKeyPress = (event: React.KeyboardEvent) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      console.log("Active tab:", activeTab);
+      
+      if (activeTab === 'company') {
+        signUpCompany();
+      } else if (activeTab === 'employee') {
+        signUpEmployee();
+      }
+    }
+  };
 
   const handleCompanyRifChange = (value: string) => {
     let cleaned = value.replace(/[^VJG0-9]/gi, '');
@@ -83,18 +103,24 @@ const Register = () => {
       && isValidEmail(companyEmail)
       && isValidPhone(companyPhone)
       && isValidRif(companyRif)
+      && isValidPassword(companyPassword)
+      && passwordsMatch(companyPassword, companyConfirmPassword)
       && !!companyRifImage
-      && !companyNameError && !companyEmailError && !companyPhoneError && !companyRifError;
+      && !companyNameError && !companyEmailError && !companyPhoneError && !companyRifError 
+      && !companyPasswordError && !companyConfirmPasswordError;
   };
   
   // Employee signup state
   const [employeeEmail, setEmployeeEmail] = useState("");
   const [employeePhone, setEmployeePhone] = useState("");
   const [employeePassword, setEmployeePassword] = useState("");
+  const [employeeConfirmPassword, setEmployeeConfirmPassword] = useState("");
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
   const [employeeFirstName, setEmployeeFirstName] = useState("");
   const [employeeLastName, setEmployeeLastName] = useState("");
   const [isLoadingEmployee, setIsLoadingEmployee] = useState(false);
+  const [employeePasswordError, setEmployeePasswordError] = useState("");
+  const [employeeConfirmPasswordError, setEmployeeConfirmPasswordError] = useState("");
 
   const signUpCompany = async () => {
     try {
@@ -104,14 +130,18 @@ const Register = () => {
       const emailOk = isValidEmail(companyEmail);
       const phoneOk = isValidPhone(companyPhone);
       const rifOk = isValidRif(companyRif);
+      const passwordOk = isValidPassword(companyPassword);
+      const passwordsMatchOk = passwordsMatch(companyPassword, companyConfirmPassword);
       const rifImgOk = !!companyRifImage;
 
       setCompanyNameError(nameOk ? "" : t('registration.companyNameRequired'));
       setCompanyEmailError(emailOk ? "" : t('registration.emailInvalid'));
       setCompanyPhoneError(phoneOk ? "" : t('registration.phoneInvalid'));
       setCompanyRifError(rifOk ? "" : t('registration.rifInvalid'));
+      setCompanyPasswordError(passwordOk ? "" : t('registration.passwordTooShort'));
+      setCompanyConfirmPasswordError(passwordsMatchOk ? "" : t('registration.passwordsDoNotMatch'));
 
-      if (!nameOk || !emailOk || !phoneOk || !rifOk || !rifImgOk) {
+      if (!nameOk || !emailOk || !phoneOk || !rifOk || !passwordOk || !passwordsMatchOk || !rifImgOk) {
         throw new Error(t('common.error'));
       }
       
@@ -198,6 +228,17 @@ const Register = () => {
       
       if (!employeeFirstName || !employeeLastName) {
         throw new Error(t('register.nameRequired'));
+      }
+
+      // Validate password
+      const passwordOk = isValidPassword(employeePassword);
+      const passwordsMatchOk = passwordsMatch(employeePassword, employeeConfirmPassword);
+      
+      setEmployeePasswordError(passwordOk ? "" : t('registration.passwordTooShort'));
+      setEmployeeConfirmPasswordError(passwordsMatchOk ? "" : t('registration.passwordsDoNotMatch'));
+
+      if (!passwordOk || !passwordsMatchOk) {
+        throw new Error(t('common.error'));
       }
       
       // Clean and normalize email
@@ -338,8 +379,8 @@ const Register = () => {
             <CardTitle className="text-2xl ">{t('register.createAccount')}</CardTitle>
             <CardDescription className="text-base">{t('register.chooseAccountType')}</CardDescription>
           </CardHeader>
-          <CardContent>
-            <Tabs defaultValue="company" className="space-y-8">
+          <CardContent onKeyDown={handleKeyPress}>
+            <Tabs defaultValue="company" value={activeTab} onValueChange={setActiveTab} className="space-y-8">
               <TabsList className="grid grid-cols-2 h-14">
                 <TabsTrigger value="company" className="flex items-center space-x-3 text-base">
                   <Building className="h-5 w-5" />
@@ -369,6 +410,71 @@ const Register = () => {
                   {companyNameError && (<p className="text-sm text-red-500">{companyNameError}</p>)}
                 </div>
                 
+                
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-3">
+                    <Label htmlFor="company-email" className="text-base">{t('register.companyEmailLabel')}</Label>
+                    <Input
+                      id="company-email"
+                      type="email"
+                      placeholder={t('register.companyEmailPlaceholder')}
+                    className={`h-12 text-base ${companyEmailError ? 'border-red-500' : ''}`}
+                      value={companyEmail}
+                    onChange={(e) => { const v = e.target.value; setCompanyEmail(v); setCompanyEmailError(!v ? t('registration.emailRequired') : (!isValidEmail(v) ? t('registration.emailInvalid') : '')); }}
+                    />
+                  {companyEmailError && (<p className="text-sm text-red-500">{companyEmailError}</p>)}
+                  </div>
+                  <div className="space-y-3">
+                    <Label htmlFor="company-phone" className="text-base">{t('register.companyPhoneLabel')}</Label>
+                    <Input
+                      id="company-phone"
+                      placeholder={t('register.companyPhonePlaceholder')}
+                    className={`h-12 text-base ${companyPhoneError ? 'border-red-500' : ''}`}
+                      value={companyPhone}
+                    onChange={(e) => { const v = e.target.value; setCompanyPhone(v); setCompanyPhoneError(!v ? t('registration.phoneRequired') : (!isValidPhone(v) ? t('registration.phoneInvalid') : '')); }}
+                    />
+                  {companyPhoneError && (<p className="text-sm text-red-500">{companyPhoneError}</p>)}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-3">
+                    <Label htmlFor="company-password" className="text-base">{t('register.companyPasswordLabel')}</Label>
+                    <Input
+                      id="company-password"
+                      type="password"
+                      className={`h-12 text-base ${companyPasswordError ? 'border-red-500' : ''}`}
+                      value={companyPassword}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setCompanyPassword(v);
+                        setCompanyPasswordError(!v ? t('registration.passwordRequired') : (!isValidPassword(v) ? t('registration.passwordTooShort') : ''));
+                        // Also check confirm password when main password changes
+                        if (companyConfirmPassword) {
+                          setCompanyConfirmPasswordError(!passwordsMatch(v, companyConfirmPassword) ? t('registration.passwordsDoNotMatch') : '');
+                        }
+                      }}
+                    />
+                    {companyPasswordError && (<p className="text-sm text-red-500">{companyPasswordError}</p>)}
+                  </div>
+                  <div className="space-y-3">
+                    <Label htmlFor="company-confirm-password" className="text-base">{t('register.confirmPasswordLabel')}</Label>
+                    <Input
+                      id="company-confirm-password"
+                      type="password"
+                      className={`h-12 text-base ${companyConfirmPasswordError ? 'border-red-500' : ''}`}
+                      value={companyConfirmPassword}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setCompanyConfirmPassword(v);
+                        setCompanyConfirmPasswordError(!v ? t('registration.confirmPasswordRequired') : (!passwordsMatch(companyPassword, v) ? t('registration.passwordsDoNotMatch') : ''));
+                      }}
+                    />
+                    {companyConfirmPasswordError && (<p className="text-sm text-red-500">{companyConfirmPasswordError}</p>)}
+                  </div>
+                </div>
+
+
                 <div className="space-y-3">
                   <Label htmlFor="company-rif" className="text-base">{t('register.companyRifLabel')}</Label>
                   <Input
@@ -423,60 +529,7 @@ const Register = () => {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-6">
-                  <div className="space-y-3">
-                    <Label htmlFor="company-email" className="text-base">{t('register.companyEmailLabel')}</Label>
-                    <Input
-                      id="company-email"
-                      type="email"
-                      placeholder={t('register.companyEmailPlaceholder')}
-                    className={`h-12 text-base ${companyEmailError ? 'border-red-500' : ''}`}
-                      value={companyEmail}
-                    onChange={(e) => { const v = e.target.value; setCompanyEmail(v); setCompanyEmailError(!v ? t('registration.emailRequired') : (!isValidEmail(v) ? t('registration.emailInvalid') : '')); }}
-                    />
-                  {companyEmailError && (<p className="text-sm text-red-500">{companyEmailError}</p>)}
-                  </div>
-                  <div className="space-y-3">
-                    <Label htmlFor="company-phone" className="text-base">{t('register.companyPhoneLabel')}</Label>
-                    <Input
-                      id="company-phone"
-                      placeholder={t('register.companyPhonePlaceholder')}
-                    className={`h-12 text-base ${companyPhoneError ? 'border-red-500' : ''}`}
-                      value={companyPhone}
-                    onChange={(e) => { const v = e.target.value; setCompanyPhone(v); setCompanyPhoneError(!v ? t('registration.phoneRequired') : (!isValidPhone(v) ? t('registration.phoneInvalid') : '')); }}
-                    />
-                  {companyPhoneError && (<p className="text-sm text-red-500">{companyPhoneError}</p>)}
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <Label htmlFor="company-password" className="text-base">{t('register.companyPasswordLabel')}</Label>
-                  <Input
-                    id="company-password"
-                    type="password"
-                    className="h-12 text-base"
-                    value={companyPassword}
-                    onChange={(e) => setCompanyPassword(e.target.value)}
-                  />
-                </div>
-
-                <div className="bg-muted/50 p-5 rounded-lg space-y-4">
-                  <h4 className="font-semibold text-base">{t('register.benefitsTitle')}</h4>
-                  <div className="space-y-3">
-                    <div className="flex items-center space-x-3 text-base">
-                      <CheckCircle className="h-5 w-5 text-primary" />
-                      <span>{t('register.benefit1')}</span>
-                    </div>
-                    <div className="flex items-center space-x-3 text-base">
-                      <CheckCircle className="h-5 w-5 text-primary" />
-                      <span>{t('register.benefit2')}</span>
-                    </div>
-                    <div className="flex items-center space-x-3 text-base">
-                      <CheckCircle className="h-5 w-5 text-primary" />
-                      <span>{t('register.benefit3')}</span>
-                    </div>
-                  </div>
-                </div>
+               
 
                 <Button
                   className="w-full h-14 text-base mt-2"
@@ -548,15 +601,41 @@ const Register = () => {
                     </div>
                   </div>
 
-                  <div className="space-y-3">
-                    <Label htmlFor="employee-password" className="text-base">{t('register.employeePasswordLabel')}</Label>
-                    <Input
-                      id="employee-password"
-                      type="password"
-                      className="h-12 text-base"
-                      value={employeePassword}
-                      onChange={(e) => setEmployeePassword(e.target.value)}
-                    />
+                  <div className="grid grid-cols-2 gap-6">
+                    <div className="space-y-3">
+                      <Label htmlFor="employee-password" className="text-base">{t('register.employeePasswordLabel')}</Label>
+                      <Input
+                        id="employee-password"
+                        type="password"
+                        className={`h-12 text-base ${employeePasswordError ? 'border-red-500' : ''}`}
+                        value={employeePassword}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setEmployeePassword(v);
+                          setEmployeePasswordError(!v ? t('registration.passwordRequired') : (!isValidPassword(v) ? t('registration.passwordTooShort') : ''));
+                          // Also check confirm password when main password changes
+                          if (employeeConfirmPassword) {
+                            setEmployeeConfirmPasswordError(!passwordsMatch(v, employeeConfirmPassword) ? t('registration.passwordsDoNotMatch') : '');
+                          }
+                        }}
+                      />
+                      {employeePasswordError && (<p className="text-sm text-red-500">{employeePasswordError}</p>)}
+                    </div>
+                    <div className="space-y-3">
+                      <Label htmlFor="employee-confirm-password" className="text-base">{t('register.confirmPasswordLabel')}</Label>
+                      <Input
+                        id="employee-confirm-password"
+                        type="password"
+                        className={`h-12 text-base ${employeeConfirmPasswordError ? 'border-red-500' : ''}`}
+                        value={employeeConfirmPassword}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setEmployeeConfirmPassword(v);
+                          setEmployeeConfirmPasswordError(!v ? t('registration.confirmPasswordRequired') : (!passwordsMatch(employeePassword, v) ? t('registration.passwordsDoNotMatch') : ''));
+                        }}
+                      />
+                      {employeeConfirmPasswordError && (<p className="text-sm text-red-500">{employeeConfirmPasswordError}</p>)}
+                    </div>
                   </div>
 
                   <Button 

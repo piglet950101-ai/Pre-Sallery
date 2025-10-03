@@ -38,6 +38,8 @@ import Header from "@/components/Header";
 import { useLanguage } from "@/contexts/LanguageContext";
 import BillingDashboard from "@/components/operator/BillingDashboard";
 import CompanyManagement from "@/components/operator/CompanyManagement";
+import PaymentSpreadsheet from "@/components/operator/PaymentSpreadsheet";
+import PaymentConfirmation from "@/components/operator/PaymentConfirmation";
 import { ExchangeRateAlert } from "@/components/ExchangeRateAlert";
 import { ExchangeRateDeviationAlert } from "@/components/ExchangeRateDeviationAlert";
 import { ExchangeRateChangeAlert } from "@/components/ExchangeRateChangeAlert";
@@ -914,7 +916,7 @@ const OperatorDashboard = () => {
         </div>
 
         <Tabs defaultValue="pending" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="pending" className="relative">
               {t('operator.pendingAdvances')}
               {pendingAdvances.length > 0 && (
@@ -923,6 +925,7 @@ const OperatorDashboard = () => {
                 </Badge>
               )}
             </TabsTrigger>
+            <TabsTrigger value="payments">Payment Processing</TabsTrigger>
             <TabsTrigger value="batches">{t('operator.processedBatches')}</TabsTrigger>
             <TabsTrigger value="billing">{t('operator.billing')}</TabsTrigger>
             <TabsTrigger value="confirmations">{t('operator.confirmationsTab')}</TabsTrigger>
@@ -1073,6 +1076,11 @@ const OperatorDashboard = () => {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Payment Processing Tab */}
+          <TabsContent value="payments" className="space-y-6">
+            <PaymentSpreadsheet />
           </TabsContent>
 
           <TabsContent value="batches" className="space-y-6">

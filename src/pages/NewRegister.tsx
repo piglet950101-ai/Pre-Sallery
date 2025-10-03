@@ -27,6 +27,21 @@ const Register = () => {
   const [companyAddress, setCompanyAddress] = useState("");
   const [companyPhone, setCompanyPhone] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState("company");
+
+  // Handle Enter key press
+  const handleKeyPress = (event: React.KeyboardEvent) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      console.log("Active tab:", activeTab);
+      
+      if (activeTab === 'company') {
+        signUpCompany();
+      } else if (activeTab === 'employee') {
+        signUpEmployee();
+      }
+    }
+  };
   
   // Employee signup state
   const [employeeEmail, setEmployeeEmail] = useState("");
@@ -202,8 +217,8 @@ const Register = () => {
             <CardTitle>{t('register.createAccount')}</CardTitle>
             <CardDescription>{t('register.chooseAccountType')}</CardDescription>
           </CardHeader>
-          <CardContent>
-            <Tabs defaultValue="company" className="space-y-6">
+          <CardContent onKeyDown={handleKeyPress}>
+            <Tabs defaultValue="company" value={activeTab} onValueChange={setActiveTab} className="space-y-6">
               <TabsList className="grid grid-cols-2">
                 <TabsTrigger value="company" className="flex items-center space-x-2">
                   <Building className="h-4 w-4" />
@@ -284,23 +299,6 @@ const Register = () => {
                   />
                 </div>
 
-                <div className="bg-muted/50 p-4 rounded-lg space-y-3">
-                  <h4 className="font-semibold text-sm">{t('register.benefitsTitle')}</h4>
-                  <div className="space-y-2">
-                    <div className="flex items-center space-x-2 text-sm">
-                      <CheckCircle className="h-4 w-4 text-primary" />
-                      <span>{t('register.benefit1')}</span>
-                    </div>
-                    <div className="flex items-center space-x-2 text-sm">
-                      <CheckCircle className="h-4 w-4 text-primary" />
-                      <span>{t('register.benefit2')}</span>
-                    </div>
-                    <div className="flex items-center space-x-2 text-sm">
-                      <CheckCircle className="h-4 w-4 text-primary" />
-                      <span>{t('register.benefit3')}</span>
-                    </div>
-                  </div>
-                </div>
 
                 <Button
                   className="w-full h-12"
