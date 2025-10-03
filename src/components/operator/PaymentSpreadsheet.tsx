@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Printer, Download, RefreshCw, CheckCircle, XCircle } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import PaymentConfirmation from './PaymentConfirmation';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/lib/supabase';
@@ -94,66 +95,119 @@ const PaymentSpreadsheet: React.FC = () => {
     window.print();
   };
 
-  const handleExportCSV = () => {
-    const csvContent = [
-      // Header
-      [
-        'Employee Name',
-        'Cedula', 
-        'Phone',
-        'Payment Method',
-        'Bank Name',
-        'Account Number',
-        'Account Type',
-        'PagoMovil Phone',
-        'Company',
-        'Requested Amount ($)',
-        'Fee (5%)',
-        'Net Amount ($)',
-        'Net Amount (VES)',
-        'Date',
-        'Request ID'
-      ].join(','),
-      // Data rows
-      ...paymentRequests.map(request => {
-        const netAmountWithFee = request.requested_amount * 0.95; // Apply 5% fee
-        const exchangeRate = 36.5; // This should come from your exchange rate system
-        const netAmountVES = netAmountWithFee * exchangeRate;
-        
-        return [
-          `"${request.employee.first_name} ${request.employee.last_name}"`,
-          request.employee.cedula || 'N/A',
-          request.employee.phone || 'N/A',
-          request.payment_method === 'pagomovil' ? 'PagoMóvil' : 'Bank Transfer',
-          request.payment_method === 'bank_transfer' ? (request.employee.bank_name || 'N/A') : 'N/A',
-          request.payment_method === 'bank_transfer' ? (request.employee.account_number || 'N/A') : 'N/A',
-          request.payment_method === 'bank_transfer' ? (request.employee.account_type || 'N/A') : 'N/A',
-          request.payment_method === 'pagomovil' ? (request.payment_details || 'N/A') : 'N/A',
-          `"${request.company.name}"`,
-          request.requested_amount.toFixed(2),
-          (request.requested_amount * 0.05).toFixed(2),
-          netAmountWithFee.toFixed(2),
-          netAmountVES.toFixed(2),
-          new Date(request.created_at).toLocaleDateString(),
-          request.id
-        ].join(',');
-      })
-    ].join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `payment-requests-${new Date().toISOString().slice(0, 10)}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(url);
-
-    toast({
-      title: 'Success',
-      description: 'Payment spreadsheet exported successfully'
+  const getBatchInfo = (date: Date) => {
+    // Use America/Caracas timezone explicitly
+    const fmt = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Caracas',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hour12: false,
     });
+    const parts = fmt.formatToParts(date);
+    const get = (type: string) => parts.find(p => p.type === type)?.value ?? '';
+    const y = get('year');
+    const m = get('month');
+    const d = get('day');
+    const hours = Number(get('hour'));
+    const minutes = Number(get('minute'));
+
+    // Batching rules in Caracas local time
+    if (hours < 10 || (hours === 10 && minutes === 0)) {
+      return { label: '11:00 AM Today', sortKey: `${y}-${m}-${d}-A11` };
+    }
+    if ((hours === 10 && minutes >= 1) || (hours > 10 && hours < 14) || (hours === 14 && minutes === 0)) {
+      return { label: '3:00 PM Today', sortKey: `${y}-${m}-${d}-B15` };
+    }
+
+    // Next day in Caracas
+    const base = new Date(fmt.format(date)); // formatted date string but time part present; safer to compute next day via parts
+    const next = new Date(date);
+    // advance by ~1 day in Caracas terms
+    next.setUTCDate(next.getUTCDate() + 1);
+    const partsNext = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Caracas',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+    }).formatToParts(next);
+    const ny = partsNext.find(p => p.type === 'year')?.value ?? y;
+    const nm = partsNext.find(p => p.type === 'month')?.value ?? m;
+    const nd = partsNext.find(p => p.type === 'day')?.value ?? d;
+    return { label: '11:00 AM Next Day', sortKey: `${ny}-${nm}-${nd}-A11` };
+  };
+
+  const handleExportXLSX = () => {
+    const header = [
+      'Employee Name',
+      'Cedula',
+      'Phone',
+      'Payment Method',
+      'Bank Name',
+      'Account Number',
+      'Account Type',
+      'PagoMovil Phone',
+      'Batch',
+      'Company',
+      'Requested Amount ($)',
+      'Fee (5%)',
+      'Net Amount ($)',
+      'Net Amount (VES)',
+      'Date',
+      'Request ID'
+    ];
+
+    const rows = paymentRequests.map((request) => {
+      const netAmountWithFee = request.requested_amount * 0.95;
+      const exchangeRate = 36.5; // TODO: inject real rate
+      const netAmountVES = netAmountWithFee * exchangeRate;
+      const batch = getBatchInfo(new Date(request.created_at));
+      const emp: any = (request as any).employee || {};
+      const comp: any = (request as any).company || {};
+
+      return [
+        `${emp.first_name ?? 'N/A'} ${emp.last_name ?? ''}`.trim(),
+        emp.cedula || 'N/A',
+        emp.phone || 'N/A',
+        request.payment_method === 'pagomovil' ? 'PagoMóvil' : 'Bank Transfer',
+        request.payment_method === 'bank_transfer' ? (emp.bank_name || 'N/A') : 'N/A',
+        request.payment_method === 'bank_transfer' ? (emp.account_number || 'N/A') : 'N/A',
+        request.payment_method === 'bank_transfer' ? (emp.account_type || 'N/A') : 'N/A',
+        request.payment_method === 'pagomovil' ? (request.payment_details || 'N/A') : 'N/A',
+        batch.label,
+        comp.name || 'N/A',
+        request.requested_amount,
+        (request.requested_amount * 0.05),
+        netAmountWithFee,
+        netAmountVES,
+        new Intl.DateTimeFormat('en-VE', { timeZone: 'America/Caracas' }).format(new Date(request.created_at)),
+        request.id,
+      ];
+    });
+
+    const aoa = [header, ...rows];
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    // Set friendly column widths
+    ws['!cols'] = [
+      { wch: 24 }, // Employee Name
+      { wch: 14 }, // Cedula
+      { wch: 16 }, // Phone
+      { wch: 16 }, // Method
+      { wch: 22 }, // Bank Name
+      { wch: 22 }, // Account Number
+      { wch: 14 }, // Account Type
+      { wch: 18 }, // PagoMovil Phone
+      { wch: 16 }, // Batch
+      { wch: 24 }, // Company
+      { wch: 18 }, // Requested
+      { wch: 12 }, // Fee
+      { wch: 18 }, // Net USD
+      { wch: 20 }, // Net VES
+      { wch: 14 }, // Date
+      { wch: 38 }, // Request ID
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Payments');
+    XLSX.writeFile(wb, `payment-requests-${new Date().toISOString().slice(0,10)}.xlsx`);
+
+    toast({ title: 'Success', description: 'Payment spreadsheet exported (XLSX) with adjusted column widths' });
   };
 
   const handlePaymentAction = (request: PaymentRequest) => {
@@ -189,13 +243,13 @@ const PaymentSpreadsheet: React.FC = () => {
                 Refresh
               </Button>
               <Button 
-                onClick={handleExportCSV}
+                onClick={handleExportXLSX}
                 disabled={paymentRequests.length === 0}
                 variant="outline"
                 size="sm"
               >
                 <Download className="h-4 w-4 mr-2" />
-                Export CSV
+                Export XLSX
               </Button>
               <Button 
                 onClick={handlePrint}
@@ -215,7 +269,7 @@ const PaymentSpreadsheet: React.FC = () => {
             </div>
           ) : (
             <div className="print-content">
-              <style jsx>{`
+              <style>{`
                 @media print {
                   .print-content {
                     font-size: 12px;
@@ -244,19 +298,27 @@ const PaymentSpreadsheet: React.FC = () => {
                     <TableHead>Phone</TableHead>
                     <TableHead>Payment Method</TableHead>
                     <TableHead>Bank Details</TableHead>
+                    <TableHead>Batch</TableHead>
                     <TableHead>Company</TableHead>
                     <TableHead>Amount</TableHead>
                     <TableHead>Net (After 5% Fee)</TableHead>
                     <TableHead>Date</TableHead>
                     <TableHead className="print:hidden">Status</TableHead>
-                    <TableHead className="print:hidden">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {paymentRequests.map((request) => {
+                  {paymentRequests
+                    .slice()
+                    .sort((a, b) => {
+                      const A = getBatchInfo(new Date(a.created_at));
+                      const B = getBatchInfo(new Date(b.created_at));
+                      return A.sortKey.localeCompare(B.sortKey);
+                    })
+                    .map((request) => {
                     const netAmountWithFee = request.requested_amount * 0.95;
                     const emp = (request as any).employee || {};
                     const comp = (request as any).company || {};
+                    const batch = getBatchInfo(new Date(request.created_at));
                     return (
                       <TableRow key={request.id}>
                         <TableCell className="font-medium">
@@ -286,6 +348,9 @@ const PaymentSpreadsheet: React.FC = () => {
                             <span className="text-muted-foreground">N/A</span>
                           )}
                         </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{batch.label}</Badge>
+                        </TableCell>
                         <TableCell className="text-sm">{comp.name || 'N/A'}</TableCell>
                         <TableCell className="font-mono">
                           ${request.requested_amount.toFixed(2)}
@@ -294,24 +359,12 @@ const PaymentSpreadsheet: React.FC = () => {
                           ${netAmountWithFee.toFixed(2)}
                         </TableCell>
                         <TableCell className="text-sm">
-                          {new Date(request.created_at).toLocaleDateString()}
+                          {new Intl.DateTimeFormat('en-VE', { timeZone: 'America/Caracas' }).format(new Date(request.created_at))}
                         </TableCell>
                         <TableCell className="print:hidden">
                           <Badge variant="outline">{request.status}</Badge>
                         </TableCell>
-                        <TableCell className="print:hidden">
-                          <div className="flex gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handlePaymentAction(request)}
-                              className="text-green-600 hover:text-green-700 hover:bg-green-50"
-                            >
-                              <CheckCircle className="h-4 w-4 mr-1" />
-                              Process
-                            </Button>
-                          </div>
-                        </TableCell>
+                        
                       </TableRow>
                     );
                   })}
