@@ -6,6 +6,7 @@ export type CompanyProfile = {
   address?: string;
   phone?: string;
   email?: string;
+  rif_image_url?: string;
 };
 
 export type EmployeeProfile = {

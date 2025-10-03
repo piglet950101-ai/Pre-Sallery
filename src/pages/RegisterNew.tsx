@@ -145,40 +145,53 @@ const Register = () => {
         throw new Error(t('common.error'));
       }
       
+      // Check if RIF already exists BEFORE creating auth user
+      const { data: existingCompany, error: checkError } = await supabase
+        .from('companies')
+        .select('id, name')
+        .eq('rif', companyRif)
+        .maybeSingle();
+        
+      if (checkError) {
+        console.error('Error checking RIF:', checkError);
+        throw new Error('Error checking RIF number. Please try again.');
+      } else if (existingCompany) {
+        console.error('RIF already exists:', existingCompany);
+        toast({
+          title: 'RIF Already Exists',
+          description: `A company with RIF ${companyRif} already exists (${existingCompany.name}). Please check your RIF number or contact support.`,
+          variant: 'destructive'
+        });
+        return; // Exit early - don't create auth user
+      }
+      
       // Create auth user first
       // Normalize inputs
       const cleanEmail = companyEmail.trim().toLowerCase();
       const cleanPassword = companyPassword.trim();
 
-      // Create auth user and include metadata so the DB trigger can create companies row
+      // Create auth user first without metadata to avoid trigger issues
       const { data, error } = await supabase.auth.signUp({
         email: cleanEmail,
         password: cleanPassword,
         options: {
-          emailRedirectTo: `${window.location.origin}/login`,
-          data: {
-            role: 'company',
-            company_name: companyName,
-            company_rif: companyRif
-          }
+          emailRedirectTo: `${window.location.origin}/login`
         }
       });
       
       if (error) throw error;
       
       if (data.user) {
-        // Best-effort: set metadata after account creation
-        try {
-          await supabase.auth.updateUser({
-            data: {
-              role: 'company',
-              company_name: companyName,
-              company_rif: companyRif
-            }
-          });
-        } catch (metaErr) {
-          console.error('Metadata update error:', metaErr);
-        }
+        // Set metadata after account creation
+        await supabase.auth.updateUser({
+          data: {
+            role: 'company',
+            company_name: companyName,
+            company_rif: companyRif,
+            company_address: companyAddress,
+            company_phone: companyPhone
+          }
+        });
         // Upload RIF image to storage (public bucket)
         let rifImageUrl: string | null = null;
         if (companyRifImage) {
@@ -196,14 +209,47 @@ const Register = () => {
         }
 
         // Create company record with rif_image_url
-        const { error: companyError } = await ensureCompanyRecord(data.user.id, {
+        console.log('Creating company record with data:', {
+          authUserId: data.user.id,
+          name: companyName,
+          rif: companyRif,
+          address: companyAddress,
+          phone: companyPhone,
+          email: companyEmail,
+          rif_image_url: rifImageUrl
+        });
+        
+        const { data: companyData, error: companyError } = await ensureCompanyRecord(data.user.id, {
           name: companyName,
           rif: companyRif,
           address: companyAddress,
           phone: companyPhone,
           email: companyEmail,
           rif_image_url: rifImageUrl || undefined,
-        } as any);
+        });
+        
+        if (companyError) {
+          console.error('Company record creation error:', companyError);
+          
+          // Handle specific error types
+          if (companyError.code === '23505' && companyError.message.includes('companies_rif_key')) {
+            // This shouldn't happen anymore since we check for existing RIF first
+            console.error('Unexpected duplicate RIF error:', companyError);
+            toast({
+              title: 'Unexpected Error',
+              description: 'A company with this RIF number already exists. The system will update the existing record.',
+              variant: 'destructive'
+            });
+          } else {
+            toast({
+              title: 'Warning',
+              description: 'Company account created but company profile setup failed. Please contact support.',
+              variant: 'destructive'
+            });
+          }
+        } else {
+          console.log('Company record created successfully:', companyData);
+        }
       }
       toast({ title: t('register.successTitle') });
       navigate('/login');
@@ -256,7 +302,7 @@ const Register = () => {
       }
       
       // Skip checking employees table for email (column removed). Auth will enforce uniqueness.
-
+      
       // Create Supabase auth user
       const { data, error } = await supabase.auth.signUp({
         email: cleanEmail,
@@ -474,7 +520,7 @@ const Register = () => {
                   </div>
                 </div>
 
-
+                
                 <div className="space-y-3">
                   <Label htmlFor="company-rif" className="text-base">{t('register.companyRifLabel')}</Label>
                   <Input
@@ -602,13 +648,13 @@ const Register = () => {
                   </div>
 
                   <div className="grid grid-cols-2 gap-6">
-                    <div className="space-y-3">
-                      <Label htmlFor="employee-password" className="text-base">{t('register.employeePasswordLabel')}</Label>
-                      <Input
-                        id="employee-password"
-                        type="password"
+                  <div className="space-y-3">
+                    <Label htmlFor="employee-password" className="text-base">{t('register.employeePasswordLabel')}</Label>
+                    <Input
+                      id="employee-password"
+                      type="password"
                         className={`h-12 text-base ${employeePasswordError ? 'border-red-500' : ''}`}
-                        value={employeePassword}
+                      value={employeePassword}
                         onChange={(e) => {
                           const v = e.target.value;
                           setEmployeePassword(v);

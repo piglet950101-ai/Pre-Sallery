@@ -44,6 +44,7 @@ interface Company {
   total_transactions: number;
   outstanding_balance: number;
   employee_count: number;
+  rif_image_url?: string;
   last_activity?: string;
   auth_user_id?: string;
   auth_email?: string;
@@ -74,12 +75,18 @@ const CompanyManagement: React.FC = () => {
           .select('*')
           .order('created_at', { ascending: false });
 
-      if (companiesError) {
+        console.log('Raw companies data from DB:', companiesData);
+        console.log('First company sample:', companiesData?.[0]);
+
+        if (companiesError) {
         throw new Error(`Error fetching companies: ${companiesError.message}`);
       }
 
+
       // Transform data to include calculated fields
       const transformedCompanies: Company[] = await Promise.all((companiesData || []).map(async (company: any) => {
+        console.log('Processing company:', company.name, 'RIF image URL:', company.rif_image_url);
+        
         // Get employee count for this company
         const { count: employeeCount } = await supabase
           .from('employees')
@@ -118,6 +125,7 @@ const CompanyManagement: React.FC = () => {
           total_transactions: totalTransactions,
           outstanding_balance: outstandingBalance,
           employee_count: employeeCount || 0,
+          rif_image_url: company.rif_image_url,
           last_activity: company.updated_at,
           auth_user_id: company.auth_user_id,
           auth_email: company.auth_email
@@ -125,6 +133,8 @@ const CompanyManagement: React.FC = () => {
       }));
 
       setCompanies(transformedCompanies);
+      console.log('Final transformed companies:', transformedCompanies);
+      console.log('First transformed company RIF URL:', transformedCompanies[0]?.rif_image_url);
     } catch (error: any) {
       console.error('Error fetching companies:', error);
       toast({
@@ -164,6 +174,8 @@ const CompanyManagement: React.FC = () => {
     setFilteredCompanies(filtered);
   }, [companies, searchTerm, statusFilter]);
 
+  console.log("selectedCompany",selectedCompany);
+  
   // Handle company approval
   const handleApproval = async (company: Company) => {
     try {
@@ -522,6 +534,15 @@ const CompanyManagement: React.FC = () => {
                       ) : (
                         <Badge variant="secondary">{t('operator.pending')}</Badge>
                       )}
+                      {company.rif_image_url ? (
+                        <Badge className="bg-blue-100 text-blue-800" title={t('operator.rifDocumentUploaded')}>
+                          RIF ✓
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" title={t('operator.rifDocumentNotUploaded')}>
+                          RIF ✗
+                        </Badge>
+                      )}
                       <Button
                         variant="outline"
                         size="sm"
@@ -610,6 +631,96 @@ const CompanyManagement: React.FC = () => {
                         {selectedCompany.city} {selectedCompany.state} {selectedCompany.postal_code}
                       </p>
                     </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* RIF Document Information */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Building2 className="h-5 w-5" />
+                    {t('operator.rifDocument')}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">{t('operator.rifNumber')}</label>
+                      <p className="text-lg font-semibold">{selectedCompany.rif}</p>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">{t('operator.rifDocumentStatus')}</label>
+                      <div className="flex items-center gap-2 mt-2">
+                        {selectedCompany.rif_image_url ? (
+                          <>
+                            <CheckCircle className="h-5 w-5 text-green-600" />
+                            <span className="text-green-600 font-medium">{t('operator.rifDocumentUploaded')}</span>
+                          </>
+                        ) : (
+                          <>
+                            <XCircle className="h-5 w-5 text-red-600" />
+                            <span className="text-red-600 font-medium">{t('operator.rifDocumentNotUploaded')}</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    {selectedCompany.rif_image_url && (
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">{t('operator.rifDocumentPreview')}</label>
+                        <div className="mt-2">
+                          {(() => {
+                            const isPdf = selectedCompany.rif_image_url.toLowerCase().includes('.pdf');
+                            const isImage = /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(selectedCompany.rif_image_url);
+                            
+                            if (isPdf) {
+                              return (
+                                <div className="border rounded-lg p-4 bg-gray-50">
+                                  <div className="flex items-center justify-center h-48 bg-white rounded border-2 border-dashed border-gray-300">
+                                    <div className="text-center">
+                                      <div className="text-4xl text-gray-400 mb-2">📄</div>
+                                      <p className="text-sm text-gray-600">PDF Document</p>
+                                      <p className="text-xs text-gray-500 mt-1">Click "View Full Size" to open</p>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            } else if (isImage) {
+                              return (
+                                <img 
+                                  src={selectedCompany.rif_image_url} 
+                                  alt={`RIF Document for ${selectedCompany.name}`}
+                                  className="max-w-full h-auto max-h-96 border rounded-lg shadow-sm"
+                                  style={{ maxWidth: '100%', height: 'auto' }}
+                                />
+                              );
+                            } else {
+                              return (
+                                <div className="border rounded-lg p-4 bg-gray-50">
+                                  <div className="flex items-center justify-center h-48 bg-white rounded border-2 border-dashed border-gray-300">
+                                    <div className="text-center">
+                                      <div className="text-4xl text-gray-400 mb-2">📎</div>
+                                      <p className="text-sm text-gray-600">Document</p>
+                                      <p className="text-xs text-gray-500 mt-1">Click "View Full Size" to open</p>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            }
+                          })()}
+                        </div>
+                        <div className="mt-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => window.open(selectedCompany.rif_image_url, '_blank')}
+                          >
+                            <Eye className="h-4 w-4 mr-2" />
+                            {t('operator.viewFullSize')}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>

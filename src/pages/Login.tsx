@@ -184,15 +184,16 @@ const Login = () => {
       let errorDescription = err?.message ?? t('login.errorDescription');
       
       // Handle specific error types
+      // Note: Supabase returns "Invalid login credentials" for both wrong password AND non-existent user
+      // We'll provide a more generic but helpful message that covers both cases
       if (err?.message?.includes('Invalid login credentials') || 
           err?.message?.includes('Invalid credentials') ||
           err?.message?.includes('Wrong password') ||
           err?.message?.includes('incorrect password') ||
           err?.message?.includes('Invalid password') ||
-          err?.message?.includes('Email not confirmed') ||
           err?.status === 400) {
-        errorTitle = t('login.incorrectPassword') ?? 'Incorrect Password';
-        errorDescription = t('login.incorrectPasswordDesc') ?? 'The password you entered is incorrect. Please try again.';
+        errorTitle = t('login.invalidCredentials') ?? 'Invalid Credentials';
+        errorDescription = t('login.invalidCredentialsDesc') ?? 'The email or password you entered is incorrect. Please check your credentials and try again, or create a new account if you don\'t have one.';
       } else if (err?.message?.includes('User not found') ||
                  err?.message?.includes('No user found') ||
                  err?.message?.includes('Email not found') ||
