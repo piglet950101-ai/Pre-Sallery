@@ -204,7 +204,11 @@ export const KYCUpload = ({ userType, existingDocs = [], employeeId, onCompleted
   };
 
   const openFilePicker = (docType: string) => {
-    const input = document.getElementById(`file-${docType}`) as HTMLInputElement | null;
+    // Try to find the change input first (for existing documents), then fall back to the initial input
+    const changeInput = document.getElementById(`file-change-${docType}`) as HTMLInputElement | null;
+    const initialInput = document.getElementById(`file-${docType}`) as HTMLInputElement | null;
+    
+    const input = changeInput || initialInput;
     input?.click();
   };
 
@@ -257,23 +261,41 @@ export const KYCUpload = ({ userType, existingDocs = [], employeeId, onCompleted
 
                 {existingDoc ? (
                   <div className="bg-muted/50 rounded-lg p-3 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <FileText className="h-4 w-4 text-muted-foreground" />
-                        <div>
-                          <div className="text-sm font-medium">{existingDoc.name}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {formatFileSize(existingDoc.size)} • {existingDoc.uploadedAt.toLocaleDateString()}
-                          </div>
+                    {isUploading ? (
+                      <div className="text-center space-y-3">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                        <div className="text-sm text-muted-foreground">
+                          {language === 'en' ? 'Replacing document...' : 'Reemplazando documento...'}
                         </div>
                       </div>
-                      <div className="flex items-center space-x-2">
-                        {getStatusBadge(existingDoc.status)}
-                        <Button variant="outline" size="sm">
-                          <Eye className="h-4 w-4" />
-                        </Button>
+                    ) : (
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <FileText className="h-4 w-4 text-muted-foreground" />
+                          <div>
+                            <div className="text-sm font-medium">{existingDoc.name}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {formatFileSize(existingDoc.size)} • {existingDoc.uploadedAt.toLocaleDateString()}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          {getStatusBadge(existingDoc.status)}
+                          <Button variant="outline" size="sm">
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => openFilePicker(docConfig.type)}
+                            disabled={isUploading}
+                          >
+                            <Upload className="h-4 w-4 mr-1" />
+                            {language === 'en' ? 'Change' : 'Cambiar'}
+                          </Button>
+                        </div>
                       </div>
-                    </div>
+                    )}
                     
                     {existingDoc.status === 'rejected' && (
                       <div className="text-sm text-destructive bg-destructive/10 p-2 rounded">
@@ -329,6 +351,15 @@ export const KYCUpload = ({ userType, existingDocs = [], employeeId, onCompleted
                     )}
                   </div>
                 )}
+                
+                {/* Hidden file input for change functionality */}
+                <Input
+                  id={`file-change-${docConfig.type}`}
+                  type="file"
+                  accept="image/*,.pdf"
+                  onChange={(e) => handleFileChange(e, docConfig.type)}
+                  className="hidden"
+                />
               </div>
             );
           })}

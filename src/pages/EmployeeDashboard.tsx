@@ -59,8 +59,12 @@ interface Employee {
   bank_name: string;
   account_number: string;
   account_type: string;
+  pagomovil_phone?: string;
+  pagomovil_cedula?: string;
+  pagomovil_bank_name?: string;
   is_active: boolean;
   is_verified: boolean;
+  is_approved: boolean;
 }
 
 interface AdvanceRequest {
@@ -206,6 +210,13 @@ const EmployeeDashboard = () => {
         }
 
         setEmployee(employeeData);
+        
+        // Debug: Log employee approval status
+        console.log('Employee approval status:', {
+          is_approved: employeeData.is_approved,
+          is_verified: employeeData.is_verified,
+          is_active: employeeData.is_active
+        });
 
         // Company approval state for info messaging later
         if (employeeData?.company_id) {
@@ -222,7 +233,8 @@ const EmployeeDashboard = () => {
             rawApproved === 1
           );
           setIsCompanyApproved(approved);
-          if (approved) {
+          // Reset justSubmittedKyc when company is approved OR when employee is approved
+          if (approved || employeeData.is_approved) {
             setJustSubmittedKyc(false);
           }
         } else {
@@ -628,9 +640,19 @@ const EmployeeDashboard = () => {
     );
   }
 
-  const isEmployeeApproved = employee?.is_verified === true;
+  const isEmployeeApproved = employee?.is_approved === true;
+
+  // Debug: Log gating decision
+  console.log('Employee dashboard gating:', {
+    justSubmittedKyc,
+    isCompanyApproved,
+    isEmployeeApproved,
+    employeeId: employee?.id,
+    willShowGatingScreen: justSubmittedKyc || !isCompanyApproved || !isEmployeeApproved
+  });
 
   // Gate all features until company approval AND employee approval, even after password change and KYC upload
+  // This ensures employees cannot access advance requests until both company and employee are approved
   if (justSubmittedKyc || !isCompanyApproved || !isEmployeeApproved) {
     return (
       <div className="min-h-screen bg-background">
@@ -647,19 +669,31 @@ const EmployeeDashboard = () => {
               </CardTitle>
               <CardDescription>
                 {language === 'en'
-                  ? 'Your account is ready, but you cannot access features until your company administrator approves your profile.'
-                  : 'Tu cuenta está lista, pero no podrás acceder a las funciones hasta que el administrador de tu empresa apruebe tu perfil.'}
+                  ? (!isCompanyApproved 
+                      ? 'Your company is not yet approved by the operator. You cannot access features until your company is approved.'
+                      : !isEmployeeApproved
+                        ? 'Your account is ready, but you cannot access features until your company administrator approves your profile.'
+                        : 'Your account is being processed. Please wait for approval.')
+                  : (!isCompanyApproved 
+                      ? 'Tu empresa aún no ha sido aprobada por el operador. No podrás acceder a las funciones hasta que tu empresa sea aprobada.'
+                      : !isEmployeeApproved
+                        ? 'Tu cuenta está lista, pero no podrás acceder a las funciones hasta que el administrador de tu empresa apruebe tu perfil.'
+                        : 'Tu cuenta está siendo procesada. Por favor espera la aprobación.')}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="text-sm text-muted-foreground">
                 {language === 'en'
                   ? (!isCompanyApproved 
-                      ? 'We will notify you as soon as your company is approved.'
-                      : 'We will notify you as soon as your administrator approves your access to request advances.')
+                      ? 'We will notify you as soon as your company is approved by the operator.'
+                      : !isEmployeeApproved
+                        ? 'We will notify you as soon as your company administrator approves your access to request advances.'
+                        : 'Please wait while your account is being processed.')
                   : (!isCompanyApproved 
-                      ? 'Te notificaremos tan pronto se apruebe tu empresa.'
-                      : 'Te notificaremos tan pronto el administrador apruebe tu acceso a solicitar adelantos.')}
+                      ? 'Te notificaremos tan pronto el operador apruebe tu empresa.'
+                      : !isEmployeeApproved
+                        ? 'Te notificaremos tan pronto el administrador de tu empresa apruebe tu acceso a solicitar adelantos.'
+                        : 'Por favor espera mientras tu cuenta está siendo procesada.')}
               </div>
               <div className="pt-2">
                 <Button variant="outline" onClick={refreshData} disabled={isRefreshing}>
@@ -809,7 +843,12 @@ const EmployeeDashboard = () => {
                         availableAmount,
                         usedAmount,
                         workedDays,
-                        totalDays
+                        totalDays,
+                        bank_name: employee.bank_name,
+                        account_number: employee.account_number,
+                        pagomovil_phone: employee.pagomovil_phone,
+                        pagomovil_cedula: employee.pagomovil_cedula,
+                        pagomovil_bank_name: employee.pagomovil_bank_name
                       }}
                       onAdvanceSubmitted={refreshData}
                       existingAdvanceRequests={advanceRequests}
@@ -1240,6 +1279,103 @@ const EmployeeDashboard = () => {
             </Card>
           </div>
         </div>
+
+        {/* Payment Information Section */}
+        <Card className="border-none shadow-elegant">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <CreditCard className="h-5 w-5 text-primary" />
+              <span>{language === 'en' ? 'Payment Information' : 'Información de Pago'}</span>
+            </CardTitle>
+            <CardDescription>
+              {language === 'en' ? 'Configure your payment methods for advance requests' : 'Configura tus métodos de pago para solicitudes de adelanto'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Bank Transfer Information */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold">{language === 'en' ? 'Bank Transfer' : 'Transferencia Bancaria'}</h3>
+                <Badge variant={employee?.bank_name && employee?.account_number ? "default" : "secondary"}>
+                  {employee?.bank_name && employee?.account_number ? 
+                    (language === 'en' ? 'Configured' : 'Configurado') : 
+                    (language === 'en' ? 'Not Set' : 'No Configurado')
+                  }
+                </Badge>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm font-medium">{language === 'en' ? 'Bank Name' : 'Nombre del Banco'}</Label>
+                  <div className="mt-1 p-3 border rounded-lg bg-muted/50">
+                    {employee?.bank_name || (language === 'en' ? 'Not provided' : 'No proporcionado')}
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">{language === 'en' ? 'Account Number' : 'Número de Cuenta'}</Label>
+                  <div className="mt-1 p-3 border rounded-lg bg-muted/50">
+                    {employee?.account_number ? 
+                      `${employee.account_number.slice(0, 4)}****${employee.account_number.slice(-4)}` : 
+                      (language === 'en' ? 'Not provided' : 'No proporcionado')
+                    }
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Pagomovil Information */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold">{language === 'en' ? 'Pago Móvil' : 'Pago Móvil'}</h3>
+                <Badge variant={employee?.pagomovil_phone && employee?.pagomovil_cedula && employee?.pagomovil_bank_name ? "default" : "secondary"}>
+                  {employee?.pagomovil_phone && employee?.pagomovil_cedula && employee?.pagomovil_bank_name ? 
+                    (language === 'en' ? 'Configured' : 'Configurado') : 
+                    (language === 'en' ? 'Not Set' : 'No Configurado')
+                  }
+                </Badge>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <Label className="text-sm font-medium">{language === 'en' ? 'Phone Number' : 'Número de Teléfono'}</Label>
+                  <div className="mt-1 p-3 border rounded-lg bg-muted/50">
+                    {employee?.pagomovil_phone || (language === 'en' ? 'Not provided' : 'No proporcionado')}
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">{language === 'en' ? 'Cédula' : 'Cédula'}</Label>
+                  <div className="mt-1 p-3 border rounded-lg bg-muted/50">
+                    {employee?.pagomovil_cedula || (language === 'en' ? 'Not provided' : 'No proporcionado')}
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">{language === 'en' ? 'Bank Name' : 'Nombre del Banco'}</Label>
+                  <div className="mt-1 p-3 border rounded-lg bg-muted/50">
+                    {employee?.pagomovil_bank_name || (language === 'en' ? 'Not provided' : 'No proporcionado')}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Information Notice */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5" />
+                <div>
+                  <h4 className="font-semibold text-blue-800 mb-1">
+                    {language === 'en' ? 'Payment Method Selection' : 'Selección de Método de Pago'}
+                  </h4>
+                  <p className="text-sm text-blue-700">
+                    {language === 'en' ? 
+                      'When you request an advance, you can choose between bank transfer or Pago Móvil if both are configured. You only need to provide one method, but having both gives you more flexibility.' :
+                      'Cuando solicites un adelanto, puedes elegir entre transferencia bancaria o Pago Móvil si ambos están configurados. Solo necesitas proporcionar un método, pero tener ambos te da más flexibilidad.'
+                    }
+                  </p>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
         </div>
       </div>
 

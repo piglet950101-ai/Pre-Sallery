@@ -29,6 +29,11 @@ interface EmployeeData {
   earnedAmount: number;
   availableAmount: number;
   usedAmount: number;
+  bank_name?: string;
+  account_number?: string;
+  pagomovil_phone?: string;
+  pagomovil_cedula?: string;
+  pagomovil_bank_name?: string;
 }
 
 interface AdvanceRequestFormProps {
@@ -41,13 +46,27 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
   const [requestAmount, setRequestAmount] = useState<number>(20);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>('');
   const { toast } = useToast();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [fxRate, setFxRate] = useState<number | null>(null);
 
   const feeRate = 0.05; // 5%
   const minFee = 1; // $1 minimum
   const maxAvailable = employeeData.availableAmount;
+
+  // Determine available payment methods
+  const hasBankTransfer = employeeData.bank_name && employeeData.account_number;
+  const hasPagomovil = employeeData.pagomovil_phone && employeeData.pagomovil_cedula && employeeData.pagomovil_bank_name;
+  
+  // Set default payment method
+  useEffect(() => {
+    if (hasPagomovil && !selectedPaymentMethod) {
+      setSelectedPaymentMethod('pagomovil');
+    } else if (hasBankTransfer && !selectedPaymentMethod) {
+      setSelectedPaymentMethod('bank_transfer');
+    }
+  }, [hasPagomovil, hasBankTransfer, selectedPaymentMethod]);
 
   // Check if there's already a pending or processing advance
   // Allow new requests if the previous advance was rejected (failed) or completed
@@ -119,6 +138,16 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
       return;
     }
 
+    // Check if payment method is selected
+    if (!selectedPaymentMethod) {
+      toast({
+        title: language === 'en' ? 'Payment method required' : 'Método de pago requerido',
+        description: language === 'en' ? 'Please select a payment method' : 'Por favor selecciona un método de pago',
+        variant: 'destructive'
+      });
+      return;
+    }
+
     setShowConfirmModal(true);
   };
 
@@ -159,7 +188,7 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
       // Get employee data
       const { data: employee, error: employeeError } = await supabase
         .from("employees")
-        .select("id, company_id, phone, bank_name, account_number")
+        .select("id, company_id, phone, bank_name, account_number, pagomovil_phone, pagomovil_cedula, pagomovil_bank_name")
         .eq("auth_user_id", user.id)
         .single();
 
@@ -170,6 +199,14 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
       // Calculate amounts
       const feeAmount = calculateFee(requestAmount);
       const netAmount = requestAmount - feeAmount;
+
+      // Determine payment details based on selected method
+      let paymentDetails = '';
+      if (selectedPaymentMethod === 'pagomovil') {
+        paymentDetails = `${employee.pagomovil_phone} - ${employee.pagomovil_cedula} - ${employee.pagomovil_bank_name}`;
+      } else if (selectedPaymentMethod === 'bank_transfer') {
+        paymentDetails = `${employee.bank_name} - ${employee.account_number}`;
+      }
 
       // Create advance request (pre-approved if within available amount)
       const { error: requestError } = await supabase
@@ -184,8 +221,8 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
           available_amount: employeeData.availableAmount,
           worked_days: employeeData.workedDays,
           total_days: employeeData.totalDays,
-          payment_method: employee.phone ? 'pagomovil' : 'bank_transfer',
-          payment_details: employee.phone || employee.account_number,
+          payment_method: selectedPaymentMethod,
+          payment_details: paymentDetails,
           status: 'approved'
         });
 
@@ -406,6 +443,80 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
                 </div>
               )}
             </div>
+
+            {/* Payment Method Selection */}
+            {(hasBankTransfer || hasPagomovil) && (
+              <div>
+                <Label className="text-sm font-medium mb-3 block">
+                  {language === 'en' ? 'Payment Method' : 'Método de Pago'}
+                </Label>
+                <div className="space-y-3">
+                  {hasPagomovil && (
+                    <div 
+                      className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                        selectedPaymentMethod === 'pagomovil' 
+                          ? 'border-primary bg-primary/5' 
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                      onClick={() => setSelectedPaymentMethod('pagomovil')}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div className={`w-4 h-4 rounded-full border-2 ${
+                          selectedPaymentMethod === 'pagomovil' 
+                            ? 'border-primary bg-primary' 
+                            : 'border-gray-300'
+                        }`}>
+                          {selectedPaymentMethod === 'pagomovil' && (
+                            <div className="w-2 h-2 bg-white rounded-full m-0.5"></div>
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <div className="font-medium">{language === 'en' ? 'Pago Móvil' : 'Pago Móvil'}</div>
+                          <div className="text-sm text-muted-foreground">
+                            {employeeData.pagomovil_phone} - {employeeData.pagomovil_bank_name}
+                          </div>
+                        </div>
+                        <Badge variant="secondary" className="text-xs">
+                          {language === 'en' ? 'Instant' : 'Instantáneo'}
+                        </Badge>
+                      </div>
+                    </div>
+                  )}
+
+                  {hasBankTransfer && (
+                    <div 
+                      className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                        selectedPaymentMethod === 'bank_transfer' 
+                          ? 'border-primary bg-primary/5' 
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                      onClick={() => setSelectedPaymentMethod('bank_transfer')}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div className={`w-4 h-4 rounded-full border-2 ${
+                          selectedPaymentMethod === 'bank_transfer' 
+                            ? 'border-primary bg-primary' 
+                            : 'border-gray-300'
+                        }`}>
+                          {selectedPaymentMethod === 'bank_transfer' && (
+                            <div className="w-2 h-2 bg-white rounded-full m-0.5"></div>
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <div className="font-medium">{language === 'en' ? 'Bank Transfer' : 'Transferencia Bancaria'}</div>
+                          <div className="text-sm text-muted-foreground">
+                            {employeeData.bank_name} - ****{employeeData.account_number?.slice(-4)}
+                          </div>
+                        </div>
+                        <Badge variant="outline" className="text-xs">
+                          {language === 'en' ? '1-2 days' : '1-2 días'}
+                        </Badge>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Amount Breakdown */}
             <div className="border rounded-lg p-4 bg-background space-y-3">
