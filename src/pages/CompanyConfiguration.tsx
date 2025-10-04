@@ -509,7 +509,7 @@ const CompanyConfiguration = () => {
                            value={companyInfo.rif}
                            onChange={(e) => setCompanyInfo({...companyInfo, rif: e.target.value})}
                            disabled={!isEditing('company') || isLoadingCompany}
-                           placeholder={isLoadingCompany ? t('common.loading') : 'J-12345678-9'}
+                           placeholder={isLoadingCompany ? t('common.loading') : 'J123456789'}
                            className="h-12 text-base"
                          />
                        </div>

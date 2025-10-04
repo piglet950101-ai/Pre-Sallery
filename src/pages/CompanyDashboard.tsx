@@ -107,7 +107,7 @@ interface Employee {
 }
 
 const CompanyDashboard = () => {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { toast } = useToast();
   const { user } = useAuth();
   // Format bytes to a short label
@@ -241,6 +241,13 @@ const CompanyDashboard = () => {
   const [selectedCsvRows, setSelectedCsvRows] = useState<Set<number>>(new Set());
   const [csvCurrentPage, setCsvCurrentPage] = useState(1);
   const [csvItemsPerPage] = useState(10);
+  const [showCsvResultsModal, setShowCsvResultsModal] = useState(false);
+  const [csvUploadResults, setCsvUploadResults] = useState<{
+    successCount: number;
+    errorCount: number;
+    totalCount: number;
+    errors: string[];
+  } | null>(null);
   
   // Report states
   const [reportPeriod, setReportPeriod] = useState('thisMonth');
@@ -279,6 +286,12 @@ const CompanyDashboard = () => {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('bank_transfer');
   const [paymentDetails, setPaymentDetails] = useState('');
+  
+  // Billing detail modal states
+  const [showBillingDetailModal, setShowBillingDetailModal] = useState(false);
+  const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
+  const [invoiceDetails, setInvoiceDetails] = useState<any[]>([]);
+  const [isLoadingInvoiceDetails, setIsLoadingInvoiceDetails] = useState(false);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   // Payment history pagination
   const [paymentPage, setPaymentPage] = useState(1);
@@ -542,6 +555,9 @@ const CompanyDashboard = () => {
       
       setCompany(companyData);
       
+      // Also refresh payment history to show new invoices
+      await fetchPaymentHistory();
+      
       toast({
         title: t('company.billing.dataUpdated'),
         description: t('company.billing.dataUpdatedDesc'),
@@ -561,6 +577,59 @@ const CompanyDashboard = () => {
     } catch (error) {
       console.warn('Date formatting error:', error);
       return fallback;
+    }
+  };
+
+  // Handle invoice detail modal
+  const handleInvoiceClick = async (invoice: any) => {
+    setSelectedInvoice(invoice);
+    setShowBillingDetailModal(true);
+    setIsLoadingInvoiceDetails(true);
+    
+    try {
+      // Parse period to get start and end dates
+      const periodParts = invoice.period.split('-');
+      const year = periodParts[0];
+      const month = periodParts[1];
+      const startDay = periodParts[2];
+      const endDay = periodParts[3];
+      
+      const periodStart = `${year}-${month}-${startDay}T00:00:00Z`;
+      const periodEnd = `${year}-${month}-${endDay}T23:59:59Z`;
+      
+      // Fetch advance transactions for this invoice period
+      const { data: advances, error: advancesError } = await supabase
+        .from('advance_transactions')
+        .select(`
+          id,
+          requested_amount,
+          fee_amount,
+          net_amount,
+          status,
+          created_at,
+          employees!inner(
+            first_name,
+            last_name,
+            cedula
+          )
+        `)
+        .eq('company_id', company?.id)
+        .eq('status', 'completed')
+        .gte('created_at', periodStart)
+        .lte('created_at', periodEnd)
+        .order('created_at', { ascending: false });
+
+      if (advancesError) {
+        console.error('Error fetching invoice details:', advancesError);
+        setInvoiceDetails([]);
+      } else {
+        setInvoiceDetails(advances || []);
+      }
+    } catch (error) {
+      console.error('Error loading invoice details:', error);
+      setInvoiceDetails([]);
+    } finally {
+      setIsLoadingInvoiceDetails(false);
     }
   };
 
@@ -788,6 +857,35 @@ const CompanyDashboard = () => {
     isFirstPeriod: isFirstPeriod,
     totalBilling: totalBilling
   };
+
+  // Aggregated payments to employees (company-wide)
+  const totalPaidToEmployees = activeAdvances
+    .filter(a => a.status === 'completed' || a.status === 'completada')
+    .reduce((sum, a) => sum + (a.requested_amount || 0), 0);
+
+  const totalPayableToEmployees = activeAdvances
+    .filter(a => a.status === 'pending' || a.status === 'approved' || a.status === 'processing')
+    .reduce((sum, a) => sum + (a.requested_amount || 0), 0);
+
+  // Drill-down per employee: totals paid and pending
+  const employeeAdvanceSummary = (() => {
+    const byEmployee: Record<string, { employeeId: string; fullName: string; paid: number; pending: number; count: number; }> = {};
+    for (const a of activeAdvances) {
+      const empId = a.employee_id || 'unknown';
+      const fullName = `${a.employee_first_name || ''} ${a.employee_last_name || ''}`.trim() || 'Empleado';
+      if (!byEmployee[empId]) {
+        byEmployee[empId] = { employeeId: empId, fullName, paid: 0, pending: 0, count: 0 };
+      }
+      const amount = Number(a.requested_amount || 0);
+      if (a.status === 'completed' || a.status === 'completada') {
+        byEmployee[empId].paid += amount;
+      } else if (a.status === 'pending' || a.status === 'approved' || a.status === 'processing') {
+        byEmployee[empId].pending += amount;
+      }
+      byEmployee[empId].count += 1;
+    }
+    return Object.values(byEmployee).sort((l, r) => r.pending - l.pending);
+  })();
 
 
   // Initialize totalOutstanding when component mounts
@@ -1291,7 +1389,7 @@ const CompanyDashboard = () => {
           company_id: companyData.id,
           first_name: employeeInfo.firstName,
           last_name: employeeInfo.lastName,
-          email: employeeEmail,
+          // email removed from employees table; keep only in auth
           phone: employeeInfo.phone || null,
           cedula: employeeInfo.cedula || null,
           birth_date: employeeInfo.birthDate,
@@ -1501,7 +1599,7 @@ const CompanyDashboard = () => {
           company_id: companyData.id,
           first_name: employeeData.firstName,
           last_name: employeeData.lastName,
-          email: employeeEmail,
+          // email removed from employees table; keep only in auth
           phone: null,
           cedula: null,
           birth_date: null,
@@ -1510,18 +1608,18 @@ const CompanyDashboard = () => {
           department: null,
           employment_start_date: new Date().toISOString(),
           employment_type: 'full-time',
-          weekly_hours: 0,
-          monthly_salary: 0,
+          weekly_hours: 1, // Minimum 1 hour per week
+          monthly_salary: 0.01, // Minimum positive value to satisfy check constraint
           living_expenses: 0,
           dependents: 0,
-          emergency_contact: '',
-          emergency_phone: '',
-          address: '',
-          city: '',
-          state: '',
+          emergency_contact: 'To be provided',
+          emergency_phone: 'To be provided',
+          address: 'To be provided',
+          city: 'To be provided',
+          state: 'To be provided',
           postal_code: '',
-          bank_name: '',
-          account_number: '',
+          bank_name: 'To be provided',
+          account_number: 'To be provided',
           account_type: 'checking',
           notes: '',
           activation_code: activationCode,
@@ -2057,7 +2155,6 @@ const CompanyDashboard = () => {
           const employeeData = {
             first_name: row.firstname || row.first_name || row['first name'] || '',
             last_name: row.lastname || row.last_name || row['last name'] || '',
-            email: employeeEmail,
             phone: row.phone || row.phone_number || row['phone number'] || '',
             monthly_salary: parseFloat(row.salary || row.monthly_salary || row['monthly salary'] || '0') || 0,
             weekly_hours: parseFloat(row.hours || row.weekly_hours || row['weekly hours'] || '0') || 0,
@@ -2086,6 +2183,13 @@ const CompanyDashboard = () => {
           // Validate required fields
           if (!employeeData.first_name || !employeeData.last_name || !employeeEmail) {
             errors.push(`Row ${row.rowNumber}: Missing required fields (first name, last name, email)`);
+            errorCount++;
+            continue;
+          }
+
+          // Validate cedula format
+          if (employeeData.cedula && !validateCedula(employeeData.cedula)) {
+            errors.push(`Row ${row.rowNumber}: Invalid cedula format. Must be E or V followed by 6-8 digits (e.g., V12345678 or E1234567)`);
             errorCount++;
             continue;
           }
@@ -2120,7 +2224,8 @@ const CompanyDashboard = () => {
                   data: {
                     role: 'employee',
                     employee_id: employee.id,
-                    company_id: companyData.id
+                    company_id: companyData.id,
+                    must_change_password: true
                   }
                 }
               });
@@ -2222,30 +2327,22 @@ const CompanyDashboard = () => {
         }
       }
 
-      // Show results
+      // Set results and show modal
+      setCsvUploadResults({
+        successCount,
+        errorCount,
+        totalCount: selectedRows.length,
+        errors
+      });
+      
+      // Refresh employees list without reloading the page
       if (successCount > 0) {
-        toast({
-          title: t('company.csvUpload.importSuccess'),
-          description: `Successfully imported ${successCount} out of ${selectedRows.length} selected employees. Employees can log in with the company email and password 'pre123456'. Note: If login fails, check if email confirmation is required in Supabase settings.`,
-        });
-        
-        // Refresh employees list without reloading the page
         await refreshEmployees();
       }
 
-      if (errorCount > 0) {
-        toast({
-          title: t('company.csvUpload.importErrors'),
-          description: errors.slice(0, 5).join(', ') + (errors.length > 5 ? '...' : ''),
-          variant: "destructive"
-        });
-      }
-
-      // Reset form
-      setCsvUploadStep('upload');
-      setCsvFile(null);
-      setCsvData([]);
+      // Close upload modal and show results modal
       setShowCsvUploadModal(false);
+      setShowCsvResultsModal(true);
       
     } catch (error: any) {
       toast({
@@ -2258,6 +2355,7 @@ const CompanyDashboard = () => {
     }
   };
 
+  // Reset CSV upload form
   const resetCsvUpload = () => {
     setCsvUploadStep('upload');
     setCsvFile(null);
@@ -2265,6 +2363,14 @@ const CompanyDashboard = () => {
     setSelectedCsvRows(new Set());
     setCsvCurrentPage(1);
     setShowCsvUploadModal(false);
+    setShowCsvResultsModal(false);
+    setCsvUploadResults(null);
+  };
+
+  // Cedula validation function
+  const validateCedula = (cedula: string): boolean => {
+    const cedulaPattern = /^[EV]\d{6,8}$/;
+    return cedulaPattern.test(cedula);
   };
 
   // CSV selection and pagination helpers
@@ -4193,7 +4299,20 @@ const CompanyDashboard = () => {
                 ${isLoadingAdvances ? '...' : companyData.weeklyBilling.toFixed(2)}
               </div>
               <p className="text-xs text-muted-foreground">
-                {t('company.nextBill')} {new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
+                {t('company.nextBill')} {(() => {
+                  const now = new Date();
+                  const day = now.getDate();
+                  const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+                  
+                  // If before 15th, next bill is 15th
+                  if (day < 15) {
+                    return new Date(now.getFullYear(), now.getMonth(), 15).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+                  }
+                  // If 15th or after, next bill is last day of month
+                  else {
+                    return new Date(now.getFullYear(), now.getMonth(), lastDayOfMonth).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+                  }
+                })()}
               </p>
             </CardContent>
           </Card>
@@ -5497,6 +5616,20 @@ const CompanyDashboard = () => {
                           {t('company.billing.paymentRestrictionWarning')}
                         </div>
                       )}
+                      <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                        <div className="p-3 rounded-md bg-white/50 border">
+                          <div className="text-muted-foreground">{t('company.billing.totalPaidToEmployees') || 'Paid to employees'}</div>
+                          <div className="font-semibold">${totalPaidToEmployees.toFixed(2)}</div>
+                        </div>
+                        <div className="p-3 rounded-md bg-white/50 border">
+                          <div className="text-muted-foreground">{t('company.billing.totalPayableToEmployees') || 'Pending to employees'}</div>
+                          <div className="font-semibold">${totalPayableToEmployees.toFixed(2)}</div>
+                        </div>
+                        <div className="p-3 rounded-md bg-white/50 border">
+                          <div className="text-muted-foreground">{t('company.billing.advancesThisPeriod') || 'Advances this period'}</div>
+                          <div className="font-semibold">${billingData.currentPeriodTotalAdvances.toFixed(2)}</div>
+                        </div>
+                      </div>
                     </div>
                     <div className="flex space-x-2">
                       <Button 
@@ -5617,7 +5750,11 @@ const CompanyDashboard = () => {
                   {billingData.paymentHistory
                     .slice((paymentPage - 1) * paymentsPerPage, paymentPage * paymentsPerPage)
                     .map((invoice) => (
-                    <div key={invoice.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors">
+                    <div 
+                      key={invoice.id} 
+                      className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
+                      onClick={() => handleInvoiceClick(invoice)}
+                    >
                       <div className="flex items-center space-x-4">
                         <div className="h-12 w-12 bg-blue-100 rounded-full flex items-center justify-center">
                           <FileText className="h-6 w-6 text-blue-600" />
@@ -5644,7 +5781,10 @@ const CompanyDashboard = () => {
                           <Button 
                             variant="outline" 
                             size="sm"
-                            onClick={() => generateInvoice(invoice)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              generateInvoice(invoice);
+                            }}
                             className="h-8 w-8 p-0"
                           >
                             <Download className="h-4 w-4" />
@@ -5654,7 +5794,10 @@ const CompanyDashboard = () => {
                               variant="default" 
                               size="sm"
                               className="bg-blue-600 hover:bg-blue-700 text-white"
-                              onClick={() => setShowPaymentModal(true)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setShowPaymentModal(true);
+                              }}
                             >
                               {t('company.billing.pay')}
                             </Button>
@@ -6161,6 +6304,134 @@ const CompanyDashboard = () => {
         </DialogContent>
       </Dialog>
 
+      {/* CSV Upload Results Modal */}
+      <Dialog open={showCsvResultsModal} onOpenChange={setShowCsvResultsModal}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center space-x-2">
+              <FileSpreadsheet className="h-5 w-5" />
+              <span>{t('company.csvUpload.resultsTitle')}</span>
+            </DialogTitle>
+            <DialogDescription>
+              {t('company.csvUpload.resultsDescription')}
+            </DialogDescription>
+          </DialogHeader>
+          
+          {csvUploadResults && (
+            <div className="space-y-6">
+              {/* Summary Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                    <span className="text-sm font-medium text-green-800">
+                      {t('company.csvUpload.successful')}
+                    </span>
+                  </div>
+                  <div className="text-2xl font-bold text-green-900 mt-1">
+                    {csvUploadResults.successCount}
+                  </div>
+                  <div className="text-xs text-green-700">
+                    {t('company.csvUpload.outOf')} {csvUploadResults.totalCount}
+                  </div>
+                </div>
+                
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                    <span className="text-sm font-medium text-red-800">
+                      {t('company.csvUpload.failed')}
+                    </span>
+                  </div>
+                  <div className="text-2xl font-bold text-red-900 mt-1">
+                    {csvUploadResults.errorCount}
+                  </div>
+                  <div className="text-xs text-red-700">
+                    {t('company.csvUpload.outOf')} {csvUploadResults.totalCount}
+                  </div>
+                </div>
+                
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                    <span className="text-sm font-medium text-blue-800">
+                      {t('company.csvUpload.total')}
+                    </span>
+                  </div>
+                  <div className="text-2xl font-bold text-blue-900 mt-1">
+                    {csvUploadResults.totalCount}
+                  </div>
+                  <div className="text-xs text-blue-700">
+                    {t('company.csvUpload.employees')}
+                  </div>
+                </div>
+              </div>
+
+              {/* Success Message */}
+              {csvUploadResults.successCount > 0 && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <div className="flex items-start space-x-2">
+                    <div className="w-5 h-5 text-green-500 mt-0.5">
+                      <svg fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-medium text-green-800">
+                        {t('company.csvUpload.importSuccess')}
+                      </h4>
+                      <p className="text-sm text-green-700 mt-1">
+                        {t('company.csvUpload.successMessage')}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Error Details */}
+              {csvUploadResults.errorCount > 0 && (
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-5 h-5 text-red-500">
+                      <svg fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <h4 className="text-sm font-medium text-red-800">
+                      {t('company.csvUpload.errorDetails')} ({csvUploadResults.errorCount})
+                    </h4>
+                  </div>
+                  
+                  <div className="bg-red-50 border border-red-200 rounded-lg max-h-60 overflow-y-auto">
+                    <div className="p-4 space-y-2">
+                      {csvUploadResults.errors.map((error, index) => (
+                        <div key={index} className="text-sm text-red-700 bg-white border border-red-100 rounded p-2">
+                          {error}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={resetCsvUpload}>
+              {t('company.csvUpload.close')}
+            </Button>
+            {csvUploadResults && csvUploadResults.errorCount > 0 && (
+              <Button onClick={() => {
+                setShowCsvResultsModal(false);
+                setShowCsvUploadModal(true);
+              }}>
+                {t('company.csvUpload.tryAgain')}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Simple Employee Form Dialog */}
       <Dialog open={showSimpleForm} onOpenChange={setShowSimpleForm}>
         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -6326,6 +6597,150 @@ const CompanyDashboard = () => {
               Reject
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Billing Detail Modal */}
+      <Dialog open={showBillingDetailModal} onOpenChange={setShowBillingDetailModal}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center space-x-2">
+              <FileText className="h-5 w-5 text-blue-600" />
+              <span>Invoice Details</span>
+            </DialogTitle>
+            <DialogDescription>
+              {selectedInvoice?.invoiceNumber} - {selectedInvoice?.period}
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedInvoice && (
+            <div className="space-y-6">
+              {/* Invoice Summary */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-muted/50 rounded-lg">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-primary">{invoiceDetails.length}</div>
+                  <div className="text-sm text-muted-foreground">Advances</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-green-600">
+                    ${invoiceDetails.reduce((sum, a) => sum + Number(a.requested_amount || 0), 0).toFixed(2)}
+                  </div>
+                  <div className="text-sm text-muted-foreground">Total Advances</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-orange-600">
+                    ${invoiceDetails.reduce((sum, a) => sum + Number(a.fee_amount || 0), 0).toFixed(2)}
+                  </div>
+                  <div className="text-sm text-muted-foreground">Commission Fees</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-blue-600">
+                    ${selectedInvoice.amount.toFixed(2)}
+                  </div>
+                  <div className="text-sm text-muted-foreground">Invoice Total</div>
+                </div>
+              </div>
+
+              {/* Invoice Amount Breakdown */}
+              <div className="p-4 border rounded-lg">
+                <h3 className="text-lg font-semibold mb-4">Amount Breakdown</h3>
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <span>Advances Amount:</span>
+                    <span>${invoiceDetails.reduce((sum, a) => sum + Number(a.requested_amount || 0), 0).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Commission Fees:</span>
+                    <span>${invoiceDetails.reduce((sum, a) => sum + Number(a.fee_amount || 0), 0).toFixed(2)}</span>
+                  </div>
+                  {selectedInvoice.period.includes('15-') && (
+                    <div className="flex justify-between">
+                      <span>Employee Fees ($1 per active):</span>
+                      <span>${(selectedInvoice.amount - invoiceDetails.reduce((sum, a) => sum + Number(a.requested_amount || 0) + Number(a.fee_amount || 0), 0)).toFixed(2)}</span>
+                    </div>
+                  )}
+                  <div className="border-t pt-2">
+                    <div className="flex justify-between font-semibold text-lg">
+                      <span>Total Invoice Amount:</span>
+                      <span>${selectedInvoice.amount.toFixed(2)}</span>
+                    </div>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Status:</span>
+                    <Badge 
+                      className={`${selectedInvoice.status === 'paid'
+                        ? 'bg-green-100 text-green-700 border-green-200' 
+                        : 'bg-orange-100 text-orange-700 border-orange-200'
+                      }`}
+                      variant="outline"
+                    >
+                      {selectedInvoice.status === 'paid' ? 'Paid' : 'Pending'}
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Due Date:</span>
+                    <span>{safeFormatDate(selectedInvoice.dueDate, 'MMM dd, yyyy')}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Advances List */}
+              <div>
+                <h3 className="text-lg font-semibold mb-4">Advances in this period</h3>
+                {isLoadingInvoiceDetails ? (
+                  <div className="text-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-3"></div>
+                    <p className="text-muted-foreground">Loading advances...</p>
+                  </div>
+                ) : invoiceDetails.length === 0 ? (
+                  <div className="text-center py-8">
+                    <AlertCircle className="h-8 w-8 text-orange-500 mx-auto mb-3" />
+                    <p className="text-muted-foreground">No advances found for this period</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3 max-h-60 overflow-y-auto">
+                    {invoiceDetails.map((advance) => {
+                      const employeeName = advance.employees
+                        ? `${advance.employees.first_name || ''} ${advance.employees.last_name || ''}`.trim()
+                        : 'Unknown Employee';
+                      const advanceDate = new Date(advance.created_at);
+                      const locale = language === 'en' ? 'en-US' : 'es-ES';
+                      const formattedTime = advanceDate.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+
+                      return (
+                        <div key={advance.id} className="flex items-center justify-between p-3 border rounded-lg">
+                          <div className="flex items-center space-x-3">
+                            <div className="h-8 w-8 bg-gradient-primary rounded-full flex items-center justify-center">
+                              <span className="text-white text-xs font-medium">
+                                {employeeName.split(' ').map(n => n[0]).join('')}
+                              </span>
+                            </div>
+                            <div>
+                              <div className="font-medium text-sm">{employeeName}</div>
+                              <div className="text-xs text-muted-foreground">
+                                ID: {advance.employees?.cedula || 'N/A'} • {formattedTime}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-4">
+                            <div className="text-right">
+                              <div className="font-semibold text-sm">${advance.requested_amount.toFixed(2)}</div>
+                              <div className="text-xs text-muted-foreground">
+                                Fee: ${advance.fee_amount.toFixed(2)}
+                              </div>
+                              <div className="text-xs text-primary font-medium">
+                                Net: ${advance.net_amount.toFixed(2)}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

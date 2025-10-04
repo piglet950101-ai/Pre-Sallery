@@ -96,7 +96,9 @@ const BillingDashboard: React.FC = () => {
         // Calculate breakdown
         const advances_amount = advancesData?.reduce((sum, advance) => sum + advance.requested_amount, 0) || 0;
         const commission_fees = advancesData?.reduce((sum, advance) => sum + advance.fee_amount, 0) || 0;
-        const employee_fees = (employeesData?.length || 0) * 1.00; // $1 per active employee
+        // Employee fees ($1 per active employee) only for second-half invoices (period contains '15-')
+        const isSecondHalf = payment.period?.includes('15-') || false;
+        const employee_fees = isSecondHalf ? (employeesData?.length || 0) * 1.00 : 0;
 
         return {
           id: payment.id,

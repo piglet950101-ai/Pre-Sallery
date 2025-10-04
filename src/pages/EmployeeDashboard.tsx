@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { AdvanceRequestForm } from "@/components/AdvanceRequestForm";
+import { KYCUpload } from "@/components/KYCUpload";
 import { 
   DollarSign, 
   Clock, 
@@ -58,8 +59,12 @@ interface Employee {
   bank_name: string;
   account_number: string;
   account_type: string;
+  pagomovil_phone?: string;
+  pagomovil_cedula?: string;
+  pagomovil_bank_name?: string;
   is_active: boolean;
   is_verified: boolean;
+  is_approved: boolean;
 }
 
 interface AdvanceRequest {
@@ -94,6 +99,11 @@ const EmployeeDashboard = () => {
   const [advanceRequests, setAdvanceRequests] = useState<AdvanceRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [mustChangePassword, setMustChangePassword] = useState<boolean>(true);
+  const [mustUploadCedula, setMustUploadCedula] = useState<boolean>(true);
+  const [isCompanyApproved, setIsCompanyApproved] = useState<boolean>(false);
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState<boolean>(false);
+  const [passwordData, setPasswordData] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [advanceToCancel, setAdvanceToCancel] = useState<AdvanceRequest | null>(null);
   const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
@@ -101,6 +111,100 @@ const EmployeeDashboard = () => {
   const [filteredAdvanceRequests, setFilteredAdvanceRequests] = useState<AdvanceRequest[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(5);
+  const [justSubmittedKyc, setJustSubmittedKyc] = useState<boolean>(false);
+  const [isEditingBankTransfer, setIsEditingBankTransfer] = useState<boolean>(false);
+  const [isEditingPagomovil, setIsEditingPagomovil] = useState<boolean>(false);
+  const [isSavingPaymentInfo, setIsSavingPaymentInfo] = useState<boolean>(false);
+  const [banks, setBanks] = useState<Array<{id: string, name: string, code: string}>>([]);
+  const [isLoadingBanks, setIsLoadingBanks] = useState<boolean>(false);
+  const [exchangeRate, setExchangeRate] = useState<number | null>(null);
+  const [paymentInfoData, setPaymentInfoData] = useState({
+    bank_name: '',
+    account_number: '',
+    account_type: '',
+    pagomovil_phone: '',
+    pagomovil_cedula: '',
+    pagomovil_bank_name: ''
+  });
+  const [validationErrors, setValidationErrors] = useState({
+    bank_name: '',
+    account_number: '',
+    pagomovil_phone: '',
+    pagomovil_cedula: '',
+    pagomovil_bank_name: ''
+  });
+
+  // Validation functions
+  const validateBankName = (bankName: string) => {
+    if (!bankName || bankName.trim() === '') {
+      return language === 'en' ? 'Bank name is required' : 'El nombre del banco es requerido';
+    }
+    return '';
+  };
+
+  const validateAccountNumber = (accountNumber: string) => {
+    if (!accountNumber || accountNumber.trim() === '') {
+      return language === 'en' ? 'Account number is required' : 'El número de cuenta es requerido';
+    }
+    if (!/^\d{20}$/.test(accountNumber)) {
+      return language === 'en' ? 'Account number must be exactly 20 digits' : 'El número de cuenta debe tener exactamente 20 dígitos';
+    }
+    return '';
+  };
+
+  const validatePagomovilPhone = (phone: string) => {
+    if (!phone || phone.trim() === '') {
+      return language === 'en' ? 'Phone number is required' : 'El número de teléfono es requerido';
+    }
+    // Allow +58XXXXXXXXXX or 0XXXXXXXXXX format
+    if (!/^(\+58[0-9]{10}|0[0-9]{10})$/.test(phone)) {
+      return language === 'en' ? 'Phone must be +58XXXXXXXXXX or 0XXXXXXXXXX format' : 'El teléfono debe tener formato +58XXXXXXXXXX o 0XXXXXXXXXX';
+    }
+    return '';
+  };
+
+  const validatePagomovilCedula = (cedula: string) => {
+    if (!cedula || cedula.trim() === '') {
+      return language === 'en' ? 'Cédula is required' : 'La cédula es requerida';
+    }
+    if (!/^[EVJevj][0-9]{6,8}$/.test(cedula)) {
+      return language === 'en' ? 'Cédula must start with E or V, followed by 6-8 digits' : 'La cédula debe comenzar con E o V, seguido de 6-8 dígitos';
+    }
+    return '';
+  };
+
+  const validatePagomovilBankName = (bankName: string) => {
+    if (!bankName || bankName.trim() === '') {
+      return language === 'en' ? 'Bank name is required' : 'El nombre del banco es requerido';
+    }
+    return '';
+  };
+
+  // Validate Bank Transfer section
+  const validateBankTransfer = () => {
+    const errors = {
+      bank_name: validateBankName(paymentInfoData.bank_name),
+      account_number: validateAccountNumber(paymentInfoData.account_number)
+    };
+    setValidationErrors(prev => ({ ...prev, ...errors }));
+    return !errors.bank_name && !errors.account_number;
+  };
+
+  // Validate PagoMóvil section
+  const validatePagomovil = () => {
+    const errors = {
+      pagomovil_phone: validatePagomovilPhone(paymentInfoData.pagomovil_phone),
+      pagomovil_cedula: validatePagomovilCedula(paymentInfoData.pagomovil_cedula),
+      pagomovil_bank_name: validatePagomovilBankName(paymentInfoData.pagomovil_bank_name)
+    };
+    setValidationErrors(prev => ({ ...prev, ...errors }));
+    return !errors.pagomovil_phone && !errors.pagomovil_cedula && !errors.pagomovil_bank_name;
+  };
+
+  // Clear validation errors for a specific field
+  const clearFieldError = (field: string) => {
+    setValidationErrors(prev => ({ ...prev, [field]: '' }));
+  };
   
   
 
@@ -146,9 +250,11 @@ const EmployeeDashboard = () => {
   const earnedAmount = Math.round(((monthlySalary / totalWorkingDays) * workedDays) * 100) / 100;
   
   // Calculate used amount from all non-cancelled advances (completed, pending, processing, approved)
-  const usedAmount = Math.round(advanceRequests
-    .filter(req => req.status !== 'cancelled' && req.status !== 'failed')
-    .reduce((sum, req) => sum + req.requested_amount, 0) * 100) / 100;
+  const usedAmount = Math.round(
+    advanceRequests
+      .filter(req => !['cancelled', 'failed', 'rejected', 'rechazada'].includes(req.status))
+      .reduce((sum, req) => sum + req.requested_amount, 0) * 100
+  ) / 100;
   
   // Available amount is 80% of earned amount minus already used advances
   const maxAvailableAmount = Math.round((earnedAmount * 0.8) * 100) / 100;
@@ -180,6 +286,13 @@ const EmployeeDashboard = () => {
           throw new Error(t('employee.error.unauthenticated'));
         }
 
+        // Read auth user metadata for gating flags
+        const meta: any = (user as any)?.user_metadata || {};
+        // Show password change screen ONLY if explicitly set by company registration flow
+        setMustChangePassword(meta.must_change_password === true);
+        // Require KYC upload for all employees unless already done
+        setMustUploadCedula(meta.kyc_cedula_uploaded === true ? false : true);
+
         // Get employee data
         const { data: employeeData, error: employeeError } = await supabase
           .from("employees")
@@ -192,6 +305,46 @@ const EmployeeDashboard = () => {
         }
 
         setEmployee(employeeData);
+        
+        // Populate payment info data
+        setPaymentInfoData({
+          bank_name: employeeData.bank_name || '',
+          account_number: employeeData.account_number || '',
+          account_type: employeeData.account_type || '',
+          pagomovil_phone: employeeData.pagomovil_phone || '',
+          pagomovil_cedula: employeeData.pagomovil_cedula || '',
+          pagomovil_bank_name: employeeData.pagomovil_bank_name || ''
+        });
+        
+        // Debug: Log employee approval status
+        console.log('Employee approval status:', {
+          is_approved: employeeData.is_approved,
+          is_verified: employeeData.is_verified,
+          is_active: employeeData.is_active
+        });
+
+        // Company approval state for info messaging later
+        if (employeeData?.company_id) {
+          const { data: companyData } = await supabase
+            .from("companies")
+            .select("is_approved")
+            .eq("id", employeeData.company_id)
+            .maybeSingle();
+          const rawApproved: any = companyData?.is_approved;
+          const approved = (
+            rawApproved === true ||
+            rawApproved === 'true' ||
+            rawApproved === 't' ||
+            rawApproved === 1
+          );
+          setIsCompanyApproved(approved);
+          // Reset justSubmittedKyc when company is approved OR when employee is approved
+          if (approved || employeeData.is_approved) {
+            setJustSubmittedKyc(false);
+          }
+        } else {
+          setIsCompanyApproved(false);
+        }
 
         // Get advance requests
         const { data: requestsData, error: requestsError } = await supabase
@@ -222,6 +375,89 @@ const EmployeeDashboard = () => {
     fetchEmployeeData();
   }, []);
 
+  // Fetch today's exchange rate for VES display
+  useEffect(() => {
+    const loadRate = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('exchange_rate_latest')
+          .select('usd_to_ves')
+          .maybeSingle();
+        if (!error && data && typeof data.usd_to_ves !== 'undefined') {
+          setExchangeRate(Number(data.usd_to_ves) || null);
+        }
+      } catch (e) {
+        // ignore
+      }
+    };
+    loadRate();
+  }, []);
+
+  // Fetch banks for dropdown
+  useEffect(() => {
+    const fetchBanks = async () => {
+      try {
+        setIsLoadingBanks(true);
+        
+        // For now, use hardcoded banks since database migration might not be applied yet
+        const hardcodedBanks = [
+          { id: '1', name: 'Banco de Venezuela', code: 'BDV' },
+          { id: '2', name: 'Banco Mercantil', code: 'MERCANTIL' },
+          { id: '3', name: 'Banesco', code: 'BANESCO' },
+          { id: '4', name: 'Banco Provincial', code: 'PROVINCIAL' },
+          { id: '5', name: 'BOD', code: 'BOD' },
+          { id: '6', name: '100% Banco', code: '100BANCO' },
+          { id: '7', name: 'Banco del Tesoro', code: 'TESORO' },
+          { id: '8', name: 'Banco Bicentenario', code: 'BICENTENARIO' },
+          { id: '9', name: 'Banco Nacional de Crédito', code: 'BNC' },
+          { id: '10', name: 'Banco Plaza', code: 'PLAZA' },
+          { id: '11', name: 'Banco Sofitasa', code: 'SOFITASA' },
+          { id: '12', name: 'Citibank Venezuela', code: 'CITIBANK' },
+          { id: '13', name: 'Fondo Común', code: 'FONDOCOMUN' }
+        ];
+        
+        console.log("Using hardcoded banks:", hardcodedBanks);
+        setBanks(hardcodedBanks);
+        
+        // Try to fetch from database as well (for future use)
+        try {
+          const { data: banksData, error: banksError } = await supabase
+            .from("banks")
+            .select("id, name, code")
+            .eq("is_active", true)
+            .order("name", { ascending: true });
+
+          if (!banksError && banksData && banksData.length > 0) {
+            console.log("Fetched banks from database:", banksData);
+            setBanks(banksData);
+          }
+        } catch (dbError) {
+          console.log("Database not available, using hardcoded banks:", dbError);
+        }
+        
+      } catch (error) {
+        console.error("Error fetching banks:", error);
+        // Fallback to hardcoded list
+        setBanks([
+          { id: '1', name: 'Banco de Venezuela', code: 'BDV' },
+          { id: '2', name: 'Banco Mercantil', code: 'MERCANTIL' },
+          { id: '3', name: 'Banesco', code: 'BANESCO' },
+          { id: '4', name: 'Banco Provincial', code: 'PROVINCIAL' },
+          { id: '5', name: 'BOD', code: 'BOD' }
+        ]);
+      } finally {
+        setIsLoadingBanks(false);
+      }
+    };
+
+    fetchBanks();
+  }, []);
+
+  // Debug: Log banks state changes
+  useEffect(() => {
+    console.log("Banks state updated:", banks);
+  }, [banks]);
+
   const refreshData = async () => {
     try {
       setIsRefreshing(true);
@@ -239,6 +475,16 @@ const EmployeeDashboard = () => {
 
       if (!employeeError && employeeData) {
         setEmployee(employeeData);
+        
+        // Populate payment info data
+        setPaymentInfoData({
+          bank_name: employeeData.bank_name || '',
+          account_number: employeeData.account_number || '',
+          account_type: employeeData.account_type || '',
+          pagomovil_phone: employeeData.pagomovil_phone || '',
+          pagomovil_cedula: employeeData.pagomovil_cedula || '',
+          pagomovil_bank_name: employeeData.pagomovil_bank_name || ''
+        });
       }
 
       // Refresh advance requests
@@ -266,6 +512,281 @@ const EmployeeDashboard = () => {
     } finally {
       setIsRefreshing(false);
     }
+  };
+
+  const handleSavePaymentInfo = async () => {
+    try {
+      setIsSavingPaymentInfo(true);
+      
+      if (!employee) {
+        throw new Error(t('employee.error.noEmployee'));
+      }
+
+      // Validate Bank Transfer section
+      const isBankTransferValid = validateBankTransfer();
+      
+      // Validate PagoMóvil section if any field is filled
+      const hasPagomovilData = paymentInfoData.pagomovil_phone || paymentInfoData.pagomovil_cedula || paymentInfoData.pagomovil_bank_name;
+      const isPagomovilValid = hasPagomovilData ? validatePagomovil() : true;
+      
+      if (!isBankTransferValid || !isPagomovilValid) {
+        toast({
+          title: t('common.error'),
+          description: language === 'en' ? 'Please fix the validation errors before saving' : 'Por favor corrige los errores de validación antes de guardar',
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Update employee payment information
+      const { error: updateError } = await supabase
+        .from("employees")
+        .update({
+          bank_name: paymentInfoData.bank_name || null,
+          account_number: paymentInfoData.account_number || null,
+          account_type: paymentInfoData.account_type || null,
+          pagomovil_phone: paymentInfoData.pagomovil_phone || null,
+          pagomovil_cedula: paymentInfoData.pagomovil_cedula || null,
+          pagomovil_bank_name: paymentInfoData.pagomovil_bank_name || null,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", employee.id);
+
+      if (updateError) {
+        throw new Error(updateError.message);
+      }
+
+      // Update local state
+      setEmployee(prev => prev ? {
+        ...prev,
+        bank_name: paymentInfoData.bank_name,
+        account_number: paymentInfoData.account_number,
+        account_type: paymentInfoData.account_type,
+        pagomovil_phone: paymentInfoData.pagomovil_phone,
+        pagomovil_cedula: paymentInfoData.pagomovil_cedula,
+        pagomovil_bank_name: paymentInfoData.pagomovil_bank_name
+      } : null);
+
+      setIsEditingBankTransfer(false);
+      setIsEditingPagomovil(false);
+      toast({
+        title: language === 'en' ? 'Payment Information Updated' : 'Información de Pago Actualizada',
+        description: language === 'en' 
+          ? 'Your payment information has been saved successfully.' 
+          : 'Tu información de pago ha sido guardada exitosamente.'
+      });
+
+    } catch (error: any) {
+      console.error("Error saving payment info:", error);
+      toast({
+        title: t('common.error'),
+        description: error?.message ?? t('common.tryAgain'),
+        variant: "destructive"
+      });
+    } finally {
+      setIsSavingPaymentInfo(false);
+    }
+  };
+
+  // Save only Bank Transfer fields to avoid touching PagoMóvil columns
+  const handleSaveBankTransfer = async () => {
+    try {
+      setIsSavingPaymentInfo(true);
+
+      if (!employee) {
+        throw new Error(t('employee.error.noEmployee'));
+      }
+
+      const isValid = validateBankTransfer();
+      if (!isValid) {
+        toast({
+          title: t('common.error'),
+          description: language === 'en' ? 'Please fix the Bank Transfer errors' : 'Por favor corrige los errores de Transferencia Bancaria',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const btPayload = {
+        bank_name: paymentInfoData.bank_name || null,
+        account_number: paymentInfoData.account_number || null,
+        account_type: paymentInfoData.account_type || null,
+        updated_at: new Date().toISOString(),
+      } as Record<string, any>;
+
+      // Ensure we are not sending an effectively empty payload
+      const keysToPersist = Object.keys(btPayload).filter(k => k !== 'updated_at' && btPayload[k] !== undefined);
+      if (keysToPersist.length === 0) {
+        throw new Error(language === 'en' ? 'Nothing to save' : 'Nada para guardar');
+      }
+
+      const { data: savedBT, error: updateError } = await supabase
+        .from('employees')
+        .update(btPayload)
+        .eq('id', employee.id)
+        .select('id, bank_name, account_number, account_type')
+        .limit(1);
+
+      if (updateError) {
+        throw new Error(updateError.message);
+      }
+      if (!savedBT || savedBT.length === 0) {
+        throw new Error(language === 'en' ? 'Save failed (no rows returned)' : 'Guardado falló (sin filas devueltas)');
+      }
+
+      setEmployee(prev => (prev ? {
+        ...prev,
+        bank_name: savedBT[0].bank_name ?? null,
+        account_number: savedBT[0].account_number ?? null,
+        account_type: savedBT[0].account_type ?? null,
+      } : null));
+
+      setIsEditingBankTransfer(false);
+      toast({
+        title: language === 'en' ? 'Bank Transfer Updated' : 'Transferencia Bancaria Actualizada',
+        description: language === 'en' ? 'Your bank transfer information has been saved.' : 'Tu información de transferencia bancaria ha sido guardada.',
+      });
+    } catch (error: any) {
+      console.error('Error saving bank transfer info:', error);
+      toast({
+        title: t('common.error'),
+        description: error?.message ?? t('common.tryAgain'),
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSavingPaymentInfo(false);
+    }
+  };
+
+  // Save only PagoMóvil fields to avoid touching Bank Transfer columns
+  const handleSavePagomovil = async () => {
+    try {
+      setIsSavingPaymentInfo(true);
+
+      if (!employee) {
+        throw new Error(t('employee.error.noEmployee'));
+      }
+
+      // We validate phone and cedula (required when any pagomovil field is present)
+      const hasAny = !!(paymentInfoData.pagomovil_phone || paymentInfoData.pagomovil_cedula || paymentInfoData.pagomovil_bank_name);
+      if (hasAny) {
+        const phoneErr = paymentInfoData.pagomovil_phone ? '' : (language === 'en' ? 'Phone number is required' : 'El número de teléfono es requerido');
+        const cedulaErr = paymentInfoData.pagomovil_cedula ? '' : (language === 'en' ? 'Cédula is required' : 'La cédula es requerida');
+        setValidationErrors(prev => ({ ...prev, pagomovil_phone: phoneErr, pagomovil_cedula: cedulaErr }));
+        if (phoneErr || cedulaErr) {
+          toast({
+            title: t('common.error'),
+            description: language === 'en' ? 'Please complete phone and ID' : 'Por favor completa teléfono y cédula',
+            variant: 'destructive',
+          });
+          return;
+        }
+      }
+
+      // Build payload; we will drop missing columns if PostgREST reports them
+      let payload: Record<string, any> = {
+        pagomovil_phone: paymentInfoData.pagomovil_phone || null,
+        pagomovil_cedula: paymentInfoData.pagomovil_cedula || null,
+        updated_at: new Date().toISOString(),
+      };
+      if (paymentInfoData.pagomovil_bank_name) payload.pagomovil_bank_name = paymentInfoData.pagomovil_bank_name;
+
+      const maxRetries = 3;
+      for (let i = 0; i < maxRetries; i++) {
+        const { data: savedPM, error } = await supabase
+          .from('employees')
+          .update(payload)
+          .eq('id', employee.id)
+          .select('id, pagomovil_phone, pagomovil_cedula, pagomovil_bank_name')
+          .limit(1);
+
+        if (!error) {
+          // Persist to local state from DB response to avoid cache/desync issues
+          if (savedPM && savedPM.length > 0) {
+            setEmployee(prev => (prev ? {
+              ...prev,
+              pagomovil_phone: savedPM[0].pagomovil_phone ?? null,
+              pagomovil_cedula: savedPM[0].pagomovil_cedula ?? null,
+              pagomovil_bank_name: savedPM[0].pagomovil_bank_name ?? null,
+            } : null));
+          }
+          break;
+        }
+
+        const code = String((error as any).code || '');
+        const msg = String((error as any).message || '');
+        if (code === 'PGRST204') {
+          const m = msg.match(/'([^']+)'/);
+          const missingCol = m?.[1];
+          if (missingCol && (missingCol in payload)) {
+            delete payload[missingCol];
+            continue; // retry without the missing column
+          }
+        }
+        throw new Error(msg || 'Update failed');
+      }
+
+      setEmployee(prev => (prev ? {
+        ...prev,
+        pagomovil_phone: paymentInfoData.pagomovil_phone,
+        pagomovil_cedula: paymentInfoData.pagomovil_cedula,
+        pagomovil_bank_name: paymentInfoData.pagomovil_bank_name,
+      } : null));
+
+      setIsEditingPagomovil(false);
+      toast({
+        title: language === 'en' ? 'Pago Móvil Updated' : 'Pago Móvil Actualizado',
+        description: language === 'en' ? 'Your Pago Móvil information has been saved.' : 'Tu información de Pago Móvil ha sido guardada.',
+      });
+    } catch (error: any) {
+      console.error('Error saving pagomovil info:', error);
+      toast({
+        title: t('common.error'),
+        description: error?.message ?? t('common.tryAgain'),
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSavingPaymentInfo(false);
+    }
+  };
+
+  const handleCancelEditBankTransfer = () => {
+    // Reset to original values
+    if (employee) {
+      setPaymentInfoData(prev => ({
+        ...prev,
+        bank_name: employee.bank_name || '',
+        account_number: employee.account_number || '',
+        account_type: employee.account_type || ''
+      }));
+    }
+    // Clear validation errors for bank transfer fields
+    setValidationErrors(prev => ({
+      ...prev,
+      bank_name: '',
+      account_number: ''
+    }));
+    setIsEditingBankTransfer(false);
+  };
+
+  const handleCancelEditPagomovil = () => {
+    // Reset to original values
+    if (employee) {
+      setPaymentInfoData(prev => ({
+        ...prev,
+        pagomovil_phone: employee.pagomovil_phone || '',
+        pagomovil_cedula: employee.pagomovil_cedula || '',
+        pagomovil_bank_name: employee.pagomovil_bank_name || ''
+      }));
+    }
+    // Clear validation errors for pagomovil fields
+    setValidationErrors(prev => ({
+      ...prev,
+      pagomovil_phone: '',
+      pagomovil_cedula: '',
+      pagomovil_bank_name: ''
+    }));
+    setIsEditingPagomovil(false);
   };
 
   const handleCancelClick = (advance: AdvanceRequest) => {
@@ -437,6 +958,60 @@ const EmployeeDashboard = () => {
     setCurrentPage(1);
   };
 
+  // Change password handler (first-login gating)
+  const handlePasswordChange = async () => {
+    try {
+      setIsUpdatingPassword(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user?.email) {
+        throw new Error('User not found');
+      }
+
+      if (!passwordData.currentPassword) {
+        toast({ title: t('common.error'), description: t('employee.profile.passwordRequired'), variant: "destructive" });
+        return;
+      }
+      if (passwordData.newPassword !== passwordData.confirmPassword) {
+        toast({ title: t('common.error'), description: t('employee.profile.passwordMismatch'), variant: "destructive" });
+        return;
+      }
+      if ((passwordData.newPassword || '').length < 6) {
+        toast({ title: t('common.error'), description: t('employee.profile.passwordTooShort'), variant: "destructive" });
+        return;
+      }
+
+      const { error: signInError } = await supabase.auth.signInWithPassword({ email: user.email, password: passwordData.currentPassword });
+      if (signInError) {
+        toast({ title: t('common.error'), description: t('employee.profile.passwordIncorrect'), variant: "destructive" });
+        return;
+      }
+
+      const { error: updateError } = await supabase.auth.updateUser({ password: passwordData.newPassword, data: { must_change_password: false } as any });
+      if (updateError) throw updateError;
+
+      setMustChangePassword(false);
+      setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "" });
+      toast({ title: t('common.success'), description: t('employee.profile.passwordUpdated') });
+    } catch (error: any) {
+      console.error('Error changing password:', error);
+      toast({ title: t('common.error'), description: error?.message ?? 'Failed to change password', variant: "destructive" });
+    } finally {
+      setIsUpdatingPassword(false);
+    }
+  };
+
+  // Temporary: mark cedula uploaded after using KYC component
+  const handleMarkCedulaUploaded = async () => {
+    try {
+      const { error } = await supabase.auth.updateUser({ data: { kyc_cedula_uploaded: true } as any });
+      if (error) throw error;
+      setMustUploadCedula(false);
+      toast({ title: t('common.success'), description: language === 'en' ? 'ID document submitted.' : 'Documento de cédula enviado.' });
+    } catch (error: any) {
+      toast({ title: t('common.error'), description: error?.message ?? 'Failed to mark as uploaded', variant: "destructive" });
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -465,6 +1040,146 @@ const EmployeeDashboard = () => {
   }
 
   const employeeName = `${employee.first_name} ${employee.last_name}`;
+
+  // Gate the dashboard until password is changed, then until cedula image is uploaded
+  if (mustChangePassword) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <div className="container mx-auto px-4 py-8 max-w-xl">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <AlertCircle className="h-5 w-5 text-orange-600" />
+                <span>{language === 'en' ? 'Action required: Change your password' : 'Acción requerida: Cambia tu contraseña'}</span>
+              </CardTitle>
+              <CardDescription>
+                {language === 'en' ? 'For your security, please change your password to continue.' : 'Por tu seguridad, por favor cambia tu contraseña para continuar.'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>{t('employee.profile.oldPassword')}</Label>
+                <Input type="password" value={passwordData.currentPassword} onChange={(e) => setPasswordData(p => ({ ...p, currentPassword: e.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <Label>{t('employee.profile.newPassword')}</Label>
+                <Input type="password" value={passwordData.newPassword} onChange={(e) => setPasswordData(p => ({ ...p, newPassword: e.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <Label>{t('employee.profile.confirmPassword')}</Label>
+                <Input type="password" value={passwordData.confirmPassword} onChange={(e) => setPasswordData(p => ({ ...p, confirmPassword: e.target.value }))} />
+              </div>
+              <div className="pt-2">
+                <Button onClick={handlePasswordChange} disabled={isUpdatingPassword}>
+                  {isUpdatingPassword ? (language === 'en' ? 'Saving...' : 'Guardando...') : (language === 'en' ? 'Change password' : 'Cambiar contraseña')}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  if (mustUploadCedula) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <div className="container mx-auto px-4 py-8 max-w-3xl space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <AlertCircle className="h-5 w-5 text-orange-600" />
+                <span>{language === 'en' ? 'Upload your ID (Cédula)' : 'Sube tu Cédula de Identidad'}</span>
+              </CardTitle>
+              <CardDescription>
+                {language === 'en' ? 'Please upload front and back of your ID to continue.' : 'Por favor sube el frente y reverso de tu cédula para continuar.'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <KYCUpload 
+                userType='employee' 
+                employeeId={employee.id} 
+                onCompleted={() => {
+                  setMustUploadCedula(false);
+                  setJustSubmittedKyc(true);
+                }}
+              />
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  const isEmployeeApproved = employee?.is_approved === true;
+
+  // Debug: Log gating decision
+  console.log('Employee dashboard gating:', {
+    justSubmittedKyc,
+    isCompanyApproved,
+    isEmployeeApproved,
+    employeeId: employee?.id,
+    willShowGatingScreen: justSubmittedKyc || !isCompanyApproved || !isEmployeeApproved
+  });
+
+  // Gate all features until company approval AND employee approval, even after password change and KYC upload
+  // This ensures employees cannot access advance requests until both company and employee are approved
+  if (justSubmittedKyc || !isCompanyApproved || !isEmployeeApproved) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <div className="container mx-auto px-4 py-8 max-w-xl">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <AlertCircle className="h-5 w-5 text-orange-600" />
+                <span>{language === 'en' 
+                  ? (!isCompanyApproved ? 'Awaiting company approval' : 'Awaiting administrator approval')
+                  : (!isCompanyApproved ? 'En espera de aprobación de la empresa' : 'En espera de aprobación del administrador')}
+                </span>
+              </CardTitle>
+              <CardDescription>
+                {language === 'en'
+                  ? (!isCompanyApproved 
+                      ? 'Your company is not yet approved by the operator. You cannot access features until your company is approved.'
+                      : !isEmployeeApproved
+                        ? 'Your account is ready, but you cannot access features until your company administrator approves your profile.'
+                        : 'Your account is being processed. Please wait for approval.')
+                  : (!isCompanyApproved 
+                      ? 'Tu empresa aún no ha sido aprobada por el operador. No podrás acceder a las funciones hasta que tu empresa sea aprobada.'
+                      : !isEmployeeApproved
+                        ? 'Tu cuenta está lista, pero no podrás acceder a las funciones hasta que el administrador de tu empresa apruebe tu perfil.'
+                        : 'Tu cuenta está siendo procesada. Por favor espera la aprobación.')}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="text-sm text-muted-foreground">
+                {language === 'en'
+                  ? (!isCompanyApproved 
+                      ? 'We will notify you as soon as your company is approved by the operator.'
+                      : !isEmployeeApproved
+                        ? 'We will notify you as soon as your company administrator approves your access to request advances.'
+                        : 'Please wait while your account is being processed.')
+                  : (!isCompanyApproved 
+                      ? 'Te notificaremos tan pronto el operador apruebe tu empresa.'
+                      : !isEmployeeApproved
+                        ? 'Te notificaremos tan pronto el administrador de tu empresa apruebe tu acceso a solicitar adelantos.'
+                        : 'Por favor espera mientras tu cuenta está siendo procesada.')}
+              </div>
+              <div className="pt-2">
+                <Button variant="outline" onClick={refreshData} disabled={isRefreshing}>
+                  <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+                  {t('employee.refresh')}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -497,6 +1212,24 @@ const EmployeeDashboard = () => {
               <div className="text-2xl font-bold text-primary">${availableAmount.toFixed(2)}</div>
               <p className="text-xs text-muted-foreground">
                 {t('employee.ofEarned').replace('${amount}', earnedAmount.toFixed(2))}
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* Available in VES (today's rate) */}
+          <Card className="border-none shadow-card">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">{language === 'en' ? 'Available (VES)' : 'Disponible (VES)'}</CardTitle>
+              <TrendingUp className="h-4 w-4 text-primary" />
+            </CardHeader>
+            <CardContent>
+              {exchangeRate ? (
+                <div className="text-2xl font-bold text-primary">{(availableAmount * exchangeRate).toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+              ) : (
+                <div className="text-2xl font-bold text-muted-foreground">N/A</div>
+              )}
+              <p className="text-xs text-muted-foreground">
+                {language === 'en' ? "Today's rate applied" : 'Tasa de hoy aplicada'}
               </p>
             </CardContent>
           </Card>
@@ -590,27 +1323,46 @@ const EmployeeDashboard = () => {
                   </div>
                 )}
 
-                {/* Request Form */}
-                {!isBillingDate() ? (
-                  <AdvanceRequestForm 
-                    employeeData={{
-                      name: employeeName,
-                      monthlySalary,
-                      earnedAmount,
-                      availableAmount,
-                      usedAmount,
-                      workedDays,
-                      totalDays
-                    }}
-                    onAdvanceSubmitted={refreshData}
-                    existingAdvanceRequests={advanceRequests}
-                  />
+                {/* Request Form - explicitly disabled until company approval */}
+                {isCompanyApproved ? (
+                  !isBillingDate() ? (
+                    <AdvanceRequestForm 
+                      employeeData={{
+                        name: employeeName,
+                        monthlySalary,
+                        earnedAmount,
+                        availableAmount,
+                        usedAmount,
+                        workedDays,
+                        totalDays,
+                        bank_name: employee.bank_name,
+                        account_number: employee.account_number,
+                        pagomovil_phone: employee.pagomovil_phone,
+                        pagomovil_cedula: employee.pagomovil_cedula,
+                        pagomovil_bank_name: employee.pagomovil_bank_name
+                      }}
+                      onAdvanceSubmitted={refreshData}
+                      existingAdvanceRequests={advanceRequests}
+                    />
+                  ) : (
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
+                      <AlertCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                      <h3 className="text-lg font-semibold text-gray-600 mb-2">{t('employee.billing.formNotAvailable')}</h3>
+                      <p className="text-gray-500">
+                        {t('employee.billing.formDisabledMessage')}
+                      </p>
+                    </div>
+                  )
                 ) : (
-                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
-                    <AlertCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold text-gray-600 mb-2">{t('employee.billing.formNotAvailable')}</h3>
-                    <p className="text-gray-500">
-                      {t('employee.billing.formDisabledMessage')}
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
+                    <AlertCircle className="h-12 w-12 text-yellow-600 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold text-yellow-800 mb-2">
+                      {language === 'en' ? 'Waiting for company approval' : 'Esperando aprobación de la empresa'}
+                    </h3>
+                    <p className="text-yellow-700">
+                      {language === 'en' 
+                        ? 'You will be able to request an advance after your company administrator approves you.' 
+                        : 'Podrás solicitar un adelanto cuando el administrador de tu empresa te apruebe.'}
                     </p>
                   </div>
                 )}
@@ -734,13 +1486,14 @@ const EmployeeDashboard = () => {
                     paginatedRequests.map((request) => {
                       const requestDate = new Date(request.created_at);
                       const isToday = requestDate.toDateString() === new Date().toDateString();
-                      const isCompleted = request.status === 'completed';
+                      const isCompleted = request.status === 'completed' || request.status === 'completada';
                       const isPending = request.status === 'pending' || request.status === 'processing';
                       const isApproved = request.status === 'approved';
                       
                       const getStatusBadge = () => {
                         switch (request.status) {
                           case 'completed':
+                          case 'completada':
                             return <Badge className="bg-green-100 text-green-800">{t('employee.completed')}</Badge>;
                           case 'approved':
                             return <Badge className="bg-blue-100 text-blue-800">{t('company.approved')}</Badge>;
@@ -752,6 +1505,9 @@ const EmployeeDashboard = () => {
                             return <Badge variant="outline" className="text-muted-foreground">{t('common.cancelled')}</Badge>;
                           case 'failed':
                             return <Badge variant="destructive">{t('common.failed')}</Badge>;
+                          case 'rejected':
+                          case 'rechazada':
+                            return <Badge variant="destructive">{t('common.rejected') || 'Rejected'}</Badge>;
                           default:
                             return <Badge variant="outline">{request.status}</Badge>;
                         }
@@ -780,6 +1536,8 @@ const EmployeeDashboard = () => {
                           return "bg-orange-100";
                         } else if (request.status === 'cancelled') {
                           return "bg-gray-100";
+                        } else if (request.status === 'rejected' || request.status === 'rechazada') {
+                          return "bg-red-100";
                         } else {
                           return "bg-red-100";
                         }
@@ -1018,6 +1776,327 @@ const EmployeeDashboard = () => {
             </Card>
           </div>
         </div>
+
+        {/* Payment Information Section */}
+        <Card className="border-none shadow-elegant">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <CreditCard className="h-5 w-5 text-primary" />
+              <span>{language === 'en' ? 'Payment Information' : 'Información de Pago'}</span>
+            </CardTitle>
+            <CardDescription>
+              {language === 'en' ? 'Configure your payment methods for advance requests' : 'Configura tus métodos de pago para solicitudes de adelanto'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Bank Transfer Information */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold">{language === 'en' ? 'Bank Transfer' : 'Transferencia Bancaria'}</h3>
+                <div className="flex items-center space-x-3">
+                  <Badge variant={employee?.bank_name && employee?.account_number ? "default" : "secondary"}>
+                    {employee?.bank_name && employee?.account_number ? 
+                      (language === 'en' ? 'Configured' : 'Configurado') : 
+                      (language === 'en' ? 'Not Set' : 'No Configurado')
+                    }
+                  </Badge>
+                  {!isEditingBankTransfer && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsEditingBankTransfer(true)}
+                      className="flex items-center space-x-2"
+                    >
+                      <Edit className="h-4 w-4" />
+                      <span>{language === 'en' ? 'Edit' : 'Editar'}</span>
+                    </Button>
+                  )}
+                </div>
+              </div>
+              
+              {!isEditingBankTransfer ? (
+                // Read-only view
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-sm font-medium">{language === 'en' ? 'Bank Name' : 'Nombre del Banco'}</Label>
+                    <div className="mt-1 p-3 border rounded-lg bg-muted/50">
+                      {employee?.bank_name || (language === 'en' ? 'Not provided' : 'No proporcionado')}
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium">{language === 'en' ? 'Account Number' : 'Número de Cuenta'}</Label>
+                    <div className="mt-1 p-3 border rounded-lg bg-muted/50">
+                      {employee?.account_number ? 
+                        `${employee.account_number.slice(0, 4)}****${employee.account_number.slice(-4)}` : 
+                        (language === 'en' ? 'Not provided' : 'No proporcionado')
+                      }
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                // Edit view
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-sm font-medium">{language === 'en' ? 'Bank Name' : 'Nombre del Banco'}</Label>
+                      <div className="text-xs text-muted-foreground mb-1">
+                        {language === 'en' ? `Available banks: ${banks.length}` : `Bancos disponibles: ${banks.length}`}
+                      </div>
+                      <Select
+                        value={paymentInfoData.bank_name}
+                        onValueChange={(value) => {
+                          console.log("Bank selected:", value);
+                          setPaymentInfoData(prev => ({ ...prev, bank_name: value }));
+                          clearFieldError('bank_name');
+                        }}
+                      >
+                        <SelectTrigger className="mt-1">
+                          <SelectValue placeholder={language === 'en' ? 'Select bank' : 'Selecciona banco'} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {isLoadingBanks ? (
+                            <SelectItem value="" disabled>
+                              {language === 'en' ? 'Loading banks...' : 'Cargando bancos...'}
+                            </SelectItem>
+                          ) : banks.length === 0 ? (
+                            <SelectItem value="" disabled>
+                              {language === 'en' ? 'No banks available' : 'No hay bancos disponibles'}
+                            </SelectItem>
+                          ) : (
+                            banks.map((bank) => (
+                              <SelectItem key={bank.id} value={bank.name}>
+                                {bank.name}
+                              </SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
+                      {validationErrors.bank_name && (
+                        <p className="text-xs text-red-500 mt-1">{validationErrors.bank_name}</p>
+                      )}
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium">{language === 'en' ? 'Account Number' : 'Número de Cuenta'}</Label>
+                      <Input
+                        value={paymentInfoData.account_number}
+                        onChange={(e) => {
+                          setPaymentInfoData(prev => ({ ...prev, account_number: e.target.value }));
+                          clearFieldError('account_number');
+                        }}
+                        placeholder={language === 'en' ? '20 digits' : '20 dígitos'}
+                        maxLength={20}
+                        className={`mt-1 ${validationErrors.account_number ? 'border-red-500' : ''}`}
+                      />
+                      {validationErrors.account_number ? (
+                        <p className="text-xs text-red-500 mt-1">{validationErrors.account_number}</p>
+                      ) : (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {language === 'en' ? 'Must be exactly 20 digits' : 'Debe tener exactamente 20 dígitos'}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Action Buttons */}
+                  <div className="flex items-center justify-end space-x-3 pt-4 border-t">
+                    <Button
+                      variant="outline"
+                      onClick={handleCancelEditBankTransfer}
+                      disabled={isSavingPaymentInfo}
+                    >
+                      {language === 'en' ? 'Cancel' : 'Cancelar'}
+                    </Button>
+                    <Button
+                      onClick={handleSaveBankTransfer}
+                      disabled={isSavingPaymentInfo}
+                      className="flex items-center space-x-2"
+                    >
+                      {isSavingPaymentInfo ? (
+                        <RefreshCw className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Save className="h-4 w-4" />
+                      )}
+                      <span>{language === 'en' ? 'Save Changes' : 'Guardar Cambios'}</span>
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Pagomovil Information */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold">{language === 'en' ? 'Pago Móvil' : 'Pago Móvil'}</h3>
+                <div className="flex items-center space-x-3">
+                  <Badge variant={employee?.pagomovil_phone && employee?.pagomovil_cedula && employee?.pagomovil_bank_name ? "default" : "secondary"}>
+                    {employee?.pagomovil_phone && employee?.pagomovil_cedula && employee?.pagomovil_bank_name ? 
+                      (language === 'en' ? 'Configured' : 'Configurado') : 
+                      (language === 'en' ? 'Not Set' : 'No Configurado')
+                    }
+                  </Badge>
+                  {!isEditingPagomovil && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsEditingPagomovil(true)}
+                      className="flex items-center space-x-2"
+                    >
+                      <Edit className="h-4 w-4" />
+                      <span>{language === 'en' ? 'Edit' : 'Editar'}</span>
+                    </Button>
+                  )}
+                </div>
+              </div>
+              
+              {!isEditingPagomovil ? (
+                // Read-only view
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <Label className="text-sm font-medium">{language === 'en' ? 'Phone Number' : 'Número de Teléfono'}</Label>
+                    <div className="mt-1 p-3 border rounded-lg bg-muted/50">
+                      {employee?.pagomovil_phone || (language === 'en' ? 'Not provided' : 'No proporcionado')}
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium">{language === 'en' ? 'Cédula' : 'Cédula'}</Label>
+                    <div className="mt-1 p-3 border rounded-lg bg-muted/50">
+                      {employee?.pagomovil_cedula || (language === 'en' ? 'Not provided' : 'No proporcionado')}
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium">{language === 'en' ? 'Bank Name' : 'Nombre del Banco'}</Label>
+                    <div className="mt-1 p-3 border rounded-lg bg-muted/50">
+                      {employee?.pagomovil_bank_name || (language === 'en' ? 'Not provided' : 'No proporcionado')}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                // Edit view
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <Label className="text-sm font-medium">{language === 'en' ? 'Phone Number' : 'Número de Teléfono'}</Label>
+                      <Input
+                        value={paymentInfoData.pagomovil_phone}
+                        onChange={(e) => {
+                          setPaymentInfoData(prev => ({ ...prev, pagomovil_phone: e.target.value }));
+                          clearFieldError('pagomovil_phone');
+                        }}
+                        placeholder={language === 'en' ? '+58XXXXXXXXXX' : '+58XXXXXXXXXX'}
+                        className={`mt-1 ${validationErrors.pagomovil_phone ? 'border-red-500' : ''}`}
+                      />
+                      {validationErrors.pagomovil_phone ? (
+                        <p className="text-xs text-red-500 mt-1">{validationErrors.pagomovil_phone}</p>
+                      ) : (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {language === 'en' ? 'Format: +58XXXXXXXXXX or 0XXXXXXXXXX' : 'Formato: +58XXXXXXXXXX o 0XXXXXXXXXX'}
+                        </p>
+                      )}
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium">{language === 'en' ? 'Cédula' : 'Cédula'}</Label>
+                      <Input
+                        value={paymentInfoData.pagomovil_cedula}
+                        onChange={(e) => {
+                          setPaymentInfoData(prev => ({ ...prev, pagomovil_cedula: e.target.value }));
+                          clearFieldError('pagomovil_cedula');
+                        }}
+                        placeholder={language === 'en' ? 'E12345678' : 'E12345678'}
+                        className={`mt-1 ${validationErrors.pagomovil_cedula ? 'border-red-500' : ''}`}
+                      />
+                      {validationErrors.pagomovil_cedula ? (
+                        <p className="text-xs text-red-500 mt-1">{validationErrors.pagomovil_cedula}</p>
+                      ) : (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {language === 'en' ? 'Start with E or V, 6-8 digits' : 'Comienza con E o V, 6-8 dígitos'}
+                        </p>
+                      )}
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium">{language === 'en' ? 'Bank Name' : 'Nombre del Banco'}</Label>
+                      <div className="text-xs text-muted-foreground mb-1">
+                        {language === 'en' ? `Available banks: ${banks.length}` : `Bancos disponibles: ${banks.length}`}
+                      </div>
+                      <Select
+                        value={paymentInfoData.pagomovil_bank_name}
+                        onValueChange={(value) => {
+                          console.log("PagoMóvil bank selected:", value);
+                          setPaymentInfoData(prev => ({ ...prev, pagomovil_bank_name: value }));
+                          clearFieldError('pagomovil_bank_name');
+                        }}
+                      >
+                        <SelectTrigger className="mt-1">
+                          <SelectValue placeholder={language === 'en' ? 'Select bank' : 'Selecciona banco'} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {isLoadingBanks ? (
+                            <SelectItem value="" disabled>
+                              {language === 'en' ? 'Loading banks...' : 'Cargando bancos...'}
+                            </SelectItem>
+                          ) : banks.length === 0 ? (
+                            <SelectItem value="" disabled>
+                              {language === 'en' ? 'No banks available' : 'No hay bancos disponibles'}
+                            </SelectItem>
+                          ) : (
+                            banks.map((bank) => (
+                              <SelectItem key={bank.id} value={bank.name}>
+                                {bank.name}
+                              </SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
+                      {validationErrors.pagomovil_bank_name && (
+                        <p className="text-xs text-red-500 mt-1">{validationErrors.pagomovil_bank_name}</p>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Action Buttons */}
+                  <div className="flex items-center justify-end space-x-3 pt-4 border-t">
+                    <Button
+                      variant="outline"
+                      onClick={handleCancelEditPagomovil}
+                      disabled={isSavingPaymentInfo}
+                    >
+                      {language === 'en' ? 'Cancel' : 'Cancelar'}
+                    </Button>
+                    <Button
+                      onClick={handleSavePagomovil}
+                      disabled={isSavingPaymentInfo}
+                      className="flex items-center space-x-2"
+                    >
+                      {isSavingPaymentInfo ? (
+                        <RefreshCw className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Save className="h-4 w-4" />
+                      )}
+                      <span>{language === 'en' ? 'Save Changes' : 'Guardar Cambios'}</span>
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Information Notice */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5" />
+                <div>
+                  <h4 className="font-semibold text-blue-800 mb-1">
+                    {language === 'en' ? 'Payment Method Selection' : 'Selección de Método de Pago'}
+                  </h4>
+                  <p className="text-sm text-blue-700">
+                    {language === 'en' ? 
+                      'When you request an advance, you can choose between bank transfer or Pago Móvil if both are configured. You only need to provide one method, but having both gives you more flexibility.' :
+                      'Cuando solicites un adelanto, puedes elegir entre transferencia bancaria o Pago Móvil si ambos están configurados. Solo necesitas proporcionar un método, pero tener ambos te da más flexibilidad.'
+                    }
+                  </p>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
         </div>
       </div>
 

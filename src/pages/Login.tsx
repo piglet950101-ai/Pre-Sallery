@@ -23,6 +23,22 @@ const Login = () => {
   const [adminEmail, setAdminEmail] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState("employee");
+
+  // Handle Enter key press
+  const handleKeyPress = (event: React.KeyboardEvent) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      
+      if (activeTab === 'employee') {
+        signIn(employeeEmail, employeePassword, "/employee", "employee");
+      } else if (activeTab === 'company') {
+        signIn(companyEmail, companyPassword, "/company", "company");
+      } else if (activeTab === 'admin') {
+        signIn(adminEmail, adminPassword, "/operator", "operator");
+      }
+    }
+  };
 
   const signIn = async (email: string, password: string, fallbackRedirect: string, roleToSet?: string) => {
     try {
@@ -59,6 +75,24 @@ const Login = () => {
       
       // If the user is a company, check if they're approved
       if (role === 'company') {
+        const { data: companyRow, error: companyErr } = await supabase
+          .from('companies')
+          .select('is_approved')
+          .eq('auth_user_id', data.session.user.id)
+          .maybeSingle();
+        if (companyErr) {
+          console.error('Error checking company approval:', companyErr);
+        }
+        if (!companyRow || companyRow.is_approved !== true) {
+          await supabase.auth.signOut();
+          toast({
+            title: t('login.companyPending') ?? 'Company Pending Approval',
+            description: t('login.companyPendingDesc') ?? 'Your company is pending approval by an operator. Please wait to be contacted.',
+          });
+          return;
+        }
+      }
+      if (role === 'company') {
         const { data: companyData, error: companyError } = await supabase
           .from('companies')
           .select('is_approved, rejection_reason, rejected_at, name')
@@ -88,28 +122,27 @@ const Login = () => {
               await supabase.auth.signOut();
               return;
             } else {
-              // Company is pending approval
-              toast({
-                title: t('login.companyPending') ?? 'Empresa Pendiente de Aprobación',
-                description: t('login.companyPendingDesc') ?? 'Su empresa está pendiente de aprobación por parte de un operador. Por favor, espere a ser contactado.',
-                variant: "destructive"
-              });
-              // Sign out the user since they can't access the system
-              await supabase.auth.signOut();
-              return;
+            // Company pending approval: block company role only
+            toast({
+              title: t('login.companyPending') ?? 'Empresa Pendiente de Aprobación',
+              description: t('login.companyPendingDesc') ?? 'Su empresa está pendiente de aprobación por parte de un operador. Por favor, espere a ser contactado.',
+              variant: "destructive"
+            });
+            await supabase.auth.signOut();
+            return;
             }
           } else {
           }
         }
       }
       
-      // If the user is an employee, check if they're active and approved
+      // If the user is an employee, check status only to show messages (do not block login)
       if (role === 'employee') {
         const { data: employeeData, error: employeeError } = await supabase
           .from('employees')
           .select('is_active, is_approved, rejection_reason, rejected_at, first_name, last_name')
           .eq('auth_user_id', data.session.user.id)
-          .single();
+          .maybeSingle();
           
         if (employeeError) {
           console.error("Error checking employee status:", employeeError);
@@ -120,57 +153,26 @@ const Login = () => {
           });
         } else if (employeeData) {
           
-          if (!employeeData.is_active) {
-            // Employee is not active - check if they were rejected
-            if (employeeData.rejection_reason && employeeData.rejection_reason.trim()) {
-              // Employee was rejected - show rejection reason
-              toast({
-                title: t('login.employeeRejected') ?? 'Solicitud Rechazada',
-                description: `${t('login.rejectionReason') ?? 'Motivo del rechazo'}: ${employeeData.rejection_reason}`,
-                variant: "destructive"
-              });
-              // Sign out the user since they can't access the system
-              await supabase.auth.signOut();
-              return;
-            } else {
-              // Employee is pending approval
-              toast({
-                title: t('login.employeePending') ?? 'Solicitud Pendiente de Aprobación',
-                description: t('login.employeePendingDesc') ?? 'Su solicitud está pendiente de aprobación por parte de su empresa. Por favor, espere a ser contactado.',
-                variant: "destructive"
-              });
-              // Sign out the user since they can't access the system
-              await supabase.auth.signOut();
-              return;
-            }
-          } else if (!employeeData.is_approved) {
-            // Employee is active but not approved - check if they were rejected
-            if (employeeData.rejection_reason && employeeData.rejection_reason.trim()) {
-              // Employee was rejected - show rejection reason
-              toast({
-                title: t('login.employeeRejected') ?? 'Solicitud Rechazada',
-                description: `${t('login.rejectionReason') ?? 'Motivo del rechazo'}: ${employeeData.rejection_reason}`,
-                variant: "destructive"
-              });
-              // Sign out the user since they can't access the system
-              await supabase.auth.signOut();
-              return;
-            } else {
-              // Employee is pending approval
-              toast({
-                title: t('login.employeePending') ?? 'Solicitud Pendiente de Aprobación',
-                description: t('login.employeePendingDesc') ?? 'Su solicitud está pendiente de aprobación por parte de su empresa. Por favor, espere a ser contactado.',
-                variant: "destructive"
-              });
-              // Sign out the user since they can't access the system
-              await supabase.auth.signOut();
-              return;
-            }
-          } else {
+          // If rejected, block access
+          if (employeeData && employeeData.rejection_reason && employeeData.rejection_reason.trim()) {
+            toast({
+              title: t('login.employeeRejected') ?? 'Solicitud Rechazada',
+              description: `${t('login.rejectionReason') ?? 'Motivo del rechazo'}: ${employeeData.rejection_reason}`,
+              variant: "destructive"
+            });
+            await supabase.auth.signOut();
+            return;
+          }
+          // If pending or not approved, allow login but inform user to complete onboarding
+          if (employeeData && (!employeeData.is_active || !employeeData.is_approved)) {
+            toast({
+              title: t('login.employeePending') ?? 'Solicitud Pendiente de Aprobación',
+              description: t('login.employeePendingDesc') ?? 'Su solicitud está pendiente de aprobación por parte de su empresa. Continúe con el cambio de contraseña y la carga de la cédula.',
+            });
           }
         }
       }
-     
+      
       const pathByRole = role === 'company' ? '/company' : role === 'employee' ? '/employee' : role === 'operator' ? '/operator' : fallbackRedirect;
       navigate(pathByRole);
       toast({ title: t('login.success') ?? 'Inicio de sesión exitoso' });
@@ -182,24 +184,43 @@ const Login = () => {
       let errorDescription = err?.message ?? t('login.errorDescription');
       
       // Handle specific error types
+      // Note: Supabase returns "Invalid login credentials" for both wrong password AND non-existent user
+      // We'll provide a more generic but helpful message that covers both cases
       if (err?.message?.includes('Invalid login credentials') || 
           err?.message?.includes('Invalid credentials') ||
           err?.message?.includes('Wrong password') ||
           err?.message?.includes('incorrect password') ||
           err?.message?.includes('Invalid password') ||
           err?.status === 400) {
-        errorTitle = t('login.incorrectPassword') ?? 'Incorrect Password';
-        errorDescription = t('login.incorrectPasswordDesc') ?? 'The password you entered is incorrect. Please try again.';
+        errorTitle = t('login.invalidCredentials') ?? 'Invalid Credentials';
+        errorDescription = t('login.invalidCredentialsDesc') ?? 'The email or password you entered is incorrect. Please check your credentials and try again, or create a new account if you don\'t have one.';
       } else if (err?.message?.includes('User not found') ||
                  err?.message?.includes('No user found') ||
-                 err?.message?.includes('Email not found')) {
+                 err?.message?.includes('Email not found') ||
+                 err?.message?.includes('Invalid email') ||
+                 err?.message?.includes('User does not exist')) {
         errorTitle = t('login.userNotFound') ?? 'User Not Found';
         errorDescription = t('login.userNotFoundDesc') ?? 'No account found with this email address. Please check your email or create a new account.';
       } else if (err?.message?.includes('Too many requests') ||
                  err?.message?.includes('Rate limit') ||
-                 err?.message?.includes('Too many attempts')) {
+                 err?.message?.includes('Too many attempts') ||
+                 err?.message?.includes('Rate limit exceeded')) {
         errorTitle = t('login.tooManyRequests') ?? 'Too Many Attempts';
         errorDescription = t('login.tooManyRequestsDesc') ?? 'Too many login attempts. Please wait a few minutes before trying again.';
+      } else if (err?.message?.includes('Email not confirmed') ||
+                 err?.message?.includes('Please confirm your email')) {
+        errorTitle = t('login.emailNotConfirmed') ?? 'Email Not Confirmed';
+        errorDescription = t('login.emailNotConfirmedDesc') ?? 'Please check your email and click the confirmation link before signing in.';
+      } else if (err?.message?.includes('Network error') ||
+                 err?.message?.includes('Failed to fetch') ||
+                 err?.message?.includes('Connection failed')) {
+        errorTitle = t('login.networkError') ?? 'Network Error';
+        errorDescription = t('login.networkErrorDesc') ?? 'Please check your internet connection and try again.';
+      } else if (err?.message?.includes('Server error') ||
+                 err?.message?.includes('Internal server error') ||
+                 err?.status >= 500) {
+        errorTitle = t('login.serverError') ?? 'Server Error';
+        errorDescription = t('login.serverErrorDesc') ?? 'There was a server error. Please try again later.';
       }
       
       toast({
@@ -234,8 +255,8 @@ const Login = () => {
           <CardHeader className="space-y-1 pb-4">
             <CardTitle className="text-2xl text-center text-gray-800 font-semibold">{t('login.title')}</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <Tabs defaultValue="employee" className="w-full">
+          <CardContent className="space-y-4" onKeyDown={handleKeyPress}>
+            <Tabs defaultValue="employee" value={activeTab} onValueChange={setActiveTab} className="w-full">
               <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="employee" className="flex items-center space-x-2">
                   <User className="h-4 w-4" />

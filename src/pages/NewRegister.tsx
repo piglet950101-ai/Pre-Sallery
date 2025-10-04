@@ -27,6 +27,21 @@ const Register = () => {
   const [companyAddress, setCompanyAddress] = useState("");
   const [companyPhone, setCompanyPhone] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState("company");
+
+  // Handle Enter key press
+  const handleKeyPress = (event: React.KeyboardEvent) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      console.log("Active tab:", activeTab);
+      
+      if (activeTab === 'company') {
+        signUpCompany();
+      } else if (activeTab === 'employee') {
+        signUpEmployee();
+      }
+    }
+  };
   
   // Employee signup state
   const [employeeEmail, setEmployeeEmail] = useState("");
@@ -105,21 +120,7 @@ const Register = () => {
         throw new Error(t('register.invalidEmailFormat').replace('{email}', employeeEmail));
       }
       
-      // Check if email already exists in employees table
-      const { data: existingEmployee, error: checkError } = await supabase
-        .from("employees")
-        .select("id")
-        .eq("email", cleanEmail)
-        .maybeSingle();
-      
-      if (checkError) {
-        console.error("Error checking existing employee:", checkError);
-        throw new Error(`Error checking data: ${checkError.message}`);
-      }
-      
-      if (existingEmployee) {
-        throw new Error(t('register.emailAlreadyExists'));
-      }
+      // Skip checking employees table for email (column removed). Auth will enforce uniqueness.
       
       // Create Supabase auth user
       const { data, error } = await supabase.auth.signUp({
@@ -131,7 +132,8 @@ const Register = () => {
             role: 'employee',
             first_name: employeeFirstName,
             last_name: employeeLastName,
-            company_id: selectedCompanyId
+            company_id: selectedCompanyId,
+            must_change_password: true
           }
         }
       });
@@ -146,7 +148,6 @@ const Register = () => {
           company_id: selectedCompanyId,
           first_name: employeeFirstName,
           last_name: employeeLastName,
-          email: cleanEmail,
           phone: employeePhone || null,
           // Required fields with placeholder values
           year_of_employment: new Date().getFullYear(),
@@ -216,8 +217,8 @@ const Register = () => {
             <CardTitle>{t('register.createAccount')}</CardTitle>
             <CardDescription>{t('register.chooseAccountType')}</CardDescription>
           </CardHeader>
-          <CardContent>
-            <Tabs defaultValue="company" className="space-y-6">
+          <CardContent onKeyDown={handleKeyPress}>
+            <Tabs defaultValue="company" value={activeTab} onValueChange={setActiveTab} className="space-y-6">
               <TabsList className="grid grid-cols-2">
                 <TabsTrigger value="company" className="flex items-center space-x-2">
                   <Building className="h-4 w-4" />
@@ -245,7 +246,7 @@ const Register = () => {
                   <Label htmlFor="company-rif">{t('register.companyRifLabel')}</Label>
                   <Input
                     id="company-rif"
-                    placeholder="J-12345678-9"
+                    placeholder="J123456789"
                     className="h-12"
                     value={companyRif}
                     onChange={(e) => setCompanyRif(e.target.value)}
@@ -298,23 +299,6 @@ const Register = () => {
                   />
                 </div>
 
-                <div className="bg-muted/50 p-4 rounded-lg space-y-3">
-                  <h4 className="font-semibold text-sm">{t('register.benefitsTitle')}</h4>
-                  <div className="space-y-2">
-                    <div className="flex items-center space-x-2 text-sm">
-                      <CheckCircle className="h-4 w-4 text-primary" />
-                      <span>{t('register.benefit1')}</span>
-                    </div>
-                    <div className="flex items-center space-x-2 text-sm">
-                      <CheckCircle className="h-4 w-4 text-primary" />
-                      <span>{t('register.benefit2')}</span>
-                    </div>
-                    <div className="flex items-center space-x-2 text-sm">
-                      <CheckCircle className="h-4 w-4 text-primary" />
-                      <span>{t('register.benefit3')}</span>
-                    </div>
-                  </div>
-                </div>
 
                 <Button
                   className="w-full h-12"
