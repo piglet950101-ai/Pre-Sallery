@@ -610,8 +610,12 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
             {/* Request Details */}
             <div className="space-y-3">
               <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">{t('employee.requestedAmount')}</span>
-                <span className="text-lg font-semibold">${requestAmount.toFixed(2)}</span>
+                <span className="text-sm text-muted-foreground">{language === 'en' ? 'Available amount to withdraw' : 'Disponible para retirar'}</span>
+                <span className="text-lg font-semibold">${maxAvailable.toFixed(2)} USD</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">{language === 'en' ? 'Amount to withdraw now' : 'Monto a retirar ahora'}</span>
+                <span className="text-lg font-semibold">${requestAmount.toFixed(2)} USD</span>
               </div>
               
               <div className="flex justify-between items-center">
@@ -622,8 +626,18 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
               <Separator />
               
               <div className="flex justify-between items-center">
-                <span className="text-base font-semibold">{t('employee.youWillReceive')}</span>
-                <span className="text-xl font-bold text-primary">${netAmount.toFixed(2)}</span>
+                <span className="text-base font-semibold">{language === 'en' ? 'You will get (net)' : 'Recibirás (neto)'}</span>
+                <span className="text-xl font-bold text-primary">${netAmount.toFixed(2)} USD</span>
+              </div>
+
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">{language === 'en' ? "Today's exchange rate" : 'Tasa de cambio de hoy'}</span>
+                <span className="text-sm font-medium">{fxRate ? fxRate.toFixed(8) : 'N/A'} VES/USD</span>
+              </div>
+
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">{language === 'en' ? 'You will receive (VES)' : 'Recibirás (VES)'}</span>
+                <span className="text-lg font-semibold">{vesAmount ? formatVES(vesAmount) : 'N/A'}</span>
               </div>
             </div>
 
@@ -633,9 +647,9 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
                 <Clock className="h-5 w-5 text-primary mt-0.5" />
                 <div className="text-sm">
                   <div className="font-medium text-primary">{t('employee.batchProcessingNext') || 'Your advance will be processed in the next batch (11:00 AM or 3:00 PM) and you will receive the money the same day.'}</div>
-                  <div className="text-muted-foreground">
+                  {/* <div className="text-muted-foreground">
                     {t('employee.batchProcessingNext') || 'Your advance will be processed in the next batch (11:00 AM or 3:00 PM) and you will receive the money the same day.'}
-                  </div>
+                  </div> */}
                 </div>
               </div>
             </div>

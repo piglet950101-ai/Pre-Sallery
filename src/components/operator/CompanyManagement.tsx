@@ -75,8 +75,6 @@ const CompanyManagement: React.FC = () => {
           .select('*')
           .order('created_at', { ascending: false });
 
-        console.log('Raw companies data from DB:', companiesData);
-        console.log('First company sample:', companiesData?.[0]);
 
         if (companiesError) {
         throw new Error(`Error fetching companies: ${companiesError.message}`);
@@ -85,7 +83,6 @@ const CompanyManagement: React.FC = () => {
 
       // Transform data to include calculated fields
       const transformedCompanies: Company[] = await Promise.all((companiesData || []).map(async (company: any) => {
-        console.log('Processing company:', company.name, 'RIF image URL:', company.rif_image_url);
         
         // Get employee count for this company
         const { count: employeeCount } = await supabase
@@ -133,8 +130,6 @@ const CompanyManagement: React.FC = () => {
       }));
 
       setCompanies(transformedCompanies);
-      console.log('Final transformed companies:', transformedCompanies);
-      console.log('First transformed company RIF URL:', transformedCompanies[0]?.rif_image_url);
     } catch (error: any) {
       console.error('Error fetching companies:', error);
       toast({
@@ -173,8 +168,6 @@ const CompanyManagement: React.FC = () => {
 
     setFilteredCompanies(filtered);
   }, [companies, searchTerm, statusFilter]);
-
-  console.log("selectedCompany",selectedCompany);
   
   // Handle company approval
   const handleApproval = async (company: Company) => {
@@ -261,13 +254,64 @@ const CompanyManagement: React.FC = () => {
         console.error('Error creating activation notification:', error);
         // Don't throw error here as the main approval should still succeed
       }
-
-      // Log the activation for audit purposes
-      console.log(`Company ${company.name} (${company.id}) has been activated and notification sent`);
       
     } catch (error) {
       console.error('Error sending activation email:', error);
       // Don't throw error here as the main approval should still succeed
+    }
+  };
+
+  // Send company revocation email
+  const sendCompanyRevocationEmail = async (company: Company, reason: string) => {
+    console.log('🔴 Attempting to send revocation email for:', company.name, 'Reason:', reason);
+    try {
+      // Try to send real email via Edge Function if available
+      try {
+        const toEmail = company.email || (company as any).auth_email || '';
+        console.log('📧 Sending revocation email to:', toEmail);
+        if (toEmail) {
+          const response = await supabase.functions.invoke('send-company-revoked-email', {
+            body: {
+              to: toEmail,
+              subject: t('email.companyRevoked.title'),
+              companyName: company.name,
+              reason: reason,
+              message: t('email.companyRevoked.message')
+            }
+          });
+          console.log('📧 Revocation email response:', response);
+        }
+      } catch (fnErr) {
+        console.warn('❌ Revocation email function failed:', fnErr);
+        console.warn('Revocation email function not available or failed. Falling back to notification.', fnErr);
+      }
+
+      // Always insert an in-app notification as fallback
+      const { error } = await supabase
+        .from('notifications')
+        .insert({
+          user_id: company.auth_user_id,
+          type: 'company_revoked',
+          title: t('email.companyRevoked.title'),
+          message: t('email.companyRevoked.message'),
+          data: {
+            company_id: company.id,
+            company_name: company.name,
+            revocation_reason: reason,
+            revocation_date: new Date().toISOString()
+          },
+          is_read: false,
+          created_at: new Date().toISOString()
+        });
+
+      if (error) {
+        console.error('Error creating revocation notification:', error);
+        // Don't throw error here as the main revocation should still succeed
+      }
+      
+    } catch (error) {
+      console.error('Error sending revocation email:', error);
+      // Don't throw error here as the main revocation should still succeed
     }
   };
 
@@ -310,6 +354,13 @@ const CompanyManagement: React.FC = () => {
 
       if (error) {
         throw new Error(`Error ${isRevocation ? 'revoking' : 'rejecting'} company: ${error.message}`);
+      }
+
+      // Send revocation email if this is a revocation
+      if (isRevocation) {
+        console.log('🔄 Processing revocation for company:', company.name);
+        await sendCompanyRevocationEmail(company, rejectionReason);
+        console.log('✅ Revocation email sent for:', company.name);
       }
 
       // Update local state

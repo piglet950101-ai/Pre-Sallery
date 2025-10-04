@@ -1,0 +1,21 @@
+name: Generate Company Invoices
+
+on:
+  schedule:
+    # Run at 04:05 UTC on the 15th of every month (00:05 VET, UTC-4)
+    - cron: '5 4 15 * *'
+    # Run at 04:10 UTC on the 28–31st; function itself checks if it's last day
+    - cron: '10 4 28-31 * *'
+  workflow_dispatch:
+
+jobs:
+  generate-invoices:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger invoice generation function
+        run: |
+          curl -X POST ${{ secrets.SUPABASE_FUNCTION_URL }}/generate-invoices \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{}'
+

@@ -30,15 +30,16 @@ import {
   File,
   RefreshCw
 } from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
+import * as XLSX from 'xlsx';
 import Header from "@/components/Header";
 import { useLanguage } from "@/contexts/LanguageContext";
 import BillingDashboard from "@/components/operator/BillingDashboard";
 import CompanyManagement from "@/components/operator/CompanyManagement";
-import PaymentSpreadsheet from "@/components/operator/PaymentSpreadsheet";
 import PaymentConfirmation from "@/components/operator/PaymentConfirmation";
 import { ExchangeRateAlert } from "@/components/ExchangeRateAlert";
 import { ExchangeRateDeviationAlert } from "@/components/ExchangeRateDeviationAlert";
@@ -79,6 +80,7 @@ const OperatorDashboard = () => {
   const [confirmationToDelete, setConfirmationToDelete] = useState<any>(null);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [previewFile, setPreviewFile] = useState<any>(null);
+  const [showBatchConfirm, setShowBatchConfirm] = useState(false);
 
 
   // Calculate totals from real data
@@ -106,6 +108,235 @@ const OperatorDashboard = () => {
 
   const selectAllAdvances = () => {
     setSelectedAdvances(new Set(pendingAdvances.map(advance => advance.id)));
+  };
+
+  // Export pending advances (selected if any, otherwise all) as Excel
+  const handleExportPendingCSV = () => {
+    try {
+      const advancesToExport = selectedAdvances.size > 0
+        ? pendingAdvances.filter(a => selectedAdvances.has(a.id))
+        : pendingAdvances;
+
+      if (!advancesToExport || advancesToExport.length === 0) {
+        toast({ title: t('common.noData'), description: t('operator.noPending') });
+        return;
+      }
+
+      const header = [
+        'Employee Name',
+        'Company',
+        'Payment Method',
+        'Bank Name',
+        'Account Number',
+        'Account Type',
+        'PagoMovil Phone',
+        'Requested Amount ($)',
+        'Fee ($)',
+        'Net Amount ($)',
+        'Date',
+        'Request ID'
+      ];
+
+      const rows = advancesToExport.map((a: any) => {
+        const emp = a.employees || {};
+        const comp = a.companies || {};
+        const name = `${emp.first_name || ''} ${emp.last_name || ''}`.trim();
+        const method = a.payment_method === 'pagomovil' ? 'PagoMóvil' : 'Bank Transfer';
+        const bankName = a.payment_method === 'bank_transfer' ? (emp.bank_name || '') : '';
+        const accountNumber = a.payment_method === 'bank_transfer' ? (emp.account_number || '') : '';
+        const accountType = a.payment_method === 'bank_transfer' ? (emp.account_type || '') : '';
+        const pagoMovilPhone = a.payment_method === 'pagomovil' ? (a.payment_details || '') : '';
+        const requested = Number(a.requested_amount || 0);
+        const fee = Number(a.fee_amount || 0);
+        const net = Number(a.net_amount || 0);
+        const dateStr = new Intl.DateTimeFormat('en-VE', { timeZone: 'America/Caracas' }).format(new Date(a.created_at));
+        return [
+          name,
+          comp.name || '',
+          method,
+          bankName,
+          accountNumber,
+          accountType,
+          pagoMovilPhone,
+          requested,
+          fee,
+          net,
+          dateStr,
+          a.id
+        ];
+      });
+
+      // Create workbook and worksheet
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
+
+      // Set column widths for better display
+      const colWidths = [
+        { wch: 20 }, // Employee Name
+        { wch: 15 }, // Company
+        { wch: 15 }, // Payment Method
+        { wch: 20 }, // Bank Name
+        { wch: 20 }, // Account Number
+        { wch: 15 }, // Account Type
+        { wch: 15 }, // PagoMovil Phone
+        { wch: 15 }, // Requested Amount
+        { wch: 10 }, // Fee
+        { wch: 12 }, // Net Amount
+        { wch: 12 }, // Date
+        { wch: 15 }  // Request ID
+      ];
+      ws['!cols'] = colWidths;
+
+      // Format currency columns
+      const currencyCols = ['H', 'I', 'J']; // Requested Amount, Fee, Net Amount
+      currencyCols.forEach(col => {
+        for (let row = 2; row <= rows.length + 1; row++) {
+          const cellRef = `${col}${row}`;
+          if (ws[cellRef]) {
+            ws[cellRef].z = '"$"#,##0.00';
+          }
+        }
+      });
+
+      // Add worksheet to workbook
+      XLSX.utils.book_append_sheet(wb, ws, 'Pending Advances');
+
+      // Generate Excel file
+      const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `pending-advances-${new Date().toISOString().slice(0,10)}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error: any) {
+      console.error('Excel export failed:', error);
+      toast({ title: t('common.error'), description: error?.message || 'Export failed', variant: 'destructive' });
+    }
+  };
+
+  // Export current batch (in detail) as Excel
+  const handleExportBatchCSV = () => {
+    try {
+      if (!selectedBatch || !batchAdvances || batchAdvances.length === 0) {
+        toast({ title: t('common.noData'), description: t('operator.noAdvancesFound') });
+        return;
+      }
+
+      const header = [
+        'Batch Name',
+        'Batch Created At',
+        'Request ID',
+        'Employee Name',
+        'Cedula',
+        'Phone',
+        'Company',
+        'Payment Method',
+        'Bank Name',
+        'Account Number',
+        'Account Type',
+        'PagoMovil Phone',
+        'Requested Amount ($)',
+        'Fee ($)',
+        'Net Amount ($)',
+        'Created At',
+      ];
+
+      const rows = batchAdvances.map((a: any) => {
+        const emp = a.employees || {};
+        const comp = a.companies || {};
+        const name = `${emp.first_name || ''} ${emp.last_name || ''}`.trim();
+        const method = a.payment_method === 'pagomovil' ? 'PagoMóvil' : 'Bank Transfer';
+        const bankName = a.payment_method === 'bank_transfer' ? (emp.bank_name || '') : '';
+        const accountNumber = a.payment_method === 'bank_transfer' ? (emp.account_number || '') : '';
+        const accountType = a.payment_method === 'bank_transfer' ? (emp.account_type || '') : '';
+        const pagoMovilPhone = a.payment_method === 'pagomovil' ? (a.payment_details || '') : '';
+        const requested = Number(a.requested_amount || 0);
+        const fee = Number(a.fee_amount || 0);
+        const net = Number(a.net_amount || 0);
+        const createdAt = new Date(a.created_at);
+        const createdStr = new Intl.DateTimeFormat('en-VE', { timeZone: 'America/Caracas', dateStyle: 'short', timeStyle: 'short' }).format(createdAt);
+        const batchCreated = selectedBatch?.created_at ? new Date(selectedBatch.created_at) : null;
+        const batchCreatedStr = batchCreated ? new Intl.DateTimeFormat('en-VE', { timeZone: 'America/Caracas', dateStyle: 'short', timeStyle: 'short' }).format(batchCreated) : '';
+
+        return [
+          selectedBatch?.batch_name || '',
+          batchCreatedStr,
+          a.id,
+          name,
+          emp.cedula || '',
+          emp.phone || '',
+          comp.name || '',
+          method,
+          bankName,
+          accountNumber,
+          accountType,
+          pagoMovilPhone,
+          requested,
+          fee,
+          net,
+          createdStr,
+        ];
+      });
+
+      // Create workbook and worksheet
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
+
+      // Set column widths for better display
+      const colWidths = [
+        { wch: 20 }, // Batch Name
+        { wch: 18 }, // Batch Created At
+        { wch: 15 }, // Request ID
+        { wch: 20 }, // Employee Name
+        { wch: 12 }, // Cedula
+        { wch: 15 }, // Phone
+        { wch: 15 }, // Company
+        { wch: 15 }, // Payment Method
+        { wch: 20 }, // Bank Name
+        { wch: 20 }, // Account Number
+        { wch: 15 }, // Account Type
+        { wch: 15 }, // PagoMovil Phone
+        { wch: 15 }, // Requested Amount
+        { wch: 10 }, // Fee
+        { wch: 12 }, // Net Amount
+        { wch: 18 }  // Created At
+      ];
+      ws['!cols'] = colWidths;
+
+      // Format currency columns
+      const currencyCols = ['M', 'N', 'O']; // Requested Amount, Fee, Net Amount
+      currencyCols.forEach(col => {
+        for (let row = 2; row <= rows.length + 1; row++) {
+          const cellRef = `${col}${row}`;
+          if (ws[cellRef]) {
+            ws[cellRef].z = '"$"#,##0.00';
+          }
+        }
+      });
+
+      // Add worksheet to workbook
+      const safeName = (selectedBatch?.batch_name || 'batch').replace(/[^a-zA-Z0-9_-]+/g, '-');
+      XLSX.utils.book_append_sheet(wb, ws, 'Batch Details');
+
+      // Generate Excel file
+      const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${safeName}-details-${new Date().toISOString().slice(0,10)}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error: any) {
+      console.error('Batch Excel export failed:', error);
+      toast({ title: t('common.error'), description: error?.message || 'Export failed', variant: 'destructive' });
+    }
   };
 
   const deselectAllAdvances = () => {
@@ -916,8 +1147,8 @@ const OperatorDashboard = () => {
         </div>
 
         <Tabs defaultValue="pending" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-6">
-            <TabsTrigger value="pending" className="relative">
+          <TabsList className="grid w-full grid-cols-5">
+            <TabsTrigger value="pending" className="relative w-full justify-center">
               {t('operator.pendingAdvances')}
               {pendingAdvances.length > 0 && (
                 <Badge variant="destructive" className="ml-2 h-5 w-5 flex items-center justify-center p-0 text-xs">
@@ -925,11 +1156,10 @@ const OperatorDashboard = () => {
                 </Badge>
               )}
             </TabsTrigger>
-            <TabsTrigger value="payments">Payment Processing</TabsTrigger>
-            <TabsTrigger value="batches">{t('operator.processedBatches')}</TabsTrigger>
-            <TabsTrigger value="billing">{t('operator.billing')}</TabsTrigger>
-            <TabsTrigger value="confirmations">{t('operator.confirmationsTab')}</TabsTrigger>
-            <TabsTrigger value="companies">{t('operator.companyManagement')}</TabsTrigger>
+            <TabsTrigger value="batches" className="w-full justify-center">{t('operator.processedBatches')}</TabsTrigger>
+            <TabsTrigger value="billing" className="w-full justify-center">{t('operator.billing')}</TabsTrigger>
+            <TabsTrigger value="confirmations" className="w-full justify-center">{t('operator.confirmationsTab')}</TabsTrigger>
+            <TabsTrigger value="companies" className="w-full justify-center">{t('operator.companyManagement')}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="pending" className="space-y-6">
@@ -954,13 +1184,13 @@ const OperatorDashboard = () => {
                       <Filter className="h-4 w-4 mr-2" />
                       {t('operator.filter')}
                     </Button>
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" onClick={handleExportPendingCSV}>
                       <Download className="h-4 w-4 mr-2" />
                       {t('operator.exportCSV')}
                     </Button>
                     <Button
                       variant="hero"
-                      onClick={processBatch}
+                      onClick={() => setShowBatchConfirm(true)}
                       disabled={isProcessing || selectedAdvances.size === 0}
                     >
                       {isProcessing ? t('operator.processingDots') : `${t('operator.processBatch')} (${selectedAdvances.size})`}
@@ -1006,59 +1236,64 @@ const OperatorDashboard = () => {
                       <p className="text-sm text-muted-foreground mt-1">{t('operator.allProcessed')}</p>
                     </div>
                   ) : (
-                    paginatedPendingAdvances.map((advance) => {
-                      const employeeName = advance.employees
-                        ? `${advance.employees.first_name || ''} ${advance.employees.last_name || ''}`.trim()
-                        : t('operator.unknownEmployee');
-                      const companyName = advance.companies?.name || t('operator.unknownCompany');
-                      const advanceDate = new Date(advance.created_at);
-                      const formattedTime = advanceDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-
-                      const isSelected = selectedAdvances.has(advance.id);
-
-                      return (
-                        <div key={advance.id} className={`flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors ${isSelected ? 'bg-primary/5 border-primary/20' : ''}`}>
-                          <div className="flex items-center space-x-4">
-                            <button
-                              onClick={() => toggleAdvanceSelection(advance.id)}
-                              className={`flex items-center justify-center w-5 h-5 border-2 rounded transition-colors ${isSelected
-                                  ? 'bg-primary border-primary'
-                                  : 'border-muted-foreground bg-transparent'
-                                }`}
-                            >
-                              {isSelected && <Check className="h-3 w-3 text-white" />}
-                            </button>
-                            <div className="h-10 w-10 bg-gradient-primary rounded-full flex items-center justify-center">
-                              <span className="text-white text-sm font-medium">
-                                {employeeName.split(' ').map(n => n[0]).join('')}
-                              </span>
-                            </div>
-                            <div>
-                              <div className="font-medium">{employeeName}</div>
-                              <div className="text-sm text-muted-foreground">{companyName}</div>
-                              <div className="text-xs text-muted-foreground">
-                                {advance.payment_method === 'pagomovil' ? 'PagoMóvil' : 'Bank Transfer'}: {advance.payment_details}
-                              </div>
-                            </div>
-                          </div>
-                          <div className="flex items-center space-x-6">
-                            <div className="text-right">
-                              <div className="font-semibold">${advance.requested_amount.toFixed(2)}</div>
-                              <div className="text-sm text-muted-foreground">
-                                {t('company.reports.commissions')}: ${advance.fee_amount.toFixed(2)}
-                              </div>
-                              <div className="text-sm text-primary font-medium">
-                                {t('common.netAmount')}: ${advance.net_amount.toFixed(2)}
-                              </div>
-                            </div>
-                            <div className="text-right">
-                              <div className="text-sm text-muted-foreground">{formattedTime}</div>
-                              <Badge variant="secondary">{t('company.approved')}</Badge>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead></TableHead>
+                          <TableHead>{t('operator.employee') || 'Employee'}</TableHead>
+                          <TableHead>{t('operator.company') || 'Company'}</TableHead>
+                          <TableHead>{t('common.paymentMethod') || 'Payment Method'}</TableHead>
+                          <TableHead>{t('common.amount') || 'Amount'}</TableHead>
+                          <TableHead>{t('company.reports.commissions') || 'Fee'}</TableHead>
+                          <TableHead>{t('common.netAmount') || 'Net'}</TableHead>
+                          <TableHead>{t('common.date') || 'Date'}</TableHead>
+                          <TableHead></TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {paginatedPendingAdvances.map((advance) => {
+                          const employeeName = advance.employees
+                            ? `${advance.employees.first_name || ''} ${advance.employees.last_name || ''}`.trim()
+                            : t('operator.unknownEmployee');
+                          const companyName = advance.companies?.name || t('operator.unknownCompany');
+                          const advanceDate = new Date(advance.created_at);
+                          const formattedDate = new Intl.DateTimeFormat('en-VE', { timeZone: 'America/Caracas' }).format(advanceDate);
+                          const formattedTime = advanceDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+                          const isSelected = selectedAdvances.has(advance.id);
+                          return (
+                            <TableRow key={advance.id} className={isSelected ? 'bg-primary/5' : ''}>
+                              <TableCell className="align-middle">
+                                <button
+                                  onClick={() => toggleAdvanceSelection(advance.id)}
+                                  className={`flex items-center justify-center w-5 h-5 border-2 rounded transition-colors ${isSelected ? 'bg-primary border-primary' : 'border-muted-foreground bg-transparent'}`}
+                                >
+                                  {isSelected && <Check className="h-3 w-3 text-white" />}
+                                </button>
+                              </TableCell>
+                              <TableCell className="align-middle">
+                                <div className="font-medium">{employeeName}</div>
+                              </TableCell>
+                              <TableCell className="align-middle text-sm text-muted-foreground">{companyName}</TableCell>
+                              <TableCell className="align-middle">
+                                <Badge variant={advance.payment_method === 'pagomovil' ? 'default' : 'secondary'}>
+                                  {advance.payment_method === 'pagomovil' ? 'PagoMóvil' : 'Bank Transfer'}
+                                </Badge>
+                                {advance.payment_method === 'pagomovil' && (
+                                  <div className="text-xs text-muted-foreground mt-1">{advance.payment_details}</div>
+                                )}
+                              </TableCell>
+                              <TableCell className="align-middle font-mono">${advance.requested_amount.toFixed(2)}</TableCell>
+                              <TableCell className="align-middle font-mono">${advance.fee_amount.toFixed(2)}</TableCell>
+                              <TableCell className="align-middle font-mono font-medium text-green-600">${advance.net_amount.toFixed(2)}</TableCell>
+                              <TableCell className="align-middle text-sm">{formattedDate} {formattedTime}</TableCell>
+                              <TableCell className="align-middle text-right">
+                                <Badge variant="secondary">{t('company.approved')}</Badge>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
                   )}
                 </div>
 
@@ -1077,11 +1312,31 @@ const OperatorDashboard = () => {
               </CardContent>
             </Card>
           </TabsContent>
+          {/* Confirm Batch Modal */}
+          <Dialog open={showBatchConfirm} onOpenChange={setShowBatchConfirm}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>{t('operator.confirmBatchTitle') || t('operator.processBatch')}</DialogTitle>
+                <DialogDescription>
+                  {(t('operator.confirmBatchDesc') || 'You are about to process a batch of advances.')}<br/>
+                  {selectedAdvances.size} {t('operator.pendingAdvances').toLowerCase()} • {t('common.total') || 'Total'}: ${selectedAmount.toFixed(2)} • {t('operator.commissions')}: ${selectedFees.toFixed(2)}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setShowBatchConfirm(false)}>
+                  {t('common.cancel')}
+                </Button>
+                <Button
+                  onClick={() => { setShowBatchConfirm(false); processBatch(); }}
+                  disabled={isProcessing}
+                >
+                  {t('operator.confirm') || 'Confirm'}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
 
-          {/* Payment Processing Tab */}
-          <TabsContent value="payments" className="space-y-6">
-            <PaymentSpreadsheet />
-          </TabsContent>
+          {/* Payment Processing Tab removed */}
 
           <TabsContent value="batches" className="space-y-6">
             <Card className="border-none shadow-elegant">
@@ -1365,6 +1620,14 @@ const OperatorDashboard = () => {
                     <div className="text-2xl font-bold text-orange-600">${(selectedBatch.total_fees || 0).toFixed(2)}</div>
                     <div className="text-sm text-muted-foreground">{t('operator.commissions')}</div>
                   </div>
+                </div>
+
+                {/* Export Button */}
+                <div className="flex justify-end">
+                  <Button variant="outline" size="sm" onClick={handleExportBatchCSV} disabled={isLoadingBatchAdvances || batchAdvances.length === 0}>
+                    <Download className="h-4 w-4 mr-2" />
+                    {t('operator.exportCSV')}
+                  </Button>
                 </div>
 
                 {/* Advances List */}

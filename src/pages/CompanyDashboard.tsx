@@ -107,7 +107,7 @@ interface Employee {
 }
 
 const CompanyDashboard = () => {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { toast } = useToast();
   const { user } = useAuth();
   // Format bytes to a short label
@@ -286,6 +286,12 @@ const CompanyDashboard = () => {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('bank_transfer');
   const [paymentDetails, setPaymentDetails] = useState('');
+  
+  // Billing detail modal states
+  const [showBillingDetailModal, setShowBillingDetailModal] = useState(false);
+  const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
+  const [invoiceDetails, setInvoiceDetails] = useState<any[]>([]);
+  const [isLoadingInvoiceDetails, setIsLoadingInvoiceDetails] = useState(false);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   // Payment history pagination
   const [paymentPage, setPaymentPage] = useState(1);
@@ -549,6 +555,9 @@ const CompanyDashboard = () => {
       
       setCompany(companyData);
       
+      // Also refresh payment history to show new invoices
+      await fetchPaymentHistory();
+      
       toast({
         title: t('company.billing.dataUpdated'),
         description: t('company.billing.dataUpdatedDesc'),
@@ -568,6 +577,59 @@ const CompanyDashboard = () => {
     } catch (error) {
       console.warn('Date formatting error:', error);
       return fallback;
+    }
+  };
+
+  // Handle invoice detail modal
+  const handleInvoiceClick = async (invoice: any) => {
+    setSelectedInvoice(invoice);
+    setShowBillingDetailModal(true);
+    setIsLoadingInvoiceDetails(true);
+    
+    try {
+      // Parse period to get start and end dates
+      const periodParts = invoice.period.split('-');
+      const year = periodParts[0];
+      const month = periodParts[1];
+      const startDay = periodParts[2];
+      const endDay = periodParts[3];
+      
+      const periodStart = `${year}-${month}-${startDay}T00:00:00Z`;
+      const periodEnd = `${year}-${month}-${endDay}T23:59:59Z`;
+      
+      // Fetch advance transactions for this invoice period
+      const { data: advances, error: advancesError } = await supabase
+        .from('advance_transactions')
+        .select(`
+          id,
+          requested_amount,
+          fee_amount,
+          net_amount,
+          status,
+          created_at,
+          employees!inner(
+            first_name,
+            last_name,
+            cedula
+          )
+        `)
+        .eq('company_id', company?.id)
+        .eq('status', 'completed')
+        .gte('created_at', periodStart)
+        .lte('created_at', periodEnd)
+        .order('created_at', { ascending: false });
+
+      if (advancesError) {
+        console.error('Error fetching invoice details:', advancesError);
+        setInvoiceDetails([]);
+      } else {
+        setInvoiceDetails(advances || []);
+      }
+    } catch (error) {
+      console.error('Error loading invoice details:', error);
+      setInvoiceDetails([]);
+    } finally {
+      setIsLoadingInvoiceDetails(false);
     }
   };
 
@@ -795,6 +857,35 @@ const CompanyDashboard = () => {
     isFirstPeriod: isFirstPeriod,
     totalBilling: totalBilling
   };
+
+  // Aggregated payments to employees (company-wide)
+  const totalPaidToEmployees = activeAdvances
+    .filter(a => a.status === 'completed' || a.status === 'completada')
+    .reduce((sum, a) => sum + (a.requested_amount || 0), 0);
+
+  const totalPayableToEmployees = activeAdvances
+    .filter(a => a.status === 'pending' || a.status === 'approved' || a.status === 'processing')
+    .reduce((sum, a) => sum + (a.requested_amount || 0), 0);
+
+  // Drill-down per employee: totals paid and pending
+  const employeeAdvanceSummary = (() => {
+    const byEmployee: Record<string, { employeeId: string; fullName: string; paid: number; pending: number; count: number; }> = {};
+    for (const a of activeAdvances) {
+      const empId = a.employee_id || 'unknown';
+      const fullName = `${a.employee_first_name || ''} ${a.employee_last_name || ''}`.trim() || 'Empleado';
+      if (!byEmployee[empId]) {
+        byEmployee[empId] = { employeeId: empId, fullName, paid: 0, pending: 0, count: 0 };
+      }
+      const amount = Number(a.requested_amount || 0);
+      if (a.status === 'completed' || a.status === 'completada') {
+        byEmployee[empId].paid += amount;
+      } else if (a.status === 'pending' || a.status === 'approved' || a.status === 'processing') {
+        byEmployee[empId].pending += amount;
+      }
+      byEmployee[empId].count += 1;
+    }
+    return Object.values(byEmployee).sort((l, r) => r.pending - l.pending);
+  })();
 
 
   // Initialize totalOutstanding when component mounts
@@ -4208,7 +4299,20 @@ const CompanyDashboard = () => {
                 ${isLoadingAdvances ? '...' : companyData.weeklyBilling.toFixed(2)}
               </div>
               <p className="text-xs text-muted-foreground">
-                {t('company.nextBill')} {new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
+                {t('company.nextBill')} {(() => {
+                  const now = new Date();
+                  const day = now.getDate();
+                  const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+                  
+                  // If before 15th, next bill is 15th
+                  if (day < 15) {
+                    return new Date(now.getFullYear(), now.getMonth(), 15).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+                  }
+                  // If 15th or after, next bill is last day of month
+                  else {
+                    return new Date(now.getFullYear(), now.getMonth(), lastDayOfMonth).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+                  }
+                })()}
               </p>
             </CardContent>
           </Card>
@@ -5512,6 +5616,20 @@ const CompanyDashboard = () => {
                           {t('company.billing.paymentRestrictionWarning')}
                         </div>
                       )}
+                      <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                        <div className="p-3 rounded-md bg-white/50 border">
+                          <div className="text-muted-foreground">{t('company.billing.totalPaidToEmployees') || 'Paid to employees'}</div>
+                          <div className="font-semibold">${totalPaidToEmployees.toFixed(2)}</div>
+                        </div>
+                        <div className="p-3 rounded-md bg-white/50 border">
+                          <div className="text-muted-foreground">{t('company.billing.totalPayableToEmployees') || 'Pending to employees'}</div>
+                          <div className="font-semibold">${totalPayableToEmployees.toFixed(2)}</div>
+                        </div>
+                        <div className="p-3 rounded-md bg-white/50 border">
+                          <div className="text-muted-foreground">{t('company.billing.advancesThisPeriod') || 'Advances this period'}</div>
+                          <div className="font-semibold">${billingData.currentPeriodTotalAdvances.toFixed(2)}</div>
+                        </div>
+                      </div>
                     </div>
                     <div className="flex space-x-2">
                       <Button 
@@ -5632,7 +5750,11 @@ const CompanyDashboard = () => {
                   {billingData.paymentHistory
                     .slice((paymentPage - 1) * paymentsPerPage, paymentPage * paymentsPerPage)
                     .map((invoice) => (
-                    <div key={invoice.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors">
+                    <div 
+                      key={invoice.id} 
+                      className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
+                      onClick={() => handleInvoiceClick(invoice)}
+                    >
                       <div className="flex items-center space-x-4">
                         <div className="h-12 w-12 bg-blue-100 rounded-full flex items-center justify-center">
                           <FileText className="h-6 w-6 text-blue-600" />
@@ -5659,7 +5781,10 @@ const CompanyDashboard = () => {
                           <Button 
                             variant="outline" 
                             size="sm"
-                            onClick={() => generateInvoice(invoice)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              generateInvoice(invoice);
+                            }}
                             className="h-8 w-8 p-0"
                           >
                             <Download className="h-4 w-4" />
@@ -5669,7 +5794,10 @@ const CompanyDashboard = () => {
                               variant="default" 
                               size="sm"
                               className="bg-blue-600 hover:bg-blue-700 text-white"
-                              onClick={() => setShowPaymentModal(true)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setShowPaymentModal(true);
+                              }}
                             >
                               {t('company.billing.pay')}
                             </Button>
@@ -6469,6 +6597,150 @@ const CompanyDashboard = () => {
               Reject
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Billing Detail Modal */}
+      <Dialog open={showBillingDetailModal} onOpenChange={setShowBillingDetailModal}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center space-x-2">
+              <FileText className="h-5 w-5 text-blue-600" />
+              <span>Invoice Details</span>
+            </DialogTitle>
+            <DialogDescription>
+              {selectedInvoice?.invoiceNumber} - {selectedInvoice?.period}
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedInvoice && (
+            <div className="space-y-6">
+              {/* Invoice Summary */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-muted/50 rounded-lg">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-primary">{invoiceDetails.length}</div>
+                  <div className="text-sm text-muted-foreground">Advances</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-green-600">
+                    ${invoiceDetails.reduce((sum, a) => sum + Number(a.requested_amount || 0), 0).toFixed(2)}
+                  </div>
+                  <div className="text-sm text-muted-foreground">Total Advances</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-orange-600">
+                    ${invoiceDetails.reduce((sum, a) => sum + Number(a.fee_amount || 0), 0).toFixed(2)}
+                  </div>
+                  <div className="text-sm text-muted-foreground">Commission Fees</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-blue-600">
+                    ${selectedInvoice.amount.toFixed(2)}
+                  </div>
+                  <div className="text-sm text-muted-foreground">Invoice Total</div>
+                </div>
+              </div>
+
+              {/* Invoice Amount Breakdown */}
+              <div className="p-4 border rounded-lg">
+                <h3 className="text-lg font-semibold mb-4">Amount Breakdown</h3>
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <span>Advances Amount:</span>
+                    <span>${invoiceDetails.reduce((sum, a) => sum + Number(a.requested_amount || 0), 0).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Commission Fees:</span>
+                    <span>${invoiceDetails.reduce((sum, a) => sum + Number(a.fee_amount || 0), 0).toFixed(2)}</span>
+                  </div>
+                  {selectedInvoice.period.includes('15-') && (
+                    <div className="flex justify-between">
+                      <span>Employee Fees ($1 per active):</span>
+                      <span>${(selectedInvoice.amount - invoiceDetails.reduce((sum, a) => sum + Number(a.requested_amount || 0) + Number(a.fee_amount || 0), 0)).toFixed(2)}</span>
+                    </div>
+                  )}
+                  <div className="border-t pt-2">
+                    <div className="flex justify-between font-semibold text-lg">
+                      <span>Total Invoice Amount:</span>
+                      <span>${selectedInvoice.amount.toFixed(2)}</span>
+                    </div>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Status:</span>
+                    <Badge 
+                      className={`${selectedInvoice.status === 'paid'
+                        ? 'bg-green-100 text-green-700 border-green-200' 
+                        : 'bg-orange-100 text-orange-700 border-orange-200'
+                      }`}
+                      variant="outline"
+                    >
+                      {selectedInvoice.status === 'paid' ? 'Paid' : 'Pending'}
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Due Date:</span>
+                    <span>{safeFormatDate(selectedInvoice.dueDate, 'MMM dd, yyyy')}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Advances List */}
+              <div>
+                <h3 className="text-lg font-semibold mb-4">Advances in this period</h3>
+                {isLoadingInvoiceDetails ? (
+                  <div className="text-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-3"></div>
+                    <p className="text-muted-foreground">Loading advances...</p>
+                  </div>
+                ) : invoiceDetails.length === 0 ? (
+                  <div className="text-center py-8">
+                    <AlertCircle className="h-8 w-8 text-orange-500 mx-auto mb-3" />
+                    <p className="text-muted-foreground">No advances found for this period</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3 max-h-60 overflow-y-auto">
+                    {invoiceDetails.map((advance) => {
+                      const employeeName = advance.employees
+                        ? `${advance.employees.first_name || ''} ${advance.employees.last_name || ''}`.trim()
+                        : 'Unknown Employee';
+                      const advanceDate = new Date(advance.created_at);
+                      const locale = language === 'en' ? 'en-US' : 'es-ES';
+                      const formattedTime = advanceDate.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+
+                      return (
+                        <div key={advance.id} className="flex items-center justify-between p-3 border rounded-lg">
+                          <div className="flex items-center space-x-3">
+                            <div className="h-8 w-8 bg-gradient-primary rounded-full flex items-center justify-center">
+                              <span className="text-white text-xs font-medium">
+                                {employeeName.split(' ').map(n => n[0]).join('')}
+                              </span>
+                            </div>
+                            <div>
+                              <div className="font-medium text-sm">{employeeName}</div>
+                              <div className="text-xs text-muted-foreground">
+                                ID: {advance.employees?.cedula || 'N/A'} • {formattedTime}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-4">
+                            <div className="text-right">
+                              <div className="font-semibold text-sm">${advance.requested_amount.toFixed(2)}</div>
+                              <div className="text-xs text-muted-foreground">
+                                Fee: ${advance.fee_amount.toFixed(2)}
+                              </div>
+                              <div className="text-xs text-primary font-medium">
+                                Net: ${advance.net_amount.toFixed(2)}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

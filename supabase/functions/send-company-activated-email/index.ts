@@ -18,9 +18,10 @@ async function sendResend({ to, subject, html }) {
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      from: "no-reply@prepay.com",
+      from: "onboarding@resend.dev",
       to: [
-        to
+        // to
+        'novanoodle7@gmail.com'
       ],
       subject,
       html

@@ -117,6 +117,7 @@ const EmployeeDashboard = () => {
   const [isSavingPaymentInfo, setIsSavingPaymentInfo] = useState<boolean>(false);
   const [banks, setBanks] = useState<Array<{id: string, name: string, code: string}>>([]);
   const [isLoadingBanks, setIsLoadingBanks] = useState<boolean>(false);
+  const [exchangeRate, setExchangeRate] = useState<number | null>(null);
   const [paymentInfoData, setPaymentInfoData] = useState({
     bank_name: '',
     account_number: '',
@@ -249,9 +250,11 @@ const EmployeeDashboard = () => {
   const earnedAmount = Math.round(((monthlySalary / totalWorkingDays) * workedDays) * 100) / 100;
   
   // Calculate used amount from all non-cancelled advances (completed, pending, processing, approved)
-  const usedAmount = Math.round(advanceRequests
-    .filter(req => req.status !== 'cancelled' && req.status !== 'failed')
-    .reduce((sum, req) => sum + req.requested_amount, 0) * 100) / 100;
+  const usedAmount = Math.round(
+    advanceRequests
+      .filter(req => !['cancelled', 'failed', 'rejected', 'rechazada'].includes(req.status))
+      .reduce((sum, req) => sum + req.requested_amount, 0) * 100
+  ) / 100;
   
   // Available amount is 80% of earned amount minus already used advances
   const maxAvailableAmount = Math.round((earnedAmount * 0.8) * 100) / 100;
@@ -370,6 +373,24 @@ const EmployeeDashboard = () => {
     };
 
     fetchEmployeeData();
+  }, []);
+
+  // Fetch today's exchange rate for VES display
+  useEffect(() => {
+    const loadRate = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('exchange_rate_latest')
+          .select('usd_to_ves')
+          .maybeSingle();
+        if (!error && data && typeof data.usd_to_ves !== 'undefined') {
+          setExchangeRate(Number(data.usd_to_ves) || null);
+        }
+      } catch (e) {
+        // ignore
+      }
+    };
+    loadRate();
   }, []);
 
   // Fetch banks for dropdown
@@ -1195,6 +1216,24 @@ const EmployeeDashboard = () => {
             </CardContent>
           </Card>
 
+          {/* Available in VES (today's rate) */}
+          <Card className="border-none shadow-card">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">{language === 'en' ? 'Available (VES)' : 'Disponible (VES)'}</CardTitle>
+              <TrendingUp className="h-4 w-4 text-primary" />
+            </CardHeader>
+            <CardContent>
+              {exchangeRate ? (
+                <div className="text-2xl font-bold text-primary">{(availableAmount * exchangeRate).toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+              ) : (
+                <div className="text-2xl font-bold text-muted-foreground">N/A</div>
+              )}
+              <p className="text-xs text-muted-foreground">
+                {language === 'en' ? "Today's rate applied" : 'Tasa de hoy aplicada'}
+              </p>
+            </CardContent>
+          </Card>
+
           <Card className="border-none shadow-card">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">{t('employee.monthlySalary')}</CardTitle>
@@ -1447,13 +1486,14 @@ const EmployeeDashboard = () => {
                     paginatedRequests.map((request) => {
                       const requestDate = new Date(request.created_at);
                       const isToday = requestDate.toDateString() === new Date().toDateString();
-                      const isCompleted = request.status === 'completed';
+                      const isCompleted = request.status === 'completed' || request.status === 'completada';
                       const isPending = request.status === 'pending' || request.status === 'processing';
                       const isApproved = request.status === 'approved';
                       
                       const getStatusBadge = () => {
                         switch (request.status) {
                           case 'completed':
+                          case 'completada':
                             return <Badge className="bg-green-100 text-green-800">{t('employee.completed')}</Badge>;
                           case 'approved':
                             return <Badge className="bg-blue-100 text-blue-800">{t('company.approved')}</Badge>;
@@ -1465,6 +1505,9 @@ const EmployeeDashboard = () => {
                             return <Badge variant="outline" className="text-muted-foreground">{t('common.cancelled')}</Badge>;
                           case 'failed':
                             return <Badge variant="destructive">{t('common.failed')}</Badge>;
+                          case 'rejected':
+                          case 'rechazada':
+                            return <Badge variant="destructive">{t('common.rejected') || 'Rejected'}</Badge>;
                           default:
                             return <Badge variant="outline">{request.status}</Badge>;
                         }
@@ -1493,6 +1536,8 @@ const EmployeeDashboard = () => {
                           return "bg-orange-100";
                         } else if (request.status === 'cancelled') {
                           return "bg-gray-100";
+                        } else if (request.status === 'rejected' || request.status === 'rechazada') {
+                          return "bg-red-100";
                         } else {
                           return "bg-red-100";
                         }
