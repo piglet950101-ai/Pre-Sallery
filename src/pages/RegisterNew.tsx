@@ -96,12 +96,92 @@ const Register = () => {
       return;
     }
     
-    // Set the file directly without validation (validation temporarily disabled)
-    setCompanyRifImage(file);
-    toast({
-      title: t('common.success'),
-      description: t('registration.rifImageUploaded'),
-    });
+    // Validate RIF expiration date using Tesseract.js
+    try {
+      toast({
+        title: t('common.loading'),
+        description: t('registration.validatingRIF'),
+      });
+      
+      // Convert file to base64 for validation
+      const reader = new FileReader();
+      reader.onload = async () => {
+        try {
+          const base64Content = reader.result as string;
+          
+          console.log('=== RIF VALIDATION CLIENT SIDE ===');
+          console.log('File name:', file.name);
+          console.log('File size:', file.size, 'bytes');
+          console.log('File type:', file.type);
+          console.log('Base64 length:', base64Content.length);
+          
+          const { data, error } = await supabase.functions.invoke('validate-rif-expiration', {
+            body: {
+              file_content: base64Content.split(',')[1], // Remove data:image/jpeg;base64, prefix
+              file_type: file.type,
+              document_text: null,
+              document_url: null
+            }
+          });
+          
+          console.log('=== RIF VALIDATION RESPONSE ===');
+          console.log('Error:', error);
+          console.log('Data:', data);
+          
+          if (error) {
+            console.error('RIF validation error:', error);
+            throw error;
+          }
+          
+          // Log extracted data
+          console.log('=== EXTRACTED RIF DATA ===');
+          console.log('Success:', data.success);
+          console.log('Is expired:', data.is_expired);
+          console.log('Expiration date:', data.expiration_date);
+          console.log('Days until expiration:', data.days_until_expiration);
+          console.log('Extracted text preview:', data.extracted_text);
+          console.log('Message:', data.message);
+          console.log('=== END EXTRACTED DATA ===');
+          
+          if (data.is_expired) {
+            console.log('❌ RIF document is expired');
+            toast({
+              title: t('registration.rifExpired'),
+              description: t('registration.rifExpiredDesc'),
+              variant: "destructive"
+            });
+            return;
+          }
+          
+          console.log('✅ RIF document is valid');
+          toast({
+            title: t('common.success'),
+            description: data.message,
+          });
+          
+          // Only set the file if validation passes
+          setCompanyRifImage(file);
+          
+        } catch (error: any) {
+          console.error('RIF validation error:', error);
+          toast({
+            title: t('registration.rifExpirationError'),
+            description: t('registration.rifExpirationErrorDesc'),
+            variant: "destructive"
+          });
+        }
+      };
+      
+      reader.readAsDataURL(file);
+      
+    } catch (error: any) {
+      console.error('RIF validation error:', error);
+      toast({
+        title: t('registration.rifExpirationError'),
+        description: t('registration.rifExpirationErrorDesc'),
+        variant: "destructive"
+      });
+    }
   };
 
   const isCompanyFormValid = () => {

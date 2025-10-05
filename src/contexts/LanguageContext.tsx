@@ -1135,6 +1135,11 @@ const translations: Translations = {
   'registration.rifImageValid': { en: 'Must be current (not expired)', es: 'Debe estar vigente (no vencido)' },
   'registration.rifImageFormats': { en: 'Accepted formats: JPG, PNG, PDF (max 5MB)', es: 'Formatos aceptados: JPG, PNG, PDF (máx. 5MB)' },
   'registration.rifImageUploaded': { en: 'RIF document uploaded successfully', es: 'Documento RIF subido exitosamente' },
+  'registration.rifExpired': { en: 'RIF Document Expired', es: 'Documento RIF Vencido' },
+  'registration.rifExpiredDesc': { en: 'The RIF document has expired. Please upload a current, valid RIF document.', es: 'El documento RIF ha vencido. Por favor sube un documento RIF vigente y válido.' },
+  'registration.rifExpirationError': { en: 'Unable to verify RIF expiration date', es: 'No se pudo verificar la fecha de vencimiento del RIF' },
+  'registration.rifExpirationErrorDesc': { en: 'Could not extract expiration date from the Venezuelan RIF document. Please ensure the document is clear and readable.', es: 'No se pudo extraer la fecha de vencimiento del documento RIF venezolano. Asegúrate de que el documento sea claro y legible.' },
+  'registration.validatingRIF': { en: 'Validating RIF document...', es: 'Validando documento RIF...' },
   'registration.immediateBilling': { en: 'Immediate billing', es: 'Facturación inmediata' },
   'registration.immediateBillingDesc': { en: 'Billing begins as soon as you add employees to your account.', es: 'La facturación comienza tan pronto como agregues empleados a tu cuenta.' },
   
