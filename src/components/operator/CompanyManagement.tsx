@@ -48,6 +48,15 @@ interface Company {
   last_activity?: string;
   auth_user_id?: string;
   auth_email?: string;
+  extracted_rif_data?: {
+    rif_number?: string;
+    rif_type?: string;
+    company_name?: string;
+    address?: string;
+    phone?: string;
+    email?: string;
+  };
+  data_extraction_date?: string;
 }
 
 const CompanyManagement: React.FC = () => {
@@ -125,7 +134,9 @@ const CompanyManagement: React.FC = () => {
           rif_image_url: company.rif_image_url,
           last_activity: company.updated_at,
           auth_user_id: company.auth_user_id,
-          auth_email: company.auth_email
+          auth_email: company.auth_email,
+          extracted_rif_data: company.extracted_rif_data,
+          data_extraction_date: company.data_extraction_date
         };
       }));
 
@@ -760,7 +771,7 @@ const CompanyManagement: React.FC = () => {
                             }
                           })()}
                         </div>
-                        <div className="mt-2">
+                        <div className="mt-2 flex gap-2">
                           <Button 
                             variant="outline" 
                             size="sm"
@@ -768,6 +779,40 @@ const CompanyManagement: React.FC = () => {
                           >
                             <Eye className="h-4 w-4 mr-2" />
                             {t('operator.viewFullSize')}
+                          </Button>
+                          <Button 
+                            variant="secondary" 
+                            size="sm"
+                            onClick={async () => {
+                              try {
+                                const { data, error } = await supabase.functions.invoke('extract-rif-data', {
+                                  body: {
+                                    company_id: selectedCompany.id,
+                                    document_url: selectedCompany.rif_image_url
+                                  }
+                                });
+                                
+                                if (error) throw error;
+                                
+                                toast({
+                                  title: t('operator.dataExtracted'),
+                                  description: t('operator.dataExtractedDesc'),
+                                });
+                                
+                                // Refresh company data to show extracted information
+                                fetchCompanies();
+                              } catch (error: any) {
+                                console.error('Error extracting RIF data:', error);
+                                toast({
+                                  title: t('common.error'),
+                                  description: error?.message || 'Failed to extract RIF data',
+                                  variant: 'destructive'
+                                });
+                              }
+                            }}
+                          >
+                            <Search className="h-4 w-4 mr-2" />
+                            {t('operator.extractData')}
                           </Button>
                         </div>
                       </div>
@@ -801,6 +846,59 @@ const CompanyManagement: React.FC = () => {
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Extracted RIF Data */}
+              {selectedCompany.extracted_rif_data && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Search className="h-5 w-5" />
+                      {t('operator.extractedRIFData')}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {selectedCompany.extracted_rif_data.rif_number && (
+                        <div>
+                          <label className="text-sm font-medium text-muted-foreground">{t('operator.extractedRIF')}</label>
+                          <p className="text-lg font-semibold">{selectedCompany.extracted_rif_data.rif_number}</p>
+                        </div>
+                      )}
+                      {selectedCompany.extracted_rif_data.company_name && (
+                        <div>
+                          <label className="text-sm font-medium text-muted-foreground">{t('operator.extractedCompanyName')}</label>
+                          <p className="text-lg font-semibold">{selectedCompany.extracted_rif_data.company_name}</p>
+                        </div>
+                      )}
+                      {selectedCompany.extracted_rif_data.address && (
+                        <div className="md:col-span-2">
+                          <label className="text-sm font-medium text-muted-foreground">{t('operator.extractedAddress')}</label>
+                          <p className="text-lg font-semibold">{selectedCompany.extracted_rif_data.address}</p>
+                        </div>
+                      )}
+                      {selectedCompany.extracted_rif_data.phone && (
+                        <div>
+                          <label className="text-sm font-medium text-muted-foreground">{t('operator.extractedPhone')}</label>
+                          <p className="text-lg font-semibold">{selectedCompany.extracted_rif_data.phone}</p>
+                        </div>
+                      )}
+                      {selectedCompany.extracted_rif_data.email && (
+                        <div>
+                          <label className="text-sm font-medium text-muted-foreground">{t('operator.extractedEmail')}</label>
+                          <p className="text-lg font-semibold">{selectedCompany.extracted_rif_data.email}</p>
+                        </div>
+                      )}
+                    </div>
+                    {selectedCompany.data_extraction_date && (
+                      <div className="mt-4 pt-4 border-t">
+                        <p className="text-sm text-muted-foreground">
+                          {t('operator.dataExtractedOn')}: {formatDate(selectedCompany.data_extraction_date)}
+                        </p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
 
               {/* Registration Information */}
               <Card>
