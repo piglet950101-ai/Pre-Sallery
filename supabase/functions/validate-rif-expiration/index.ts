@@ -29,9 +29,12 @@ async function extractTextFromFile(fileContent: string, fileType: string) {
         if (pdfText && pdfText.trim().length > 10) {
           console.log('✅ PDF text extraction successful');
           return pdfText.trim();
+        } else {
+          console.log('PDF direct text extraction not available - using OCR instead');
         }
       } catch (pdfError) {
         console.log('PDF text extraction failed:', pdfError.message);
+        console.log('Falling back to OCR processing');
       }
     }
     
@@ -45,7 +48,7 @@ async function extractTextFromFile(fileContent: string, fileType: string) {
       console.log('Extracted text preview (first 500 chars):');
       console.log(ocrText.substring(0, 500));
       return ocrText.trim();
-    } else {
+      } else {
       console.log('❌ Web OCR extraction failed - no text extracted');
       throw new Error('Web OCR extraction failed - no text extracted');
     }
@@ -74,8 +77,8 @@ async function performWebOCR(fileContent: string, fileType: string) {
     const apiUrl = 'https://api.ocr.space/parse/image';
     
     console.log('Sending request to OCR.space API...');
-    console.log('File type:', fileType);
-    console.log('Content length:', fileContent.length);
+  console.log('File type:', fileType);
+  console.log('Content length:', fileContent.length);
     
     // Prepare form data for OCR.space API
     const formData = new FormData();
@@ -83,27 +86,40 @@ async function performWebOCR(fileContent: string, fileType: string) {
     formData.append('language', 'spa'); // Spanish language for Venezuelan documents
     formData.append('isOverlayRequired', 'false');
     formData.append('filetype', fileType === 'application/pdf' ? 'PDF' : 'PNG');
-    formData.append('base64Image', `data:${fileType};base64,${fileContent}`);
+    
+    // For PDFs, use the correct data format
+    if (fileType === 'application/pdf') {
+      formData.append('base64Image', `data:${fileType};base64,${fileContent}`);
+    } else {
+      formData.append('base64Image', `data:${fileType};base64,${fileContent}`);
+    }
     
     console.log('Form data prepared, sending request...');
     
     const response = await fetch(apiUrl, {
-      method: 'POST',
+    method: 'POST',
       body: formData
     });
     
     console.log('OCR.space API response status:', response.status);
-    
-    if (!response.ok) {
+  
+  if (!response.ok) {
       throw new Error(`OCR.space API error: ${response.status} ${response.statusText}`);
-    }
-    
-    const result = await response.json();
+  }
+  
+  const result = await response.json();
     console.log('OCR.space API response received');
     console.log('API response structure:', Object.keys(result));
+    console.log('Full API response:', JSON.stringify(result, null, 2));
     
-    if (result.ParsedResults && result.ParsedResults.length > 0) {
-      const extractedText = result.ParsedResults[0].ParsedText;
+    // Check for API errors
+    if (result.IsErroredOnProcessing) {
+      console.error('OCR.space API processing error:', result.ErrorMessage);
+      throw new Error(`OCR.space API error: ${result.ErrorMessage}`);
+    }
+  
+  if (result.ParsedResults && result.ParsedResults.length > 0) {
+    const extractedText = result.ParsedResults[0].ParsedText;
       console.log('✅ OCR.space extraction successful');
       console.log('Extracted text length:', extractedText.length);
       console.log('Extracted text preview (first 500 chars):');
@@ -111,11 +127,13 @@ async function performWebOCR(fileContent: string, fileType: string) {
       
       if (extractedText && extractedText.trim().length > 0) {
         return extractedText.trim();
-      } else {
+  } else {
+        console.log('OCR.space returned empty text');
         throw new Error('OCR.space returned empty text');
       }
     } else {
       console.log('OCR.space API response:', result);
+      console.log('No parsed results found in response');
       throw new Error('OCR.space API did not return parsed results');
     }
     
@@ -154,101 +172,27 @@ async function performWebOCR(fileContent: string, fileType: string) {
 // Extract text from PDF using a simple approach
 async function extractTextFromPDF(buffer: Uint8Array) {
   console.log('=== PDF TEXT EXTRACTION START ===');
+  console.log('PDF buffer size:', buffer.length, 'bytes');
   
   try {
-    // Convert PDF buffer to string
-    const pdfString = new TextDecoder('utf-8', { fatal: false }).decode(buffer);
-    console.log('PDF string length:', pdfString.length);
-    console.log('PDF string preview:', pdfString.substring(0, 200) + '...');
+    // For PDFs, we'll skip direct text extraction since PDFs are binary
+    // and let OCR.space handle the PDF processing
+    console.log('PDF detected - skipping direct text extraction');
+    console.log('PDF will be processed by OCR.space API instead');
     
-    // Look for RIF-related keywords and extract surrounding text
-    const keywords = [
-      // Venezuelan RIF keywords
-      'REPUBLICA BOLIVARIANA DE VENEZUELA',
-      'SENIAT',
-      'SERVICIO NACIONAL INTEGRADO',
-      'REGISTRO DE INFORMACION FISCAL',
-      'RIF',
-      'FECHA DE VENCIMIENTO',
-      'VENCIMIENTO',
-      'VIGENCIA',
-      // Spanish RIF keywords
-      'ESPAÑA',
-      'ESPAÑOL',
-      'MINISTERIO DE HACIENDA',
-      'AGENCIA TRIBUTARIA',
-      'NIF',
-      'CIF',
-      'FECHA DE EXPIRACION',
-      'FECHA DE CADUCIDAD',
-      'FECHA DE VENCIMIENTO',
-      'VENCIMIENTO',
-      'CADUCIDAD',
-      'EXPIRACION',
-      'VIGENCIA',
-      'VALIDO HASTA',
-      'VALIDO HASTA EL',
-      'FECHA LIMITE',
-      'FECHA FINAL',
-      // Additional Spanish keywords
-      'REINO DE ESPAÑA',
-      'ADMINISTRACION TRIBUTARIA',
-      'HACIENDA PUBLICA',
-      'REGISTRO MERCANTIL',
-      'CERTIFICADO',
-      'DOCUMENTO',
-      'IDENTIFICACION',
-      'IDENTIFICACIÓN',
-      'FISCAL',
-      'TRIBUTARIO',
-      'EMPRESA',
-      'SOCIEDAD',
-      'LIMITADA',
-      'ANONIMA',
-      'ANÓNIMA'
-    ];
-    
-    let extractedText = '';
-    const lines = pdfString.split('\n');
-    
-    console.log('Processing', lines.length, 'lines from PDF');
-    
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i].trim();
-      
-      // Check if line contains any RIF-related keywords
-      const hasKeyword = keywords.some(keyword => 
-        line.toUpperCase().includes(keyword.toUpperCase())
-      );
-      
-      if (hasKeyword) {
-        // Extract this line and surrounding context
-        const start = Math.max(0, i - 2);
-        const end = Math.min(lines.length, i + 3);
-        
-        for (let j = start; j < end; j++) {
-          if (lines[j].trim().length > 0) {
-            extractedText += lines[j].trim() + '\n';
-          }
-        }
-        extractedText += '---\n'; // Separator between sections
-      }
-    }
-    
-    console.log('PDF text extraction result:', extractedText.substring(0, 500) + '...');
-    
-    if (extractedText.trim().length > 20) {
-      console.log('✅ PDF text extraction successful');
-      return extractedText.trim();
-    } else {
-      console.log('❌ PDF text extraction failed - no meaningful text found');
-      console.log('Available text:', pdfString.substring(0, 1000));
-      throw new Error('No meaningful text found in PDF');
-    }
+    // Return null to indicate that OCR should be used instead
+    return null;
     
   } catch (error) {
     console.error('PDF text extraction error:', error);
-    throw error;
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
+    
+    // Return null to fall back to OCR
+    return null;
   }
 }
 
@@ -289,10 +233,12 @@ function extractExpirationDate(text: string) {
   
   // Enhanced Venezuelan RIF patterns for better accuracy
   const venezuelanPatterns = [
-    // FECHA DE VENCIMIENTO pattern (most common in Venezuelan RIF)
-    /(?:FECHA\s+DE\s+VENCIMIENTO|FECHA\s+VENCIMIENTO)[:\s]*(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{4})/i,
-    // FECHA DE VENCIMIENTO with different spacing
-    /(?:FECHA\s+DE\s+VENCIMIENTO|FECHA\s+VENCIMIENTO)[:\s]*(\d{1,2}\s*[\/\-\.]\s*\d{1,2}\s*[\/\-\.]\s*\d{4})/i,
+    // FECHA DE/OE VENCIMIENTO pattern (accepts '/', '-', '.', or ',' before year)
+    /(?:FECHA\s+(?:DE|OE)\s+VENCIMIENTO|FECHA\s+VENCIMIENTO)[:\s]*(\d{1,2}[\/\-\.,]\d{1,2}[\/\-\.,]\d{4})/i,
+    // FECHA DE/OE VENCIMIENTO with flexible spacing and optional comma
+    /(?:FECHA\s+(?:DE|OE)\s+VENCIMIENTO|FECHA\s+VENCIMIENTO)[:\s]*(\d{1,2}\s*[\/\-\.,]\s*\d{1,2}\s*[\/\-\.,]\s*\d{4})/i,
+    // Label and date possibly separated by noise/newline (tolerate dashes/underscores)
+    /FECHA\s+(?:DE|OE)\s+VENCIMIENTO[\s_\-:]*([\s\S]{0,30}?)(\d{1,2}[\/\-\.,]\d{1,2}[\/\-\.,]\d{4})/i,
     // Other Venezuelan patterns with flexible spacing
     /(?:VENCIMIENTO|EXPIRACION|EXPIRACIÓN|VENCE|VIGENCIA)[:\s]*(\d{1,2}\s*[\/\-\.]\s*\d{1,2}\s*[\/\-\.]\s*\d{4})/i,
     // Look for dates after RIF-related keywords
@@ -337,7 +283,8 @@ function extractExpirationDate(text: string) {
     console.log(`Pattern ${i + 1} matches:`, matches);
     
     if (matches && matches.length > 0) {
-      const dateStr = matches[1] || matches[0];
+      // If we used the noisy pattern, date may be in capture group 2
+      const dateStr = matches[2] || matches[1] || matches[0];
       console.log(`Found potential date string: "${dateStr}"`);
       const date = parseVenezuelanDate(dateStr);
       console.log(`Parsed date:`, date);
@@ -412,17 +359,17 @@ function parseVenezuelanDate(dateStr: string) {
     return null;
   }
   
-  // Clean the date string more aggressively
+  // Clean the date string more aggressively (allow comma as separator too)
   let cleanDate = dateStr.trim();
   
-  // Remove common OCR artifacts
-  cleanDate = cleanDate.replace(/[^\d\/\-\.]/g, '');
+  // Remove common OCR artifacts but keep separators including comma
+  cleanDate = cleanDate.replace(/[^\d\/\-\.,]/g, '');
   cleanDate = cleanDate.replace(/\s+/g, ''); // Remove all spaces
   
   console.log(`Cleaned date string: "${cleanDate}"`);
   
-  // Try different separators
-  const separators = ['/', '-', '.'];
+  // Try different separators (also handle comma variants like 21/06,2026)
+  const separators = ['/', '-', '.', ','];
   
   for (const sep of separators) {
     console.log(`Trying separator: "${sep}"`);
@@ -519,10 +466,12 @@ function isRIFExpired(expirationDate: Date) {
   console.log('=== CHECKING RIF EXPIRATION ===');
   
   const today = new Date();
-  today.setHours(0, 0, 0, 0); // Reset time to start of day
+  // Normalize to local start of day but avoid timezone edge by using UTC midnight
+  today.setUTCHours(0, 0, 0, 0);
   
   const expDate = new Date(expirationDate);
-  expDate.setHours(0, 0, 0, 0); // Reset time to start of day
+  // Normalize to UTC midnight as well
+  expDate.setUTCHours(0, 0, 0, 0);
   
   console.log('Today (normalized):', today.toISOString());
   console.log('Expiration date (normalized):', expDate.toISOString());
