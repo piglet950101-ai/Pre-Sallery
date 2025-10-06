@@ -317,7 +317,7 @@ const EmployeeDashboard = () => {
         });
         
         // Debug: Log employee approval status
-        console.log('Employee approval status:', {
+        /* logs removed */ ({
           is_approved: employeeData.is_approved,
           is_verified: employeeData.is_verified,
           is_active: employeeData.is_active
@@ -416,7 +416,7 @@ const EmployeeDashboard = () => {
           { id: '13', name: 'Fondo Común', code: 'FONDOCOMUN' }
         ];
         
-        console.log("Using hardcoded banks:", hardcodedBanks);
+        
         setBanks(hardcodedBanks);
         
         // Try to fetch from database as well (for future use)
@@ -428,11 +428,11 @@ const EmployeeDashboard = () => {
             .order("name", { ascending: true });
 
           if (!banksError && banksData && banksData.length > 0) {
-            console.log("Fetched banks from database:", banksData);
+            
             setBanks(banksData);
           }
         } catch (dbError) {
-          console.log("Database not available, using hardcoded banks:", dbError);
+          
         }
         
       } catch (error) {
@@ -455,7 +455,7 @@ const EmployeeDashboard = () => {
 
   // Debug: Log banks state changes
   useEffect(() => {
-    console.log("Banks state updated:", banks);
+    
   }, [banks]);
 
   const refreshData = async () => {
@@ -1116,7 +1116,7 @@ const EmployeeDashboard = () => {
   const isEmployeeApproved = employee?.is_approved === true;
 
   // Debug: Log gating decision
-  console.log('Employee dashboard gating:', {
+  /* logs removed */ ({
     justSubmittedKyc,
     isCompanyApproved,
     isEmployeeApproved,
@@ -1845,7 +1845,7 @@ const EmployeeDashboard = () => {
                       <Select
                         value={paymentInfoData.bank_name}
                         onValueChange={(value) => {
-                          console.log("Bank selected:", value);
+                          
                           setPaymentInfoData(prev => ({ ...prev, bank_name: value }));
                           clearFieldError('bank_name');
                         }}
@@ -2020,7 +2020,7 @@ const EmployeeDashboard = () => {
                       <Select
                         value={paymentInfoData.pagomovil_bank_name}
                         onValueChange={(value) => {
-                          console.log("PagoMóvil bank selected:", value);
+                          
                           setPaymentInfoData(prev => ({ ...prev, pagomovil_bank_name: value }));
                           clearFieldError('pagomovil_bank_name');
                         }}

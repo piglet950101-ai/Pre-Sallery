@@ -2,6 +2,15 @@
 // deno-lint-ignore-file
 // @ts-nocheck
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
+
+// Silence logs in production
+try {
+  const disableLogs = true;
+  if (disableLogs) {
+    // console.log disabled intentionally
+    console.log = () => {};
+  }
+} catch (_) {}
 // Use web-based OCR instead of Tesseract.js for Edge Functions compatibility
 
 function cors() {
@@ -14,42 +23,33 @@ function cors() {
 
 // Process image/PDF with web-based OCR for Edge Functions compatibility
 async function extractTextFromFile(fileContent: string, fileType: string) {
-  console.log('=== RIF WEB OCR EXTRACTION START ===');
-  console.log('File type:', fileType);
-  console.log('Content length:', fileContent.length);
-  console.log('Base64 preview:', fileContent.substring(0, 100) + '...');
+  
   
   try {
     // For PDF files, try direct text extraction first
     if (fileType === 'application/pdf') {
-      console.log('Processing PDF file...');
+      
       try {
         const buffer = Uint8Array.from(atob(fileContent), c => c.charCodeAt(0));
         const pdfText = await extractTextFromPDF(buffer);
         if (pdfText && pdfText.trim().length > 10) {
-          console.log('✅ PDF text extraction successful');
+          
           return pdfText.trim();
         } else {
-          console.log('PDF direct text extraction not available - using OCR instead');
+          
         }
       } catch (pdfError) {
-        console.log('PDF text extraction failed:', pdfError.message);
-        console.log('Falling back to OCR processing');
+        
       }
     }
     
     // Use web-based OCR for images and PDFs
-    console.log('Using web-based OCR...');
+    
     const ocrText = await performWebOCR(fileContent, fileType);
     
     if (ocrText && ocrText.trim().length > 0) {
-      console.log('✅ Web OCR extraction successful');
-      console.log('Extracted text length:', ocrText.length);
-      console.log('Extracted text preview (first 500 chars):');
-      console.log(ocrText.substring(0, 500));
       return ocrText.trim();
       } else {
-      console.log('❌ Web OCR extraction failed - no text extracted');
       throw new Error('Web OCR extraction failed - no text extracted');
     }
     
@@ -68,17 +68,14 @@ async function extractTextFromFile(fileContent: string, fileType: string) {
 
 // Web-based OCR using OCR.space API (free and reliable)
 async function performWebOCR(fileContent: string, fileType: string) {
-  console.log('=== WEB OCR START ===');
-  console.log('Using OCR.space API for real text extraction');
+  
   
   try {
     // OCR.space API - free tier allows 25,000 requests per month
     const apiKey = 'helloworld'; // Free API key for testing
     const apiUrl = 'https://api.ocr.space/parse/image';
     
-    console.log('Sending request to OCR.space API...');
-  console.log('File type:', fileType);
-  console.log('Content length:', fileContent.length);
+    
     
     // Prepare form data for OCR.space API
     const formData = new FormData();
@@ -94,23 +91,20 @@ async function performWebOCR(fileContent: string, fileType: string) {
       formData.append('base64Image', `data:${fileType};base64,${fileContent}`);
     }
     
-    console.log('Form data prepared, sending request...');
+    
     
     const response = await fetch(apiUrl, {
     method: 'POST',
       body: formData
     });
     
-    console.log('OCR.space API response status:', response.status);
+    
   
   if (!response.ok) {
       throw new Error(`OCR.space API error: ${response.status} ${response.statusText}`);
   }
   
   const result = await response.json();
-    console.log('OCR.space API response received');
-    console.log('API response structure:', Object.keys(result));
-    console.log('Full API response:', JSON.stringify(result, null, 2));
     
     // Check for API errors
     if (result.IsErroredOnProcessing) {
@@ -120,20 +114,13 @@ async function performWebOCR(fileContent: string, fileType: string) {
   
   if (result.ParsedResults && result.ParsedResults.length > 0) {
     const extractedText = result.ParsedResults[0].ParsedText;
-      console.log('✅ OCR.space extraction successful');
-      console.log('Extracted text length:', extractedText.length);
-      console.log('Extracted text preview (first 500 chars):');
-      console.log(extractedText.substring(0, 500));
       
       if (extractedText && extractedText.trim().length > 0) {
         return extractedText.trim();
   } else {
-        console.log('OCR.space returned empty text');
         throw new Error('OCR.space returned empty text');
       }
     } else {
-      console.log('OCR.space API response:', result);
-      console.log('No parsed results found in response');
       throw new Error('OCR.space API did not return parsed results');
     }
     
@@ -146,7 +133,7 @@ async function performWebOCR(fileContent: string, fileType: string) {
     });
     
     // Fallback to mock text if OCR.space fails
-    console.log('Falling back to mock text due to OCR.space failure');
+    
     const mockText = `
       REPUBLICA BOLIVARIANA DE VENEZUELA
       SERVICIO NACIONAL INTEGRADO DE ADMINISTRACION TRIBUTARIA
@@ -164,21 +151,18 @@ async function performWebOCR(fileContent: string, fileType: string) {
       GERENCIA REGIONAL DE TRIBUTOS INTERNOS REGIÓN CAPITAL
     `;
     
-    console.log('Using fallback mock text');
     return mockText.trim();
   }
 }
 
 // Extract text from PDF using a simple approach
 async function extractTextFromPDF(buffer: Uint8Array) {
-  console.log('=== PDF TEXT EXTRACTION START ===');
-  console.log('PDF buffer size:', buffer.length, 'bytes');
+  
   
   try {
     // For PDFs, we'll skip direct text extraction since PDFs are binary
     // and let OCR.space handle the PDF processing
-    console.log('PDF detected - skipping direct text extraction');
-    console.log('PDF will be processed by OCR.space API instead');
+    
     
     // Return null to indicate that OCR should be used instead
     return null;
@@ -198,12 +182,12 @@ async function extractTextFromPDF(buffer: Uint8Array) {
 
 // Alternative OCR method using different web service
 async function tryAlternativeOCR(fileContent: string, fileType: string) {
-  console.log('=== ALTERNATIVE OCR START ===');
+  
   
   try {
     // For now, return mock text
     // In production, you could use Azure Computer Vision, AWS Textract, or other services
-    console.log('Using alternative OCR service');
+    
     
     const mockText = `
       REPUBLICA BOLIVARIANA DE VENEZUELA
@@ -214,8 +198,7 @@ async function tryAlternativeOCR(fileContent: string, fileType: string) {
       VIGENCIA: 2023-2025
     `;
     
-    console.log('Alternative OCR completed');
-    console.log('Alternative text length:', mockText.length);
+    
     
     return mockText.trim();
     
@@ -227,9 +210,7 @@ async function tryAlternativeOCR(fileContent: string, fileType: string) {
 
 // Enhanced date extraction patterns for Venezuelan RIF documents
 function extractExpirationDate(text: string) {
-  console.log('=== DATE EXTRACTION START ===');
-  console.log('Input text length:', text.length);
-  console.log('Text preview (first 300 chars):', text.substring(0, 300) + '...');
+  
   
   // Enhanced Venezuelan RIF patterns for better accuracy
   const venezuelanPatterns = [
@@ -274,88 +255,69 @@ function extractExpirationDate(text: string) {
     /(\d{1,2}\s*[\/\-\.]\s*\d{1,2}\s*[\/\-\.]\s*\d{4})/g
   ];
 
-  console.log('Testing Venezuelan RIF patterns...');
+  
   // Try Venezuelan patterns first
   for (let i = 0; i < venezuelanPatterns.length; i++) {
     const pattern = venezuelanPatterns[i];
-    console.log(`Testing Venezuelan pattern ${i + 1}:`, pattern.toString());
     const matches = text.match(pattern);
-    console.log(`Pattern ${i + 1} matches:`, matches);
     
     if (matches && matches.length > 0) {
       // If we used the noisy pattern, date may be in capture group 2
       const dateStr = matches[2] || matches[1] || matches[0];
-      console.log(`Found potential date string: "${dateStr}"`);
       const date = parseVenezuelanDate(dateStr);
-      console.log(`Parsed date:`, date);
       
       if (date && isValidDate(date)) {
-        console.log('✅ Found valid Venezuelan RIF expiration date:', dateStr, '->', date);
-        console.log('=== DATE EXTRACTION SUCCESS ===');
         return date;
       } else {
-        console.log('❌ Invalid date parsed from:', dateStr);
+        
       }
     }
   }
 
-  console.log('Venezuelan patterns failed, trying Spanish patterns...');
+  
   // Try Spanish patterns as fallback
   for (let i = 0; i < spanishPatterns.length; i++) {
     const pattern = spanishPatterns[i];
-    console.log(`Testing Spanish pattern ${i + 1}:`, pattern.toString());
     const matches = text.match(pattern);
-    console.log(`Spanish pattern ${i + 1} matches:`, matches);
     
     if (matches && matches.length > 0) {
       const dateStr = matches[1] || matches[0];
-      console.log(`Found potential date string: "${dateStr}"`);
       const date = parseVenezuelanDate(dateStr);
-      console.log(`Parsed date:`, date);
       
       if (date && isValidDate(date)) {
-        console.log('✅ Found valid Spanish document expiration date:', dateStr, '->', date);
-        console.log('=== DATE EXTRACTION SUCCESS ===');
         return date;
       } else {
-        console.log('❌ Invalid date parsed from:', dateStr);
+        
       }
     }
   }
 
-  console.log('Pattern matching failed, trying general date extraction...');
+  
   // Last resort: look for any date pattern
   const allDates = text.match(/(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{4})/g);
-  console.log('All date patterns found:', allDates);
+  
   
   if (allDates) {
     for (let i = 0; i < allDates.length; i++) {
       const dateStr = allDates[i];
-      console.log(`Testing general date pattern ${i + 1}: "${dateStr}"`);
       const date = parseVenezuelanDate(dateStr);
-      console.log(`Parsed date:`, date);
       
       if (date && isValidDate(date)) {
-        console.log('✅ Found valid general date pattern:', dateStr, '->', date);
-        console.log('=== DATE EXTRACTION SUCCESS ===');
         return date;
       } else {
-        console.log('❌ Invalid date parsed from:', dateStr);
+        
       }
     }
   }
 
-  console.log('❌ No valid expiration date found in text');
-  console.log('=== DATE EXTRACTION FAILED ===');
   return null;
 }
 
 // Parse Venezuelan date formats (DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY)
 function parseVenezuelanDate(dateStr: string) {
-  console.log(`=== PARSING DATE: "${dateStr}" ===`);
+  
   
   if (!dateStr) {
-    console.log('❌ Empty date string provided');
     return null;
   }
   
@@ -366,64 +328,56 @@ function parseVenezuelanDate(dateStr: string) {
   cleanDate = cleanDate.replace(/[^\d\/\-\.,]/g, '');
   cleanDate = cleanDate.replace(/\s+/g, ''); // Remove all spaces
   
-  console.log(`Cleaned date string: "${cleanDate}"`);
+  
   
   // Try different separators (also handle comma variants like 21/06,2026)
   const separators = ['/', '-', '.', ','];
   
   for (const sep of separators) {
-    console.log(`Trying separator: "${sep}"`);
     const parts = cleanDate.split(sep);
-    console.log(`Split parts:`, parts);
     
     if (parts.length === 3) {
       const day = parseInt(parts[0], 10);
       const month = parseInt(parts[1], 10);
       const year = parseInt(parts[2], 10);
       
-      console.log(`Parsed components: day=${day}, month=${month}, year=${year}`);
+      
       
       // More flexible validation
       const dayValid = day >= 1 && day <= 31;
       const monthValid = month >= 1 && month <= 12;
       const yearValid = year >= 2000 && year <= 2100; // More realistic year range
       
-      console.log(`Validation: day=${dayValid}, month=${monthValid}, year=${yearValid}`);
+      
       
       if (dayValid && monthValid && yearValid) {
         const date = new Date(year, month - 1, day);
-        console.log(`Created date object:`, date);
-        console.log(`Date ISO string:`, date.toISOString());
         
         if (isValidDate(date)) {
-          console.log('✅ Valid date created successfully');
           return date;
         } else {
-          console.log('❌ Invalid date object created');
+          
         }
       } else {
-        console.log('❌ Date components out of valid range');
+        
       }
     } else {
-      console.log(`❌ Invalid parts count: ${parts.length} (expected 3)`);
+      
     }
   }
   
   // Try to handle common OCR mistakes
-  console.log('Trying to fix common OCR mistakes...');
   const fixedDate = fixCommonOCRMistakes(cleanDate);
   if (fixedDate && fixedDate !== cleanDate) {
-    console.log(`Fixed date string: "${fixedDate}"`);
     return parseVenezuelanDate(fixedDate);
   }
   
-  console.log('❌ No valid date format found');
   return null;
 }
 
 // Fix common OCR mistakes in date strings
 function fixCommonOCRMistakes(dateStr: string) {
-  console.log(`=== FIXING OCR MISTAKES: "${dateStr}" ===`);
+  
   
   let fixed = dateStr;
   
@@ -439,20 +393,16 @@ function fixCommonOCRMistakes(dateStr: string) {
   for (const fix of fixes) {
     const before = fixed;
     fixed = fixed.replace(fix.from, fix.to);
-    if (before !== fixed) {
-      console.log(`Applied fix: ${fix.from} -> ${fix.to}, result: "${fixed}"`);
-    }
+    
   }
   
   // Ensure we have exactly 8 digits (DDMMYYYY format)
   const digits = fixed.replace(/\D/g, '');
   if (digits.length === 8) {
     const formatted = `${digits.slice(0,2)}/${digits.slice(2,4)}/${digits.slice(4,8)}`;
-    console.log(`Formatted 8-digit date: "${formatted}"`);
     return formatted;
   }
   
-  console.log(`No fixes applied, original: "${dateStr}"`);
   return dateStr;
 }
 
@@ -463,8 +413,6 @@ function isValidDate(date: Date) {
 
 // Check if RIF is expired
 function isRIFExpired(expirationDate: Date) {
-  console.log('=== CHECKING RIF EXPIRATION ===');
-  
   const today = new Date();
   // Normalize to local start of day but avoid timezone edge by using UTC midnight
   today.setUTCHours(0, 0, 0, 0);
@@ -473,24 +421,15 @@ function isRIFExpired(expirationDate: Date) {
   // Normalize to UTC midnight as well
   expDate.setUTCHours(0, 0, 0, 0);
   
-  console.log('Today (normalized):', today.toISOString());
-  console.log('Expiration date (normalized):', expDate.toISOString());
-  console.log('Is expired (expDate < today):', expDate < today);
-  
   const isExpired = expDate < today;
-  console.log('Final expiration status:', isExpired);
   
   return isExpired;
 }
 
 serve(async (req) => {
-  console.log('=== EDGE FUNCTION START ===');
-  console.log('Request method:', req.method);
-  console.log('Request URL:', req.url);
-  console.log('Request headers:', Object.fromEntries(req.headers.entries()));
+  
   
   if (req.method === "OPTIONS") {
-    console.log('Handling OPTIONS request');
     return new Response(null, {
     status: 204,
     headers: cors()
@@ -498,11 +437,10 @@ serve(async (req) => {
   }
   
   try {
-    console.log('Processing request...');
+    
     
     // Simple test endpoint
     if (req.url.includes('/test')) {
-      console.log('Test endpoint called');
       return new Response(JSON.stringify({
         success: true,
         message: "Edge Function is working",
@@ -519,7 +457,6 @@ serve(async (req) => {
     let requestBody;
     try {
       requestBody = await req.json();
-      console.log('Request body parsed successfully');
     } catch (jsonError) {
       console.error('Failed to parse request body:', jsonError);
       return new Response(JSON.stringify({
@@ -538,17 +475,10 @@ serve(async (req) => {
     const { document_text, document_url, file_content, file_type } = requestBody;
     
     const requestId = Math.random().toString(36).substring(7);
-    console.log(`=== REQUEST RECEIVED [${requestId}] ===`);
-    console.log('Has document_text:', !!document_text);
-    console.log('Has document_url:', !!document_url);
-    console.log('Has file_content:', !!file_content);
-    console.log('Has file_type:', file_type);
-    console.log('File content length:', file_content ? file_content.length : 0);
-    console.log('Request timestamp:', new Date().toISOString());
+    
     
     // Validate required parameters
     if (!document_text && !document_url && !file_content) {
-      console.log('❌ No valid input provided');
       return new Response(JSON.stringify({
         success: false,
         error: "Missing required parameters",
@@ -564,7 +494,6 @@ serve(async (req) => {
     
     // If we have actual document text, use it
     if (document_text) {
-      console.log('Processing document_text...');
       const expirationDate = extractExpirationDate(document_text);
       
       if (!expirationDate) {
@@ -603,20 +532,15 @@ serve(async (req) => {
     
     // If we have file content (base64), process it with Tesseract.js
     if (file_content && file_type) {
-      console.log(`=== PROCESSING UPLOADED FILE [${requestId}] ===`);
-      console.log('File type:', file_type);
-      console.log('File content length:', file_content.length);
-      console.log('Base64 preview:', file_content.substring(0, 100) + '...');
-      console.log('Base64 ends with:', file_content.substring(file_content.length - 50));
+      
       
       // Create a simple hash of the file content to track uniqueness
       const fileHash = file_content.substring(0, 20) + '...' + file_content.substring(file_content.length - 20);
-      console.log('File content hash:', fileHash);
+      
       
       try {
         // Validate file type first
         if (!file_type.startsWith('image/') && file_type !== 'application/pdf') {
-          console.log('❌ Invalid file type:', file_type);
           return new Response(JSON.stringify({
             success: false,
             error: "Invalid file type",
@@ -630,19 +554,14 @@ serve(async (req) => {
           });
         }
         
-        console.log('✅ File type validation passed');
+        
         
         // Extract text using Tesseract.js OCR
-        console.log('=== STARTING OCR PROCESSING ===');
-        console.log('File content length:', file_content.length);
-        console.log('File type:', file_type);
-        console.log('Base64 preview:', file_content.substring(0, 100) + '...');
+        
         
         let extractedText;
         try {
           extractedText = await extractTextFromFile(file_content, file_type);
-          console.log('OCR extraction completed, text length:', extractedText ? extractedText.length : 0);
-          console.log('=== OCR PROCESSING COMPLETED ===');
         } catch (ocrError) {
           console.error('OCR extraction failed:', ocrError);
           console.error('OCR error details:', {
@@ -670,15 +589,11 @@ serve(async (req) => {
         }
         
         // Extract expiration date from OCR text
-        console.log('=== STARTING DATE EXTRACTION ===');
-        console.log('Extracted text for date extraction:', extractedText ? extractedText.substring(0, 500) + '...' : 'null');
-        console.log('Extracted text length for date extraction:', extractedText ? extractedText.length : 0);
+        
         
         let expirationDate;
         try {
           expirationDate = extractExpirationDate(extractedText);
-          console.log('Date extraction result:', expirationDate);
-          console.log('=== DATE EXTRACTION COMPLETED ===');
         } catch (dateError) {
           console.error('Date extraction failed:', dateError);
           console.error('Date error details:', {
@@ -704,8 +619,6 @@ serve(async (req) => {
         }
         
         if (!expirationDate) {
-          console.log('❌ No expiration date found in document');
-          console.log('=== RIF VALIDATION FAILED - NO DATE ===');
           return new Response(JSON.stringify({
             success: false,
             error: "No expiration date found in document",
@@ -719,18 +632,12 @@ serve(async (req) => {
           });
         }
         
-        console.log('✅ Expiration date found:', expirationDate);
-        console.log('Date ISO string:', expirationDate.toISOString());
-        console.log('Date local string:', expirationDate.toLocaleDateString('es-VE'));
+        
         
         const isExpired = isRIFExpired(expirationDate);
         const daysUntilExpiration = Math.ceil((expirationDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
         
-        console.log('=== EXPIRATION CHECK ===');
-        console.log('Is expired:', isExpired);
-        console.log('Days until expiration:', daysUntilExpiration);
-        console.log('Current date:', new Date().toISOString());
-        console.log('Expiration date:', expirationDate.toISOString());
+        
         
         const response = {
           success: true,
@@ -746,8 +653,7 @@ serve(async (req) => {
           processing_timestamp: new Date().toISOString()
         };
         
-        console.log('=== RIF VALIDATION SUCCESS ===');
-        console.log('Response data:', JSON.stringify(response, null, 2));
+        
         
         return new Response(JSON.stringify(response), {
           status: 200,
@@ -791,7 +697,6 @@ serve(async (req) => {
     }
     
     // If we reach here, no valid input was processed
-    console.log('❌ No valid input was processed');
     return new Response(JSON.stringify({
       success: false,
       error: "No valid input processed",

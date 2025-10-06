@@ -18,7 +18,7 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    console.log('Starting real-time exchange rate update...');
+    
 
     const today = new Date().toISOString().slice(0, 10);
     const now = new Date();
@@ -36,7 +36,6 @@ serve(async (req) => {
       const oneHourMs = 60 * 60 * 1000;
       
       if (manualRateAge < oneHourMs) {
-        console.log('Recent manual rate exists, skipping automatic update');
         return new Response(JSON.stringify({ 
           success: true,
           message: 'Recent manual rate exists, skipping update',
@@ -50,28 +49,35 @@ serve(async (req) => {
       }
     }
 
-    // Fetch from Fawaz Ahmed Currency API with fallback
-    let apiResponse;
-    let apiData;
-    
-    // Primary URL (jsdelivr CDN)
+    // Fetch from BCV API only; skip update if it fails
+    let rate: number | null = null;
+    const source = 'bcv-api-realtime';
     try {
-      apiResponse = await fetch('https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json');
-      apiData = await apiResponse.json();
-    } catch (primaryError) {
-      console.log('Primary API failed, trying fallback...', primaryError);
-      // Fallback URL (Cloudflare)
-      apiResponse = await fetch('https://latest.currency-api.pages.dev/v1/currencies/usd.json');
-      apiData = await apiResponse.json();
+      const apiResponse = await fetch('https://bcv-api.rafnixg.dev/rates/', { headers: { 'accept': 'application/json' } });
+      const apiData: any = await apiResponse.json();
+      const parsedRate = (
+        typeof apiData?.dollar === 'number' ? apiData.dollar :
+        typeof apiData?.rate === 'number' ? apiData.rate :
+        typeof apiData?.usd_to_ves === 'number' ? apiData.usd_to_ves :
+        typeof apiData?.usd?.ves === 'number' ? apiData.usd.ves :
+        typeof apiData?.usd?.value === 'number' ? apiData.usd.value :
+        null
+      );
+      if (parsedRate != null) {
+        rate = Number(parsedRate);
+      } else {
+        throw new Error(`BCV API response invalid: ${JSON.stringify(apiData)}`);
+      }
+    } catch (bcvError) {
+      return new Response(JSON.stringify({
+        success: true,
+        skipped: true,
+        message: 'Skipped update: BCV API unavailable or invalid response',
+        error: String(bcvError)
+      }), { status: 200, headers: { "Content-Type": "application/json", ...cors() } });
     }
     
-    if (!apiData?.usd?.ves) {
-      throw new Error(`API response invalid: ${JSON.stringify(apiData)}`);
-    }
-
-    const rate = Number(apiData.usd.ves);
     
-    console.log(`Fetched USD/VES rate: ${rate} for date: ${today}`);
 
     // Check if rate has changed significantly (more than 0.1% from existing rate)
     let significantChange = true;
@@ -92,18 +98,18 @@ serve(async (req) => {
       .insert({ 
         as_of_date: today, 
         usd_to_ves: rate, 
-        source: 'fawaz-currency-api-realtime' 
+        source: source 
       });
 
     if (error) {
       throw error;
     }
 
-    console.log(`Successfully updated exchange rate: ${rate} VES per USD`);
+    
 
     // Create notification for significant changes
     if (significantChange && existingRate) {
-      const changePercent = ((rate - existingRate.usd_to_ves) / existingRate.usd_to_ves * 100).toFixed(2);
+      const changePercent = ((rate - existingRate.usd_to_ves) / existingRate.usd_to_ves * 100).toFixed(5);
       const direction = rate > existingRate.usd_to_ves ? 'increased' : 'decreased';
       
       try {
@@ -131,11 +137,11 @@ serve(async (req) => {
       success: true, 
       rate, 
       asOfDate: today,
-      source: 'fawaz-currency-api-realtime',
+      source: source,
       message: 'Real-time exchange rate updated successfully',
       previousRate: existingRate?.usd_to_ves || null,
       significantChange,
-      changePercent: existingRate ? ((rate - existingRate.usd_to_ves) / existingRate.usd_to_ves * 100).toFixed(2) : null
+      changePercent: existingRate ? ((rate - existingRate.usd_to_ves) / existingRate.usd_to_ves * 100).toFixed(5) : null
     }), { 
       status: 200, 
       headers: { "Content-Type": "application/json", ...cors() } 

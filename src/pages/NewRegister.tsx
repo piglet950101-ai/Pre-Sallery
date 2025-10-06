@@ -33,7 +33,7 @@ const Register = () => {
   const handleKeyPress = (event: React.KeyboardEvent) => {
     if (event.key === 'Enter') {
       event.preventDefault();
-      console.log("Active tab:", activeTab);
+      
       
       if (activeTab === 'company') {
         signUpCompany();

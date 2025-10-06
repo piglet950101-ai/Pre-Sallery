@@ -80,7 +80,7 @@ export const ExchangeRateAlert: React.FC = () => {
           return;
         }
       } catch (functionError) {
-        console.log('Real-time update function not available, trying hourly update...');
+        
       }
       
       // Fallback to hourly update function
@@ -92,7 +92,7 @@ export const ExchangeRateAlert: React.FC = () => {
           return;
         }
       } catch (functionError) {
-        console.log('Hourly update function not available, trying manual update...');
+        
       }
       
       // Fallback: Try the main update function
@@ -174,7 +174,7 @@ export const ExchangeRateAlert: React.FC = () => {
             <p className="text-sm text-gray-700 mt-1">{message}</p>
             {status.rate && (
               <p className="text-xs text-gray-600 mt-2">
-                Current rate: 1 USD = {Number(status.rate).toFixed(6)} VES
+                Current rate: 1 USD = {String(status.rate)} VES
                 {status.source && ` (${status.source})`}
               </p>
             )}

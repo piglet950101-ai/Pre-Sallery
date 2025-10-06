@@ -50,7 +50,7 @@ const Register = () => {
   const handleKeyPress = (event: React.KeyboardEvent) => {
     if (event.key === 'Enter') {
       event.preventDefault();
-      console.log("Active tab:", activeTab);
+      
       
       if (activeTab === 'company') {
         signUpCompany();
@@ -109,11 +109,7 @@ const Register = () => {
         try {
           const base64Content = reader.result as string;
           
-          console.log('=== RIF VALIDATION CLIENT SIDE ===');
-          console.log('File name:', file.name);
-          console.log('File size:', file.size, 'bytes');
-          console.log('File type:', file.type);
-          console.log('Base64 length:', base64Content.length);
+          
           
           const { data, error } = await supabase.functions.invoke('validate-rif-expiration', {
             body: {
@@ -124,9 +120,7 @@ const Register = () => {
             }
           });
           
-          console.log('=== RIF VALIDATION RESPONSE ===');
-          console.log('Error:', error);
-          console.log('Data:', data);
+          
           
           if (error) {
             console.error('RIF validation error:', error);
@@ -134,17 +128,10 @@ const Register = () => {
           }
           
           // Log extracted data
-          console.log('=== EXTRACTED RIF DATA ===');
-          console.log('Success:', data.success);
-          console.log('Is expired:', data.is_expired);
-          console.log('Expiration date:', data.expiration_date);
-          console.log('Days until expiration:', data.days_until_expiration);
-          console.log('Extracted text preview:', data.extracted_text);
-          console.log('Message:', data.message);
-          console.log('=== END EXTRACTED DATA ===');
+          
           
           if (data.is_expired) {
-            console.log('❌ RIF document is expired');
+            
             toast({
               title: t('registration.rifExpired'),
               description: t('registration.rifExpiredDesc'),
@@ -153,7 +140,7 @@ const Register = () => {
             return;
           }
           
-          console.log('✅ RIF document is valid');
+          
           toast({
             title: t('common.success'),
             description: data.message,
@@ -295,15 +282,6 @@ const Register = () => {
         }
 
         // Create company record with rif_image_url
-        console.log('Creating company record with data:', {
-          authUserId: data.user.id,
-          name: companyName,
-          rif: companyRif,
-          address: companyAddress,
-          phone: companyPhone,
-          email: companyEmail,
-          rif_image_url: rifImageUrl
-        });
         
         const { data: companyData, error: companyError } = await ensureCompanyRecord(data.user.id, {
           name: companyName,
@@ -334,7 +312,7 @@ const Register = () => {
             });
           }
         } else {
-          console.log('Company record created successfully:', companyData);
+          
         }
       }
       toast({ title: t('register.successTitle') });

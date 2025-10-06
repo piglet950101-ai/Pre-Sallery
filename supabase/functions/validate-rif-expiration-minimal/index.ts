@@ -10,7 +10,7 @@ function cors() {
 }
 
 serve(async (req) => {
-  console.log('=== MINIMAL RIF FUNCTION START ===');
+  
   
   if (req.method === "OPTIONS") {
     return new Response(null, {
@@ -21,7 +21,6 @@ serve(async (req) => {
   
   try {
     const body = await req.json();
-    console.log('Request body received:', Object.keys(body));
     
     // Simple test response
     return new Response(JSON.stringify({
