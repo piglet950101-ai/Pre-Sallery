@@ -74,12 +74,6 @@ const Landing = () => {
               </div>
 
               <div className="flex flex-col sm:flex-row gap-4">
-                <Button size="lg" variant="hero" className="text-lg px-8 py-6 group" asChild>
-                  <Link to="/register">
-                    {t('landing.startFree30')}
-                    <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
-                  </Link>
-                </Button>
                 <Button size="lg" variant="outline" className="text-lg px-8 py-6" asChild>
                   <Link to="/demo">
                     <Play className="mr-2 h-5 w-5" />

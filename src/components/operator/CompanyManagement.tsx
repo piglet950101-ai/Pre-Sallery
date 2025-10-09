@@ -274,12 +274,12 @@ const CompanyManagement: React.FC = () => {
 
   // Send company revocation email
   const sendCompanyRevocationEmail = async (company: Company, reason: string) => {
-    console.log('🔴 Attempting to send revocation email for:', company.name, 'Reason:', reason);
+    
     try {
       // Try to send real email via Edge Function if available
       try {
         const toEmail = company.email || (company as any).auth_email || '';
-        console.log('📧 Sending revocation email to:', toEmail);
+        
         if (toEmail) {
           const response = await supabase.functions.invoke('send-company-revoked-email', {
             body: {
@@ -290,7 +290,7 @@ const CompanyManagement: React.FC = () => {
               message: t('email.companyRevoked.message')
             }
           });
-          console.log('📧 Revocation email response:', response);
+          
         }
       } catch (fnErr) {
         console.warn('❌ Revocation email function failed:', fnErr);
@@ -369,9 +369,9 @@ const CompanyManagement: React.FC = () => {
 
       // Send revocation email if this is a revocation
       if (isRevocation) {
-        console.log('🔄 Processing revocation for company:', company.name);
+        
         await sendCompanyRevocationEmail(company, rejectionReason);
-        console.log('✅ Revocation email sent for:', company.name);
+        
       }
 
       // Update local state

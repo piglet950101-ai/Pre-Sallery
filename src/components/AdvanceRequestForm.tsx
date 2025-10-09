@@ -632,7 +632,7 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
 
               <div className="flex justify-between items-center">
                 <span className="text-sm text-muted-foreground">{language === 'en' ? "Today's exchange rate" : 'Tasa de cambio de hoy'}</span>
-                <span className="text-sm font-medium">{fxRate ? fxRate.toFixed(8) : 'N/A'} VES/USD</span>
+                <span className="text-sm font-medium">{fxRate ? String(fxRate) : 'N/A'} VES/USD</span>
               </div>
 
               <div className="flex justify-between items-center">

@@ -108,7 +108,7 @@ export const ExchangeRateBar: React.FC = () => {
           setCurrentApiRate(response.data.rate);
         }
       } catch (error) {
-        console.log('Could not fetch current API rate:', error);
+        
       }
       setShowEdit(true);
     };
@@ -134,7 +134,7 @@ export const ExchangeRateBar: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 py-2 text-sm flex items-center justify-between gap-4">
         <div className="font-medium">
           {t('fx.usdToVes')}: {state.rate ? (
-            <span className="font-semibold">1 USD = {state.rate.toFixed(2)} VES</span>
+            <span className="font-semibold">1 USD = {String(state.rate)} VES</span>
           ) : state.error ? (
             <span className="text-red-600">{state.error}</span>
           ) : (
@@ -155,7 +155,7 @@ export const ExchangeRateBar: React.FC = () => {
                 />
                 {currentApiRate && (
                   <div className="absolute -bottom-5 left-0 text-xs text-gray-600">
-                    API: {currentApiRate.toFixed(6)}
+                    API: {String(currentApiRate)}
                   </div>
                 )}
               </div>
@@ -175,7 +175,7 @@ export const ExchangeRateBar: React.FC = () => {
                       apiRate = response.data.rate;
                     }
                   } catch (error) {
-                    console.log('Could not fetch API rate for comparison:', error);
+                    
                   }
                   
                   const today = new Date().toISOString().slice(0, 10);
