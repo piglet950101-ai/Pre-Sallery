@@ -27,38 +27,33 @@ serve(async (req) => {
     let source = 'auto';
 
     if (!rate) {
-      // Fetch from Fawaz Ahmed Currency API with fallback
+      // Fetch from BCV API (rafnixg); skip update if it fails
       try {
-        let apiResponse;
-        let apiData;
-        
-        // Primary URL (jsdelivr CDN)
-        try {
-          apiResponse = await fetch('https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json');
-          apiData = await apiResponse.json();
-        } catch (primaryError) {
-          console.log('Primary API failed, trying fallback...', primaryError);
-          // Fallback URL (Cloudflare)
-          apiResponse = await fetch('https://latest.currency-api.pages.dev/v1/currencies/usd.json');
-          apiData = await apiResponse.json();
+        const apiResponse = await fetch('https://bcv-api.rafnixg.dev/rates/', { headers: { 'accept': 'application/json' } });
+        const apiData: any = await apiResponse.json();
+        const parsedRate = (
+          typeof apiData?.dollar === 'number' ? apiData.dollar :
+          typeof apiData?.rate === 'number' ? apiData.rate :
+          typeof apiData?.usd_to_ves === 'number' ? apiData.usd_to_ves :
+          typeof apiData?.usd?.ves === 'number' ? apiData.usd.ves :
+          typeof apiData?.usd?.value === 'number' ? apiData.usd.value :
+          null
+        );
+        if (parsedRate == null) {
+          throw new Error(`BCV API response invalid: ${JSON.stringify(apiData)}`);
         }
-        
-        if (apiData?.usd?.ves) {
-          rate = Number(apiData.usd.ves);
-          source = 'fawaz-currency-api';
-          console.log(`Fetched USD/VES rate: ${rate} from Fawaz Currency API`);
-        } else {
-          throw new Error(`API response invalid: ${JSON.stringify(apiData)}`);
+        rate = Number(parsedRate);
+        source = 'bcv-api';
+        if (typeof apiData?.date === 'string') {
+          asOfDate = apiData.date.slice(0, 10);
         }
-      } catch (fetchError) {
-        console.error('Failed to fetch from Currency API:', fetchError);
-        return new Response(JSON.stringify({ 
-          error: 'Failed to fetch exchange rate from API', 
-          details: String(fetchError) 
-        }), { 
-          status: 500, 
-          headers: { "Content-Type": "application/json", ...cors() } 
-        });
+      } catch (bcvError) {
+        return new Response(JSON.stringify({
+          success: true,
+          skipped: true,
+          message: 'Skipped update: BCV API unavailable or invalid response',
+          error: String(bcvError)
+        }), { status: 200, headers: { "Content-Type": "application/json", ...cors() } });
       }
     } else {
       source = body?.source || 'manual';

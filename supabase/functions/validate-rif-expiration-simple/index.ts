@@ -10,12 +10,9 @@ function cors() {
 }
 
 serve(async (req) => {
-  console.log('=== SIMPLE RIF FUNCTION START ===');
-  console.log('Request method:', req.method);
-  console.log('Request URL:', req.url);
+  
   
   if (req.method === "OPTIONS") {
-    console.log('Handling OPTIONS request');
     return new Response(null, {
       status: 204,
       headers: cors()
@@ -23,11 +20,9 @@ serve(async (req) => {
   }
   
   try {
-    console.log('Processing request...');
     
     // Simple test endpoint
     if (req.url.includes('/test')) {
-      console.log('Test endpoint called');
       return new Response(JSON.stringify({
         success: true,
         message: "Simple RIF Function is working",
@@ -45,7 +40,6 @@ serve(async (req) => {
     let requestBody;
     try {
       requestBody = await req.json();
-      console.log('Request body parsed successfully');
     } catch (jsonError) {
       console.error('Failed to parse request body:', jsonError);
       return new Response(JSON.stringify({
@@ -63,12 +57,7 @@ serve(async (req) => {
     
     const { document_text, document_url, file_content, file_type } = requestBody;
     
-    console.log('=== REQUEST RECEIVED ===');
-    console.log('Has document_text:', !!document_text);
-    console.log('Has document_url:', !!document_url);
-    console.log('Has file_content:', !!file_content);
-    console.log('Has file_type:', file_type);
-    console.log('File content length:', file_content ? file_content.length : 0);
+    
     
     // Simple response for testing
     return new Response(JSON.stringify({

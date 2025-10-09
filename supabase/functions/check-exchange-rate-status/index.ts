@@ -18,7 +18,7 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    console.log('Checking exchange rate status...');
+    
 
     const today = new Date().toISOString().slice(0, 10);
 
@@ -46,7 +46,7 @@ serve(async (req) => {
     const lastUpdate = latestRate?.created_at || null;
     const isStale = !lastUpdate || new Date(lastUpdate) < fourHoursAgo;
 
-    console.log(`Rate status: hasRateToday=${hasRateToday}, isStale=${isStale}, rate=${latestRate?.usd_to_ves}`);
+    
 
     return new Response(JSON.stringify({ 
       success: true,
