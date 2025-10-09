@@ -82,24 +82,15 @@ class ChangeRequestService {
    */
   async createChangeRequest(request: Omit<ChangeRequest, 'id' | 'created_at' | 'updated_at'>): Promise<{ success: boolean; data?: ChangeRequest; error?: string }> {
     try {
-      console.log('=== CREATING CHANGE REQUEST ===');
-      console.log('Field name:', request.field_name);
-      console.log('Employee ID:', request.employee_id);
-      console.log('Requested value:', request.requested_value);
-      console.log('Current value:', request.current_value);
-      console.log('Reason:', request.reason);
-      console.log('================================');
       
       // Validate field name
       if (!ChangeRequestService.validateFieldName(request.field_name)) {
-        console.log('Field validation failed for:', request.field_name);
         return {
           success: false,
           error: `Invalid field name: ${request.field_name}. Valid fields are: ${ChangeRequestService.VALID_EMPLOYEE_FIELDS.join(', ')}`
         };
       }
       
-      console.log('Field validation passed for:', request.field_name);
       const { data, error } = await supabase
         .from('change_requests')
         .insert([{
@@ -116,11 +107,6 @@ class ChangeRequestService {
         .select()
         .single();
 
-      console.log('=== DATABASE INSERT RESULT ===');
-      console.log('Data:', data);
-      console.log('Error:', error);
-      console.log('Success:', !error);
-      console.log('==============================');
 
       if (error) {
         console.error('Error creating change request:', error);

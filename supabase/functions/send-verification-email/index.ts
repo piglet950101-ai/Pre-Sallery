@@ -23,7 +23,6 @@ serve(async (req) => {
 
     // For demo purposes, we'll just log the email
     // In production, you would integrate with an email service like SendGrid, AWS SES, etc.
-    console.log(`Sending verification email to ${email} with code ${code} for type ${type}`)
 
     // Example email template
     const emailTemplate = `

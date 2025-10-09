@@ -74,12 +74,6 @@ const Landing = () => {
               </div>
 
               <div className="flex flex-col sm:flex-row gap-4">
-                <Button size="lg" variant="hero" className="text-lg px-8 py-6 group" asChild>
-                  <Link to="/register">
-                    {t('landing.startFree30')}
-                    <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
-                  </Link>
-                </Button>
                 <Button size="lg" variant="outline" className="text-lg px-8 py-6" asChild>
                   <Link to="/demo">
                     <Play className="mr-2 h-5 w-5" />
@@ -677,7 +671,7 @@ const Landing = () => {
 
           <div className="border-t mt-12 pt-8 flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
             <div className="text-muted-foreground text-sm">
-              &copy; 2024 AvancePay Venezuela. {t('footer.copyright')} | RIF: J-12345678-9
+              &copy; 2024 AvancePay Venezuela. {t('footer.copyright')} | RIF: J123456789
             </div>
             <div className="flex items-center space-x-4 text-sm text-muted-foreground">
               <span>{t('footer.madeInVe')}</span>
