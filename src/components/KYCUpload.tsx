@@ -14,6 +14,7 @@ import {
   Eye,
   Download
 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -41,6 +42,8 @@ export const KYCUpload = ({ userType, existingDocs = [], employeeId, onCompleted
   const { toast } = useToast();
   const { t, language } = useLanguage();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   const requiredDocs = userType === 'employee' 
   ? [
@@ -212,6 +215,12 @@ export const KYCUpload = ({ userType, existingDocs = [], employeeId, onCompleted
     input?.click();
   };
 
+  const openPreview = (url?: string) => {
+    if (!url) return;
+    setPreviewUrl(url);
+    setIsPreviewOpen(true);
+  };
+
   return (
     <Card className="border-none shadow-elegant">
       <CardHeader>
@@ -281,7 +290,7 @@ export const KYCUpload = ({ userType, existingDocs = [], employeeId, onCompleted
                         </div>
                         <div className="flex items-center space-x-2">
                           {getStatusBadge(existingDoc.status)}
-                          <Button variant="outline" size="sm">
+                          <Button variant="outline" size="sm" onClick={() => openPreview(existingDoc.url)}>
                             <Eye className="h-4 w-4" />
                           </Button>
                           <Button 
@@ -388,6 +397,21 @@ export const KYCUpload = ({ userType, existingDocs = [], employeeId, onCompleted
           </Button>
         </div>
       </CardContent>
+      {/* Preview Modal */}
+      <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>{language === 'en' ? 'Preview document' : 'Vista previa del documento'}</DialogTitle>
+          </DialogHeader>
+          <div className="w-full">
+            {previewUrl && previewUrl.endsWith('.pdf') ? (
+              <iframe src={previewUrl} className="w-full h-[70vh]" />
+            ) : (
+              <img src={previewUrl || ''} alt="Preview" className="max-h-[70vh] mx-auto" />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 };

@@ -1436,16 +1436,15 @@ const Profile = () => {
                             <SelectValue placeholder={t('employee.profile.bankNamePlaceholder')} />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="BDV">{language === 'en' ? 'Bank of Venezuela' : 'Banco de Venezuela'}</SelectItem>
-                            <SelectItem value="BOD">{language === 'en' ? 'BOD Bank' : 'Banco BOD'}</SelectItem>
-                            <SelectItem value="Mercantil">{language === 'en' ? 'Mercantil Bank' : 'Banco Mercantil'}</SelectItem>
-                            <SelectItem value="Venezuela">{language === 'en' ? 'Venezuela Bank' : 'Banco Venezuela'}</SelectItem>
-                            <SelectItem value="Banesco">{language === 'en' ? 'Banesco Bank' : 'Banco Banesco'}</SelectItem>
-                            <SelectItem value="Provincial">{language === 'en' ? 'Provincial Bank' : 'Banco Provincial'}</SelectItem>
-                            <SelectItem value="Bicentenario">{language === 'en' ? 'Bicentenario Bank' : 'Banco Bicentenario'}</SelectItem>
+                            <SelectItem value="Banco de Venezuela">{language === 'en' ? 'Bank of Venezuela' : 'Banco de Venezuela'}</SelectItem>
+                            <SelectItem value="Banesco Banco Universal">{language === 'en' ? 'Banesco Banco Universal' : 'Banesco Banco Universal'}</SelectItem>
+                            <SelectItem value="Banco Mercantil">{language === 'en' ? 'Banco Mercantil' : 'Banco Mercantil'}</SelectItem>
+                            <SelectItem value="Banco Provincial (BBVA)">{language === 'en' ? 'Banco Provincial (BBVA)' : 'Banco Provincial (BBVA)'}</SelectItem>
+                            <SelectItem value="Banco Nacional de Crédito (BNC)">{language === 'en' ? 'Banco Nacional de Crédito (BNC)' : 'Banco Nacional de Crédito (BNC)'}</SelectItem>
+                            <SelectItem value="Banco Exterior">{language === 'en' ? 'Banco Exterior' : 'Banco Exterior'}</SelectItem>
+                            <SelectItem value="Banco Bicentenario">{language === 'en' ? 'Banco Bicentenario' : 'Banco Bicentenario'}</SelectItem>
                             <SelectItem value="100% Banco">{language === 'en' ? '100% Banco' : '100% Banco'}</SelectItem>
                             <SelectItem value="Banco Plaza">{language === 'en' ? 'Banco Plaza' : 'Banco Plaza'}</SelectItem>
-                            <SelectItem value="Banco Exterior">{language === 'en' ? 'Banco Exterior' : 'Banco Exterior'}</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>

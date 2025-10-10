@@ -70,9 +70,10 @@ interface EmployeeInfoFormProps {
   onCancel: () => void;
   isLoading?: boolean;
   initialData?: Partial<EmployeeInfo>;
+  hideBanking?: boolean; // when true, hide step 5 (Banking Information)
 }
 
-export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialData }: EmployeeInfoFormProps) => {
+export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialData, hideBanking = false }: EmployeeInfoFormProps) => {
   const { toast } = useToast();
   const { t, language } = useLanguage();
 
@@ -107,7 +108,7 @@ export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialD
   });
 
   const [currentStep, setCurrentStep] = useState(1);
-  const totalSteps = 5;
+  const totalSteps = hideBanking ? 4 : 5;
 
   // Update form data when initialData changes
   useEffect(() => {
@@ -191,7 +192,7 @@ export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialD
       case 4: // Address Information
         return !!(formData.address && formData.city && formData.state);
       case 5: // Banking Information
-        return !!(formData.bankName && formData.accountNumber && formData.accountType);
+        return hideBanking ? true : !!(formData.bankName && formData.accountNumber && formData.accountType);
       default:
         return false;
     }
@@ -533,12 +534,13 @@ export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialD
                   <SelectValue placeholder={t('employeeForm.selectBank')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="BDV">{language === 'en' ? 'Bank of Venezuela' : 'Banco de Venezuela'}</SelectItem>
-                  <SelectItem value="Mercantil">{language === 'en' ? 'Banco Mercantil' : 'Banco Mercantil'}</SelectItem>
-                  <SelectItem value="Banesco">Banesco</SelectItem>
-                  <SelectItem value="Venezuela">{language === 'en' ? 'Bank of Venezuela' : 'Banco de Venezuela'}</SelectItem>
-                  <SelectItem value="Provincial">{language === 'en' ? 'Banco Provincial' : 'Banco Provincial'}</SelectItem>
-                  <SelectItem value="BOD">BOD</SelectItem>
+                  <SelectItem value="Banco de Venezuela">{language === 'en' ? 'Bank of Venezuela' : 'Banco de Venezuela'}</SelectItem>
+                  <SelectItem value="Banesco Banco Universal">Banesco Banco Universal</SelectItem>
+                  <SelectItem value="Banco Mercantil">{language === 'en' ? 'Banco Mercantil' : 'Banco Mercantil'}</SelectItem>
+                  <SelectItem value="Banco Provincial (BBVA)">{language === 'en' ? 'Banco Provincial (BBVA)' : 'Banco Provincial (BBVA)'}</SelectItem>
+                  <SelectItem value="Banco Nacional de Crédito (BNC)">{language === 'en' ? 'Banco Nacional de Crédito (BNC)' : 'Banco Nacional de Crédito (BNC)'}</SelectItem>
+                  <SelectItem value="Banco Exterior">{language === 'en' ? 'Banco Exterior' : 'Banco Exterior'}</SelectItem>
+                  <SelectItem value="Banco Bicentenario">{language === 'en' ? 'Banco Bicentenario' : 'Banco Bicentenario'}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -585,18 +587,25 @@ export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialD
   };
 
   const getStepTitle = () => {
-    const titles = [
-      t('employeeForm.step.personal'),
-      t('employeeForm.step.employment'),
-      t('employeeForm.step.financial'),
-      t('employeeForm.step.address'),
-      t('employeeForm.step.banking')
-    ];
+    const titles = hideBanking
+      ? [
+          t('employeeForm.step.personal'),
+          t('employeeForm.step.employment'),
+          t('employeeForm.step.financial'),
+          t('employeeForm.step.address')
+        ]
+      : [
+          t('employeeForm.step.personal'),
+          t('employeeForm.step.employment'),
+          t('employeeForm.step.financial'),
+          t('employeeForm.step.address'),
+          t('employeeForm.step.banking')
+        ];
     return titles[currentStep - 1];
   };
 
   const getStepIcon = () => {
-    const icons = [User, Building, DollarSign, MapPin, Home];
+    const icons = hideBanking ? [User, Building, DollarSign, MapPin] : [User, Building, DollarSign, MapPin, Home];
     const Icon = icons[currentStep - 1];
     return <Icon className="h-5 w-5" />;
   };

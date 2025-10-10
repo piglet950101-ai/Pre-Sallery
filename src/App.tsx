@@ -7,6 +7,7 @@ import { LanguageProvider } from "@/contexts/LanguageContext";
 import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Register from "./pages/RegisterNew";
+import PublicRoute from "./components/PublicRoute";
 import EmployeeDashboard from "./pages/EmployeeDashboard";
 import Profile from "./pages/Profile";
 import AdminChangeRequests from "./pages/AdminChangeRequests";
@@ -38,8 +39,8 @@ const App = () => (
           <AuthProvider>
             <Routes>
               <Route path="/" element={<Landing />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
+              <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
+              <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/pending-approval" element={<PendingApproval />} />

@@ -35,7 +35,9 @@ import {
   Upload,
   FileSpreadsheet,
   Check,
-  AlertCircle
+  AlertCircle,
+  ArrowLeft,
+  ArrowRight
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Pagination from "@/components/Pagination";
@@ -104,6 +106,8 @@ interface Employee {
   updated_at: string;
   auth_user_id?: string;
   auth_email?: string;
+  cedula_front_url?: string | null;
+  cedula_back_url?: string | null;
 }
 
 const CompanyDashboard = () => {
@@ -1431,6 +1435,21 @@ const CompanyDashboard = () => {
         // Store current user session to restore later
         const { data: { session: currentSession } } = await supabase.auth.getSession();
 
+        // Validate email domain has MX records before attempting signup
+        try {
+          const { data: domainResp, error: domainErr } = await supabase.functions.invoke('validate-email-domain', {
+            body: { email: employeeEmail }
+          });
+          if (domainErr) {
+            console.error('Domain validation error:', domainErr);
+          }
+          if (!domainResp?.hasMx) {
+            throw new Error(t('register.emailDomainInvalidDesc'));
+          }
+        } catch (e) {
+          console.warn('Failed to validate domain MX; proceeding with fallback.', e);
+        }
+
         const { data: authData, error: authError } = await supabase.auth.signUp({
           email: employeeEmail,
           password: 'pre123456', // Default password
@@ -1452,6 +1471,10 @@ const CompanyDashboard = () => {
           console.error(`Auth user creation returned no user for ${employeeEmail}`);
           throw new Error(`Auth user creation returned no user`);
         } else {
+          // If email confirmation is required, there will be no active session yet
+          if (!authData.session) {
+            throw new Error(t('register.emailNotVerifiedDesc'));
+          }
           // Update user metadata to ensure role is properly set
           const { error: metadataError } = await supabase.auth.updateUser({
             data: {
@@ -1832,8 +1855,44 @@ const CompanyDashboard = () => {
     setIsViewDialogOpen(true);
   };
 
+  // Preview modal for cédula images
+  const [isCedulaPreviewOpen, setIsCedulaPreviewOpen] = useState(false);
+  const [cedulaImages, setCedulaImages] = useState<string[]>([]);
+  const [cedulaIndex, setCedulaIndex] = useState<number>(0);
+  const openCedulaGallery = (front?: string | null, back?: string | null) => {
+    const imgs = [front, back].filter((u): u is string => !!u);
+    if (imgs.length === 0) return;
+    setCedulaImages(imgs);
+    setCedulaIndex(0);
+    setIsCedulaPreviewOpen(true);
+  };
+  const nextCedula = () => setCedulaIndex((i) => (i + 1) % Math.max(cedulaImages.length, 1));
+  const prevCedula = () => setCedulaIndex((i) => (i - 1 + Math.max(cedulaImages.length, 1)) % Math.max(cedulaImages.length, 1));
+
 
   const openApprovalEmployee = (employee: Employee, action: 'approve' | 'reject') => {
+    // Gate approval if employee has no ID number (cedula)
+    if (action === 'approve' && (!employee.cedula || employee.cedula.trim().length === 0)) {
+      toast({
+        title: t('common.error'),
+        description: language === 'en' 
+          ? 'This employee does not have an ID number. Please enter a valid ID (cédula) before granting permissions.' 
+          : 'Este empleado no tiene número de cédula. Por favor ingrese un número de cédula válido antes de otorgar permisos.',
+        variant: 'destructive'
+      });
+      return;
+    }
+    // Gate approval if salary still at default placeholder ($1)
+    if (action === 'approve' && (!employee.monthly_salary || employee.monthly_salary <= 1)) {
+      toast({
+        title: t('common.error'),
+        description: language === 'en'
+          ? 'Employee salary is set to $1 (placeholder). Please enter the correct employee information before granting permissions.'
+          : 'El salario del empleado está en $1 (valor temporal). Por favor complete la información correcta del empleado antes de otorgar permisos.',
+        variant: 'destructive'
+      });
+      return;
+    }
     setApprovalEmployee(employee);
     setActionType(action);
     if (action === 'approve') {
@@ -2216,6 +2275,21 @@ const CompanyDashboard = () => {
               // Store current user session to restore later
               const { data: { session: currentSession } } = await supabase.auth.getSession();
 
+              // Validate email domain has MX records before attempting signup
+              try {
+                const { data: domainResp, error: domainErr } = await supabase.functions.invoke('validate-email-domain', {
+                  body: { email: employeeEmail }
+                });
+                if (domainErr) {
+                  console.error('Domain validation error:', domainErr);
+                }
+                if (!domainResp?.hasMx) {
+                  throw new Error(t('register.emailDomainInvalidDesc'));
+                }
+              } catch (e) {
+                console.warn('Failed to validate domain MX; proceeding with fallback.', e);
+              }
+
               const { data: authData, error: authError } = await supabase.auth.signUp({
                 email: employeeEmail,
                 password: 'pre123456', // Default password
@@ -2243,6 +2317,9 @@ const CompanyDashboard = () => {
                 errorCount++;
                 continue;
               } else {
+                if (!authData.session) {
+                  throw new Error(t('register.emailNotVerifiedDesc'));
+                }
                 // Update user metadata to ensure role is properly set
                 const { error: metadataError } = await supabase.auth.updateUser({
                   data: {
@@ -4799,10 +4876,30 @@ const CompanyDashboard = () => {
                         </div>
                       </div>
                       <div className="flex items-center space-x-6">
+                        {/* Cedula status and preview */}
+                        <div className="flex items-center space-x-2">
+                          {employee.is_verified ? (
+                            <Badge className="bg-green-100 text-green-800">{language === 'en' ? 'KYC verified' : 'KYC verificado'}</Badge>
+                          ) : employee.cedula_front_url && employee.cedula_back_url ? (
+                            <Badge className="bg-blue-100 text-blue-800">{language === 'en' ? 'KYC submitted' : 'KYC enviado'}</Badge>
+                          ) : (
+                            <Badge variant="secondary">{language === 'en' ? 'KYC missing' : 'KYC faltante'}</Badge>
+                          )}
+                          {(employee.cedula_front_url || employee.cedula_back_url) && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => openCedulaGallery(employee.cedula_front_url, employee.cedula_back_url)}
+                              title={language === 'en' ? 'View ID' : 'Ver Cédula'}
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
                         <div className="text-right">
                             <div className="font-medium">${employee.monthly_salary}{t('company.month')}</div>
                             <div className="text-sm text-muted-foreground">
-                              {employee.is_verified ? t('company.billing.employeeVerified') : t('employee.pending')}
+                              {/* {employee.is_verified ? t('company.billing.employeeVerified') : t('employee.pending')} */}
                             </div>
                         </div>
                         <div className="flex items-center space-x-2">
@@ -5875,6 +5972,36 @@ const CompanyDashboard = () => {
         </Tabs>
       </div>
 
+      {/* Cedula Preview Modal with slider */}
+      <Dialog open={isCedulaPreviewOpen} onOpenChange={setIsCedulaPreviewOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>{language === 'en' ? 'Cédula Preview' : 'Vista previa de la Cédula'}</DialogTitle>
+          </DialogHeader>
+          <div className="w-full flex items-center justify-between gap-3">
+            <Button variant="ghost" onClick={prevCedula} disabled={cedulaImages.length <= 1} title={language === 'en' ? 'Previous' : 'Anterior'}>
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <div className="flex-1">
+              {cedulaImages.length > 0 && (cedulaImages[cedulaIndex]?.endsWith('.pdf') ? (
+                <iframe src={cedulaImages[cedulaIndex]} className="w-full h-[70vh]" />
+              ) : (
+                <img src={cedulaImages[cedulaIndex] || ''} alt="Cédula" className="max-h-[70vh] mx-auto" />
+              ))}
+              <div className="text-center text-sm text-muted-foreground mt-2">
+                {cedulaImages.length > 0 ? `${cedulaIndex + 1} / ${cedulaImages.length}` : ''}
+                {cedulaImages.length === 2 && (
+                  <span className="ml-2">{cedulaIndex === 0 ? (language === 'en' ? '(Front)' : '(Frente)') : (language === 'en' ? '(Back)' : '(Reverso)')}</span>
+                )}
+              </div>
+            </div>
+            <Button variant="ghost" onClick={nextCedula} disabled={cedulaImages.length <= 1} title={language === 'en' ? 'Next' : 'Siguiente'}>
+              <ArrowRight className="h-5 w-5" />
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Edit Employee Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -5897,6 +6024,7 @@ const CompanyDashboard = () => {
               setEditingEmployee(null);
             }}
             isLoading={isLoading}
+            hideBanking
             {...(editingEmployee ? {
               initialData: (() => {
                 const mappedData = mapEmployeeToFormData(editingEmployee);

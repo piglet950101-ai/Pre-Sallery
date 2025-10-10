@@ -214,18 +214,25 @@ const EmployeeDashboard = () => {
   const currentYear = currentDate.getFullYear();
   const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
   
-  // Calculate actual working days from start of month to current date (excluding weekends)
-  const getWorkingDaysInMonth = (year: number, month: number, currentDay: number) => {
-    let workingDays = 0;
-    for (let day = 1; day <= currentDay; day++) {
-      const date = new Date(year, month, day);
-      const dayOfWeek = date.getDay();
-      // Count Monday (1) through Friday (5) as working days
-      if (dayOfWeek >= 1 && dayOfWeek <= 5) {
-        workingDays++;
-      }
+  // Working days helpers
+  const isWorkingDay = (date: Date) => {
+    const dow = date.getDay();
+    return dow >= 1 && dow <= 5; // Mon-Fri
+  };
+  
+  // Calculate working days between two dates inclusive, limited to current month
+  const getWorkingDaysBetween = (start: Date, end: Date) => {
+    let count = 0;
+    const startDate = new Date(start);
+    const endDate = new Date(end);
+    // normalize to midnight
+    startDate.setHours(0,0,0,0);
+    endDate.setHours(0,0,0,0);
+    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+      if (d.getMonth() !== currentMonth || d.getFullYear() !== currentYear) continue;
+      if (isWorkingDay(d)) count++;
     }
-    return workingDays;
+    return count;
   };
   
   const getTotalWorkingDaysInMonth = (year: number, month: number) => {
@@ -233,16 +240,21 @@ const EmployeeDashboard = () => {
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     for (let day = 1; day <= daysInMonth; day++) {
       const date = new Date(year, month, day);
-      const dayOfWeek = date.getDay();
-      // Count Monday (1) through Friday (5) as working days
-      if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+      if (isWorkingDay(date)) {
         workingDays++;
       }
     }
     return workingDays;
   };
   
-  const workedDays = getWorkingDaysInMonth(currentYear, currentMonth, currentDate.getDate());
+  // Pro-rate from registration date
+  const registrationDate = employee?.employment_start_date
+    ? new Date(employee.employment_start_date)
+    : (employee?.created_at ? new Date(employee.created_at) : null);
+  
+  const monthStart = new Date(currentYear, currentMonth, 1);
+  const effectiveStart = registrationDate ? (registrationDate > monthStart ? registrationDate : monthStart) : monthStart;
+  const workedDays = getWorkingDaysBetween(effectiveStart, currentDate);
   const totalWorkingDays = getTotalWorkingDaysInMonth(currentYear, currentMonth);
   const totalDays = daysInMonth;
   
@@ -2034,9 +2046,19 @@ const EmployeeDashboard = () => {
                               {language === 'en' ? 'Loading banks...' : 'Cargando bancos...'}
                             </SelectItem>
                           ) : banks.length === 0 ? (
-                            <SelectItem value="" disabled>
-                              {language === 'en' ? 'No banks available' : 'No hay bancos disponibles'}
-                            </SelectItem>
+                            <>
+                              <SelectItem value="" disabled>
+                                {language === 'en' ? 'No banks available' : 'No hay bancos disponibles'}
+                              </SelectItem>
+                              {/* Fallback hardcoded Venezuela banks */}
+                              <SelectItem value="Banco de Venezuela">Banco de Venezuela</SelectItem>
+                              <SelectItem value="Banesco Banco Universal">Banesco Banco Universal</SelectItem>
+                              <SelectItem value="Banco Mercantil">Banco Mercantil</SelectItem>
+                              <SelectItem value="Banco Provincial (BBVA)">Banco Provincial (BBVA)</SelectItem>
+                              <SelectItem value="Banco Nacional de Crédito (BNC)">Banco Nacional de Crédito (BNC)</SelectItem>
+                              <SelectItem value="Banco Exterior">Banco Exterior</SelectItem>
+                              <SelectItem value="Banco del Tesoro">Banco del Tesoro</SelectItem>
+                            </>
                           ) : (
                             banks.map((bank) => (
                               <SelectItem key={bank.id} value={bank.name}>

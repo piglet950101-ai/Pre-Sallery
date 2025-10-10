@@ -238,10 +238,32 @@ const Register = () => {
         return; // Exit early - don't create auth user
       }
       
-      // Create auth user first
       // Normalize inputs
       const cleanEmail = companyEmail.trim().toLowerCase();
       const cleanPassword = companyPassword.trim();
+
+      // Validate email domain has MX records before attempting signup
+      try {
+        const { data: domainResp, error: domainErr } = await supabase.functions.invoke('validate-email-domain', {
+          body: { email: cleanEmail }
+        });
+        if (domainErr) {
+          console.error('Domain validation error:', domainErr);
+        }
+        if (!domainResp?.hasMx) {
+          toast({
+            title: t('register.emailDomainInvalidTitle') ?? 'Invalid email domain',
+            description: t('register.emailDomainInvalidDesc') ?? 'The email domain does not appear to receive mail. Please use a valid email provider.',
+            variant: 'destructive'
+          });
+          return;
+        }
+      } catch (e) {
+        console.warn('Failed to validate domain MX; proceeding with signup fallback.', e);
+      }
+
+      // Create auth user first
+      // Normalize inputs
 
       // Create auth user first without metadata to avoid trigger issues
       const { data, error } = await supabase.auth.signUp({
@@ -254,6 +276,16 @@ const Register = () => {
       
       if (error) throw error;
       
+      // If email confirmation is required, there will be no active session yet
+      if (!data.session) {
+        toast({
+          title: t('register.emailNotVerifiedTitle') ?? 'Email not verified',
+          description: t('register.emailNotVerifiedDesc') ?? 'Please verify your email to complete company registration. Check your inbox for the confirmation link.',
+          variant: 'destructive'
+        });
+        return; // Do not proceed until email is verified
+      }
+
       if (data.user) {
         // Set metadata after account creation
         await supabase.auth.updateUser({
@@ -367,6 +399,26 @@ const Register = () => {
       
       // Skip checking employees table for email (column removed). Auth will enforce uniqueness.
       
+      // Validate email domain has MX records
+      try {
+        const { data: domainResp, error: domainErr } = await supabase.functions.invoke('validate-email-domain', {
+          body: { email: cleanEmail }
+        });
+        if (domainErr) {
+          console.error('Domain validation error:', domainErr);
+        }
+        if (!domainResp?.hasMx) {
+          toast({
+            title: t('register.emailDomainInvalidTitle'),
+            description: t('register.emailDomainInvalidDesc'),
+            variant: 'destructive'
+          });
+          return;
+        }
+      } catch (e) {
+        console.warn('Failed to validate domain MX; proceeding with fallback.', e);
+      }
+
       // Create Supabase auth user
       const { data, error } = await supabase.auth.signUp({
         email: cleanEmail,
@@ -384,6 +436,16 @@ const Register = () => {
       });
       
       if (error) throw error;
+      
+      // Require email verification before creating employee row
+      if (!data.session) {
+        toast({
+          title: t('register.emailNotVerifiedTitle'),
+          description: t('register.emailNotVerifiedDesc'),
+          variant: 'destructive'
+        });
+        return;
+      }
       
       // Create a placeholder employee record with minimal information
       // The company will need to complete the rest of the information
@@ -409,7 +471,7 @@ const Register = () => {
           city: 'Pending',
           state: 'Pending',
           bank_name: 'Pending',
-          account_number: 'Pending',
+          account_number: '00000000000000000000',
           account_type: 'savings', // Must be one of: 'savings', 'checking'
           // Set is_active to false until company approves
           is_active: false,

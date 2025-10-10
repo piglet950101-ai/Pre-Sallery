@@ -56,6 +56,30 @@ const Register = () => {
     try {
       setIsLoading(true);
       
+      // Validate email domain has MX records before attempting signup
+      const emailDomain = (companyEmail || '').split('@')[1]?.toLowerCase();
+      if (!emailDomain) {
+        throw new Error(t('registration.emailInvalid'));
+      }
+      try {
+        const { data: domainResp, error: domainErr } = await supabase.functions.invoke('validate-email-domain', {
+          body: { email: companyEmail }
+        });
+        if (domainErr) {
+          console.error('Domain validation error:', domainErr);
+        }
+        if (!domainResp?.hasMx) {
+          toast({
+            title: t('register.emailDomainInvalidTitle') ?? 'Invalid email domain',
+            description: t('register.emailDomainInvalidDesc') ?? 'The email domain does not appear to receive mail. Please use a valid email provider.',
+            variant: 'destructive'
+          });
+          return;
+        }
+      } catch (e) {
+        console.warn('Failed to validate domain MX; proceeding with signup fallback.', e);
+      }
+
       const { data, error } = await supabase.auth.signUp({
         email: companyEmail,
         password: companyPassword,
@@ -70,9 +94,17 @@ const Register = () => {
       });
       
       if (error) throw error;
-      
+      // If email confirmation is required, there will be no active session yet
+      if (!data.session) {
+        toast({
+          title: t('register.emailNotVerifiedTitle') ?? 'Email not verified',
+          description: t('register.emailNotVerifiedDesc') ?? 'Please verify your email to complete company registration. Check your inbox for the confirmation link.',
+          variant: 'destructive'
+        });
+        return; // Do not create company record until email is verified
+      }
+
       if (data.user) {
-        // Create company record
         const { error: companyError } = await ensureCompanyRecord(data.user.id, {
           name: companyName,
           rif: companyRif,
@@ -80,6 +112,9 @@ const Register = () => {
           phone: companyPhone,
           email: companyEmail,
         });
+        if (companyError) {
+          throw companyError;
+        }
       }
       toast({ title: t('register.successTitle') });
       navigate('/login');
@@ -119,6 +154,26 @@ const Register = () => {
       if (emailParts.length !== 2 || emailParts[0].length === 0 || !emailParts[1].includes('.')) {
         throw new Error(t('register.invalidEmailFormat').replace('{email}', employeeEmail));
       }
+
+      // Validate email domain has MX records before attempting signup
+      try {
+        const { data: domainResp, error: domainErr } = await supabase.functions.invoke('validate-email-domain', {
+          body: { email: cleanEmail }
+        });
+        if (domainErr) {
+          console.error('Domain validation error:', domainErr);
+        }
+        if (!domainResp?.hasMx) {
+          toast({
+            title: t('register.emailDomainInvalidTitle') ?? 'Invalid email domain',
+            description: t('register.emailDomainInvalidDesc') ?? 'The email domain does not appear to receive mail. Please use a valid email provider.',
+            variant: 'destructive'
+          });
+          return;
+        }
+      } catch (e) {
+        console.warn('Failed to validate domain MX; proceeding with signup fallback.', e);
+      }
       
       // Skip checking employees table for email (column removed). Auth will enforce uniqueness.
       
@@ -139,6 +194,16 @@ const Register = () => {
       });
       
       if (error) throw error;
+
+      // Require email verification before creating employee row
+      if (!data.session) {
+        toast({
+          title: t('register.emailNotVerifiedTitle'),
+          description: t('register.emailNotVerifiedDesc'),
+          variant: 'destructive'
+        });
+        return;
+      }
       
       // Create a placeholder employee record with minimal information
       // The company will need to complete the rest of the information
@@ -155,7 +220,7 @@ const Register = () => {
           employment_start_date: new Date().toISOString().split('T')[0],
           employment_type: 'full-time',
           weekly_hours: 40,
-          monthly_salary: 0,
+          monthly_salary: 1,
           living_expenses: 0,
           dependents: 0,
           emergency_contact: 'Pending',
@@ -164,7 +229,7 @@ const Register = () => {
           city: 'Pending',
           state: 'Pending',
           bank_name: 'Pending',
-          account_number: 'Pending',
+          account_number: '00000000000000000000',
           account_type: 'savings',
           // Set is_active to false until company approves
           is_active: false,
