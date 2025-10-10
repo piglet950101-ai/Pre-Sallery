@@ -16,7 +16,7 @@ interface Invoice {
   due_date: string;
   created_at: string;
   paid_date?: string;
-  payment_reference?: string;
+  payment_details?: string;
   operator_name?: string;
   payment_proof_url?: string;
   period?: string;
@@ -164,7 +164,7 @@ const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
                   </div>
                   <div>
                     <label className="text-sm font-medium text-muted-foreground">Payment Reference</label>
-                    <p className="text-lg font-semibold">{invoice.payment_reference || 'N/A'}</p>
+                    <p className="text-lg font-semibold">{invoice.payment_details || 'N/A'}</p>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-muted-foreground">Confirmed by</label>

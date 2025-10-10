@@ -20,7 +20,7 @@ interface Invoice {
   due_date: string;
   created_at: string;
   paid_date?: string;
-  payment_reference?: string;
+  payment_details?: string;
   operator_name?: string;
   payment_proof_url?: string;
 }
@@ -131,7 +131,7 @@ const PaymentConfirmationModal: React.FC<PaymentConfirmationModalProps> = ({
         .update({
           status: 'paid',
           paid_date: new Date().toISOString().split('T')[0],
-          payment_reference: paymentReference,
+          payment_details: paymentReference,
           operator_name: operatorName,
           payment_proof_url: paymentProofUrl,
           payment_notes: paymentNotes,
@@ -153,7 +153,7 @@ const PaymentConfirmationModal: React.FC<PaymentConfirmationModalProps> = ({
           old_values: { status: 'sent' },
           new_values: { 
             status: 'paid', 
-            payment_reference: paymentReference,
+            payment_details: paymentReference,
             operator_name: operatorName,
             paid_date: new Date().toISOString().split('T')[0]
           },

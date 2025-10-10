@@ -60,6 +60,11 @@ const OperatorDashboard = () => {
   const [selectedBatch, setSelectedBatch] = useState<any>(null);
   const [batchAdvances, setBatchAdvances] = useState<any[]>([]);
   const [isLoadingBatchAdvances, setIsLoadingBatchAdvances] = useState(false);
+  const [showRecordPaymentModal, setShowRecordPaymentModal] = useState(false);
+  const [advanceToRecord, setAdvanceToRecord] = useState<any>(null);
+  const [paymentDate, setPaymentDate] = useState<string>("");
+  const [paymentReference, setPaymentReference] = useState<string>("");
+  const [paymentMethod, setPaymentMethod] = useState<string>("bank_transfer");
 
   // Pagination state
   const [pendingPage, setPendingPage] = useState(1);
@@ -508,6 +513,67 @@ const OperatorDashboard = () => {
     await fetchBatchAdvances(batch.id);
   };
 
+  const openRecordPayment = (advance: any) => {
+    setAdvanceToRecord(advance);
+    setPaymentDate(new Date().toISOString().slice(0,10));
+    setPaymentReference("");
+    setPaymentMethod("bank_transfer");
+    setShowRecordPaymentModal(true);
+  };
+
+  const submitRecordPayment = async () => {
+    try {
+      if (!advanceToRecord) return;
+      if (!paymentReference || paymentReference.trim().length === 0) {
+        toast({ title: t('common.error'), description: t('operator.referenceRequired') || 'Reference is required', variant: 'destructive' });
+        return;
+      }
+      setIsProcessing(true);
+      
+      // Update the advance to completed
+      const { error } = await supabase
+        .from('advance_transactions')
+        .update({
+          status: 'completed',
+          processed_at: new Date(paymentDate).toISOString(),
+          payment_details: paymentReference,
+          payment_method: paymentMethod
+        })
+        .eq('id', advanceToRecord.id);
+      if (error) throw error;
+
+      // Check if all advances in the batch are now completed
+      const { data: remainingAdvances, error: checkError } = await supabase
+        .from('advance_transactions')
+        .select('id, status')
+        .eq('batch_id', selectedBatch.id)
+        .neq('status', 'completed');
+      
+      if (checkError) throw checkError;
+
+      // If no remaining advances, mark batch as completed
+      if (remainingAdvances.length === 0) {
+        const { error: batchError } = await supabase
+          .from('processing_batches')
+          .update({
+            status: 'completed',
+            completed_at: new Date().toISOString()
+          })
+          .eq('id', selectedBatch.id);
+        if (batchError) throw batchError;
+      }
+
+      toast({ title: t('common.success'), description: t('operator.paymentRecorded') || 'Payment recorded successfully' });
+      setShowRecordPaymentModal(false);
+      await fetchBatchAdvances(selectedBatch.id);
+      await fetchProcessedBatches(); // Refresh batch list to show updated status
+    } catch (e: any) {
+      toast({ title: t('common.error'), description: e?.message || 'Failed to record payment', variant: 'destructive' });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const fetchBatchAdvances = async (batchId: string) => {
     try {
       setIsLoadingBatchAdvances(true);
@@ -621,7 +687,36 @@ const OperatorDashboard = () => {
       }
 
 
-      setProcessedBatches(data || []);
+      // If we have batches, fetch advance status counts per batch
+      if (data && data.length > 0) {
+        const batchIds = data.map((b: any) => b.id);
+        const { data: advances, error: advError } = await supabase
+          .from('advance_transactions')
+          .select('id,batch_id,status')
+          .in('batch_id', batchIds);
+
+        if (advError) {
+          throw new Error(`Error al cargar adelantos del lote: ${advError.message}`);
+        }
+
+        const countsByBatch: Record<string, { total: number; completed: number; processing: number }> = {};
+        (advances || []).forEach((a: any) => {
+          const key = a.batch_id;
+          if (!countsByBatch[key]) countsByBatch[key] = { total: 0, completed: 0, processing: 0 };
+          countsByBatch[key].total += 1;
+          if (a.status === 'completed') countsByBatch[key].completed += 1;
+          if (a.status === 'processing') countsByBatch[key].processing += 1;
+        });
+
+        const enriched = data.map((b: any) => {
+          const c = countsByBatch[b.id] || { total: 0, completed: 0, processing: 0 };
+          return { ...b, completed_count: c.completed, processing_count: c.processing };
+        });
+
+        setProcessedBatches(enriched);
+      } else {
+        setProcessedBatches([]);
+      }
     } catch (error: any) {
       console.error("Error fetching processed batches:", error);
       toast({
@@ -701,36 +796,12 @@ const OperatorDashboard = () => {
         throw new Error(`Error al actualizar adelantos: ${updateError.message}`);
       }
 
-      // Update batch status to completed
-      const { error: completeError } = await supabase
-        .from("processing_batches")
-        .update({
-          status: 'completed',
-          completed_at: new Date().toISOString()
-        })
-        .eq('id', batchData.id);
-
-      if (completeError) {
-        throw new Error(`Error al completar lote: ${completeError.message}`);
-      }
-
-      // Update all advances in the batch to completed status
-      const { error: completeAdvancesError } = await supabase
-        .from("advance_transactions")
-        .update({
-          status: 'completed',
-          processed_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-        .in('id', advanceIds);
-
-      if (completeAdvancesError) {
-        throw new Error(`Error al completar adelantos: ${completeAdvancesError.message}`);
-      }
+      // Keep batch status as 'processing' - will be completed when all advances are paid
+      // Keep advances status as 'processing' - will be completed when payment is recorded
 
       toast({
         title: t('common.success'),
-        description: `${selectedAdvances.size} ${t('company.advances')} ${t('employee.completed')}`,
+        description: `${selectedAdvances.size} ${t('company.advances')} ${t('operator.addedToBatch') || 'added to batch for processing'}`,
       });
 
       // Clear selections and refresh data
@@ -1392,13 +1463,21 @@ const OperatorDashboard = () => {
                           <div className="flex items-center space-x-6">
                             <div className="text-right">
                               <div className="font-semibold">{batch.advance_count || 0} {t('operator.advances')}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {t('operator.processingShort') || (t('operator.processing') || 'Processing')}: {batch.processing_count || 0}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {t('operator.completedShort') || 'Completed'}: {batch.completed_count || 0}/{batch.advance_count || 0}
+                              </div>
                               <div className="text-sm text-muted-foreground">
                                 {t('common.total')}: ${(batch.total_amount || 0).toFixed(2)}
                               </div>
                             </div>
                             <div className="flex items-center space-x-2">
-                              <Badge className="bg-green-100 text-green-800">
-                                {batch.status === 'completed' ? t('employee.completed') : batch.status || t('common.unknown')}
+                              <Badge className={batch.status === 'completed' ? "bg-green-100 text-green-800" : "bg-orange-100 text-orange-800"}>
+                                {batch.status === 'completed' ? t('employee.completed') : 
+                                 batch.status === 'processing' ? (t('operator.processing') || 'Processing') : 
+                                 batch.status || t('common.unknown')}
                               </Badge>
                               <Button variant="outline" size="sm" onClick={(e) => {
                                 e.stopPropagation();
@@ -1682,9 +1761,18 @@ const OperatorDashboard = () => {
                               </div>
                               <div className="text-right">
                                 <div className="text-xs text-muted-foreground">{formattedTime}</div>
-                                <Badge variant="secondary" className="text-xs">
-                                  {advance.status === 'completed' ? t('employee.completed') : advance.status}
+                                <Badge variant={advance.status === 'completed' ? "default" : "secondary"} className="text-xs">
+                                  {advance.status === 'completed' ? t('employee.completed') : 
+                                   advance.status === 'processing' ? (t('operator.processing') || 'Processing') : 
+                                   advance.status}
                                 </Badge>
+                              </div>
+                              <div>
+                                {advance.status !== 'completed' && (
+                                  <Button size="sm" variant="outline" onClick={() => openRecordPayment(advance)}>
+                                    <Banknote className="h-4 w-4 mr-1" /> {t('operator.recordPayment') || 'Record Payment'}
+                                  </Button>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -1695,6 +1783,49 @@ const OperatorDashboard = () => {
                 </div>
               </div>
             )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Record Payment Modal */}
+        <Dialog open={showRecordPaymentModal} onOpenChange={setShowRecordPaymentModal}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center space-x-2">
+                <Banknote className="h-5 w-5 text-green-600" />
+                <span>{t('operator.recordPaymentTitle') || 'Record payment'}</span>
+              </DialogTitle>
+              <DialogDescription>
+                {t('operator.recordPaymentDesc') || 'Enter payment details to mark this advance as paid.'}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-3">
+              <div>
+                <Label className="text-sm">{t('operator.paymentMethod') || 'Payment method'}</Label>
+                <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder={t('operator.selectMethod') || 'Select method'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="bank_transfer">{t('operator.transfer') || 'Bank transfer'}</SelectItem>
+                    <SelectItem value="pagomovil">{t('operator.pagomovil') || 'PagoMóvil'}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-sm">{t('operator.paymentDate') || 'Payment date'}</Label>
+                <Input type="date" className="mt-1" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} />
+              </div>
+              <div>
+                <Label className="text-sm">{t('operator.paymentReference') || 'Reference'}</Label>
+                <Input className="mt-1" value={paymentReference} onChange={(e) => setPaymentReference(e.target.value)} placeholder={t('operator.referencePlaceholder') || 'Transaction reference'} />
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-2 pt-4">
+              <Button variant="outline" onClick={() => setShowRecordPaymentModal(false)}>{t('common.cancel')}</Button>
+              <Button onClick={submitRecordPayment} disabled={isProcessing || !paymentReference || paymentReference.trim().length === 0}>{isProcessing ? t('operator.saving') || 'Saving...' : (t('operator.savePayment') || 'Save payment')}</Button>
+            </div>
           </DialogContent>
         </Dialog>
 

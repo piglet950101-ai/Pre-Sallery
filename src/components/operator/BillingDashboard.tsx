@@ -22,7 +22,7 @@ interface Invoice {
   due_date: string;
   created_at: string;
   paid_date?: string;
-  payment_reference?: string;
+  payment_details?: string;
   operator_name?: string;
   payment_proof_url?: string;
   period?: string;
@@ -111,7 +111,7 @@ const BillingDashboard: React.FC = () => {
           due_date: payment.due_date,
           created_at: payment.created_at,
           paid_date: payment.paid_date,
-          payment_reference: payment.payment_reference,
+          payment_details: payment.payment_details,
           operator_name: payment.operator_name,
           payment_proof_url: payment.payment_proof_url,
           period: payment.period,
