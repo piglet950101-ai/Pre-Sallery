@@ -293,15 +293,26 @@ const Header = ({ showNavigation = true, className = "" }: HeaderProps) => {
                   </DropdownMenuItem>
                 )}
                 {actualUserRole === 'operator' && (
-                  <DropdownMenuItem
-                    onClick={() => {
-                      try { window.dispatchEvent(new Event('open-fx-edit')); } catch {}
-                    }}
-                    className="flex items-center space-x-2"
-                  >
-                    <Settings className="h-4 w-4" />
-                    <span>{t('fx.setRate')}</span>
-                  </DropdownMenuItem>
+                  <>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        try { window.dispatchEvent(new Event('open-fx-edit')); } catch {}
+                      }}
+                      className="flex items-center space-x-2"
+                    >
+                      <Settings className="h-4 w-4" />
+                      <span>{t('fx.setRate')}</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        try { window.dispatchEvent(new Event('open-change-password')); } catch {}
+                      }}
+                      className="flex items-center space-x-2"
+                    >
+                      <Shield className="h-4 w-4" />
+                      <span>{t('nav.changePassword') || 'Change Password'}</span>
+                    </DropdownMenuItem>
+                  </>
                 )}
                 <DropdownMenuItem onClick={handleLogout} className="flex items-center space-x-2 text-red-600">
                   <LogOut className="h-4 w-4" />

@@ -42,6 +42,7 @@ const translations: Translations = {
   'nav.dashboard': { en: 'Dashboard', es: 'Panel' },
   'nav.logout': { en: 'Logout', es: 'Cerrar Sesión' },
   'nav.profile': { en: 'Profile', es: 'Perfil' },
+  'nav.changePassword': { en: 'Change Password', es: 'Cambiar Contraseña' },
 
   // Change Requests
   'employee.changeRequests': { en: 'Change Profile Requests', es: 'Solicitudes de Cambio de Perfil' },
@@ -608,6 +609,8 @@ const translations: Translations = {
   'company.mostActiveDay': { en: 'Most active day', es: 'Día más activo' },
   'company.peakHour': { en: 'Peak hour', es: 'Horario pico' },
   'company.monthlyGrowth': { en: 'Monthly growth', es: 'Crecimiento mensual' },
+  'company.maxAmount': { en: 'Max amount', es: 'Monto máximo' },
+  'company.minAmount': { en: 'Min amount', es: 'Monto mínimo' },
   // Period options
   'company.thisMonth': { en: 'This Month', es: 'Este Mes' },
   'company.lastMonth': { en: 'Last Month', es: 'Mes Pasado' },
@@ -1046,6 +1049,16 @@ const translations: Translations = {
   'operator.referenceRequired': { en: 'Reference is required', es: 'La referencia es obligatoria' },
   'operator.completedShort': { en: 'Completed', es: 'Completados' },
   'operator.processingShort': { en: 'Processing', es: 'En proceso' },
+  'operator.completed': { en: 'Completed', es: 'Completado' },
+  'operator.dateFrom': { en: 'From', es: 'Desde' },
+  'operator.dateTo': { en: 'To', es: 'Hasta' },
+  'operator.status': { en: 'Status', es: 'Estado' },
+  'operator.selectStatus': { en: 'Select status', es: 'Seleccionar estado' },
+  'operator.allStatuses': { en: 'All Statuses', es: 'Todos los Estados' },
+  'operator.clearFilters': { en: 'Clear', es: 'Limpiar' },
+  'operator.showingResults': { en: 'Showing', es: 'Mostrando' },
+  'operator.of': { en: 'of', es: 'de' },
+  'operator.batches': { en: 'batches', es: 'lotes' },
   'operator.instructions': { en: 'Instructions', es: 'Instrucciones' },
   'operator.uploadReceiptsInstruction1': { en: 'Upload PagoMóvil or bank transfer receipts', es: 'Sube comprobantes de PagoMóvil o transferencias bancarias' },
   'operator.uploadReceiptsInstruction2': { en: 'Files must be in PDF or image format', es: 'Los archivos deben estar en formato PDF o imagen' },
@@ -1078,11 +1091,9 @@ const translations: Translations = {
   'operator.loadingCompanies': { en: 'Loading companies...', es: 'Cargando empresas...' },
   'operator.filters': { en: 'Filters', es: 'Filtros' },
   'operator.searchCompanies': { en: 'Search companies...', es: 'Buscar empresas...' },
-  'operator.allStatuses': { en: 'All Statuses', es: 'Todos los Estados' },
   'operator.pendingApproval': { en: 'Pending Approval', es: 'Pendiente de Aprobación' },
   'operator.approved': { en: 'Approved', es: 'Aprobado' },
   'operator.rejected': { en: 'Rejected', es: 'Rechazado' },
-  'operator.clearFilters': { en: 'Clear Filters', es: 'Limpiar Filtros' },
   'operator.companies': { en: 'Companies', es: 'Empresas' },
   'operator.noCompaniesFound': { en: 'No companies found', es: 'No se encontraron empresas' },
   'operator.registeredOn': { en: 'Registered on', es: 'Registrado el' },
@@ -1284,7 +1295,6 @@ const translations: Translations = {
   'operator.exportHistoryButton': { en: 'Export History', es: 'Exportar Historial' },
   'operator.batchTime11': { en: 'Batch 15:00 PM - Today', es: 'Lote 15:00 PM - Hoy' },
   'operator.batchTime15': { en: 'Batch 11:00 AM - Today', es: 'Lote 11:00 AM - Hoy' },
-  'operator.completed': { en: 'Completed', es: 'Completado' },
 
   // Common Dashboard Settings
   'dashboard.settings.title': { en: 'Settings', es: 'Configuración' },

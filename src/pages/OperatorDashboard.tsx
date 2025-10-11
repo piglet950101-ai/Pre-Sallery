@@ -28,7 +28,11 @@ import {
   FileText,
   Image,
   File,
-  RefreshCw
+  RefreshCw,
+  Settings,
+  Lock,
+  Eye,
+  EyeOff
 } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useState, useEffect } from "react";
@@ -70,6 +74,21 @@ const OperatorDashboard = () => {
   const [pendingPage, setPendingPage] = useState(1);
   const [batchesPage, setBatchesPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(5); // Dynamic items per page
+
+  // Processed Batches filtering state
+  const [batchesDateFrom, setBatchesDateFrom] = useState<string>("");
+  const [batchesDateTo, setBatchesDateTo] = useState<string>("");
+  const [batchesStatusFilter, setBatchesStatusFilter] = useState<string>("all");
+
+  // Password change state
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   // Confirmations state
   const [confirmations, setConfirmations] = useState<any[]>([]);
@@ -351,16 +370,37 @@ const OperatorDashboard = () => {
   const isAllSelected = selectedAdvances.size === pendingAdvances.length && pendingAdvances.length > 0;
   const isPartiallySelected = selectedAdvances.size > 0 && selectedAdvances.size < pendingAdvances.length;
 
+  // Filter processed batches based on date and status
+  const filteredProcessedBatches = processedBatches.filter(batch => {
+    // Date filtering
+    if (batchesDateFrom || batchesDateTo) {
+      const batchDate = new Date(batch.created_at);
+      const fromDate = batchesDateFrom ? new Date(batchesDateFrom) : null;
+      const toDate = batchesDateTo ? new Date(batchesDateTo) : null;
+      
+      if (fromDate && batchDate < fromDate) return false;
+      if (toDate && batchDate > toDate) return false;
+    }
+    
+    // Status filtering
+    if (batchesStatusFilter !== "all") {
+      if (batchesStatusFilter === "processing" && batch.status !== "processing") return false;
+      if (batchesStatusFilter === "completed" && batch.status !== "completed") return false;
+    }
+    
+    return true;
+  });
+
   // Pagination calculations
   const totalPendingPages = Math.ceil(pendingAdvances.length / itemsPerPage);
-  const totalBatchesPages = Math.ceil(processedBatches.length / itemsPerPage);
+  const totalBatchesPages = Math.ceil(filteredProcessedBatches.length / itemsPerPage);
 
   const paginatedPendingAdvances = pendingAdvances.slice(
     (pendingPage - 1) * itemsPerPage,
     pendingPage * itemsPerPage
   );
 
-  const paginatedProcessedBatches = processedBatches.slice(
+  const paginatedProcessedBatches = filteredProcessedBatches.slice(
     (batchesPage - 1) * itemsPerPage,
     batchesPage * itemsPerPage
   );
@@ -1122,6 +1162,83 @@ const OperatorDashboard = () => {
     }
   }, [user]);
 
+  // Listen for change password event from header dropdown
+  useEffect(() => {
+    const handleOpenChangePassword = () => {
+      setShowChangePasswordModal(true);
+    };
+
+    window.addEventListener('open-change-password', handleOpenChangePassword);
+    
+    return () => {
+      window.removeEventListener('open-change-password', handleOpenChangePassword);
+    };
+  }, []);
+
+  // Change password function
+  const handleChangePassword = async () => {
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      toast({
+        title: t('common.error'),
+        description: language === 'en' ? 'Please fill in all fields' : 'Por favor completa todos los campos',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      toast({
+        title: t('common.error'),
+        description: language === 'en' ? 'New passwords do not match' : 'Las contraseñas nuevas no coinciden',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      toast({
+        title: t('common.error'),
+        description: language === 'en' ? 'Password must be at least 6 characters' : 'La contraseña debe tener al menos 6 caracteres',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    try {
+      setIsChangingPassword(true);
+
+      // Update password using Supabase auth
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      toast({
+        title: language === 'en' ? 'Password Changed' : 'Contraseña Cambiada',
+        description: language === 'en' ? 'Your password has been updated successfully' : 'Tu contraseña ha sido actualizada exitosamente',
+      });
+
+      // Reset form
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setShowChangePasswordModal(false);
+
+    } catch (error: any) {
+      console.error('Error changing password:', error);
+      toast({
+        title: t('common.error'),
+        description: language === 'en' ? 'Failed to change password' : 'Error al cambiar la contraseña',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
 
@@ -1418,13 +1535,81 @@ const OperatorDashboard = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
+                {/* Filter Controls */}
+                <div className="mb-6 space-y-4">
+                  <div className="flex flex-col sm:flex-row gap-4">
+                    {/* Date Range Filter */}
+                    <div className="flex gap-2">
+                      <div className="flex-1">
+                        <Label htmlFor="batches-date-from" className="text-sm">{t('operator.dateFrom') || 'From'}</Label>
+                        <Input
+                          id="batches-date-from"
+                          type="date"
+                          value={batchesDateFrom}
+                          onChange={(e) => setBatchesDateFrom(e.target.value)}
+                          className="mt-1"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <Label htmlFor="batches-date-to" className="text-sm">{t('operator.dateTo') || 'To'}</Label>
+                        <Input
+                          id="batches-date-to"
+                          type="date"
+                          value={batchesDateTo}
+                          onChange={(e) => setBatchesDateTo(e.target.value)}
+                          className="mt-1"
+                        />
+                      </div>
+                    </div>
+                    
+                    {/* Status Filter */}
+                    <div className="flex-1">
+                      <Label htmlFor="batches-status" className="text-sm">{t('operator.status') || 'Status'}</Label>
+                      <Select value={batchesStatusFilter} onValueChange={setBatchesStatusFilter}>
+                        <SelectTrigger className="mt-1">
+                          <SelectValue placeholder={t('operator.selectStatus') || 'Select status'} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">{t('operator.allStatuses') || 'All Statuses'}</SelectItem>
+                          <SelectItem value="processing">{t('operator.processing') || 'Processing'}</SelectItem>
+                          <SelectItem value="completed">{t('operator.completed') || 'Completed'}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    {/* Clear Filters Button */}
+                    <div className="flex items-end">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setBatchesDateFrom("");
+                          setBatchesDateTo("");
+                          setBatchesStatusFilter("all");
+                          setBatchesPage(1);
+                        }}
+                        className="h-10"
+                      >
+                        <X className="h-4 w-4 mr-2" />
+                        {t('operator.clearFilters') || 'Clear'}
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  {/* Results Summary */}
+                  {filteredProcessedBatches.length !== processedBatches.length && (
+                    <div className="text-sm text-muted-foreground">
+                      {t('operator.showingResults') || 'Showing'} {filteredProcessedBatches.length} {t('operator.of') || 'of'} {processedBatches.length} {t('operator.batches') || 'batches'}
+                    </div>
+                  )}
+                </div>
                 <div className="space-y-4">
                   {isLoadingBatches ? (
                     <div className="text-center py-8">
                       <Clock className="h-8 w-8 text-muted-foreground mx-auto mb-3 animate-spin" />
                       <p className="text-muted-foreground">{t('operator.loadingBatches')}</p>
                     </div>
-                  ) : processedBatches.length === 0 ? (
+                  ) : filteredProcessedBatches.length === 0 ? (
                     <div className="text-center py-8">
                       <AlertCircle className="h-8 w-8 text-orange-500 mx-auto mb-3" />
                       <p className="text-muted-foreground">{t('operator.noProcessedBatches')}</p>
@@ -1495,7 +1680,7 @@ const OperatorDashboard = () => {
                 </div>
 
                 {/* Pagination for Processed Batches */}
-                {processedBatches.length > 0 && (
+                {filteredProcessedBatches.length > 0 && (
                   <div className="pt-4 border-t">
                     <Pagination
                       currentPage={batchesPage}
@@ -2095,6 +2280,119 @@ const OperatorDashboard = () => {
                   </div>
                 </div>
               )}
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Change Password Modal */}
+        <Dialog open={showChangePasswordModal} onOpenChange={setShowChangePasswordModal}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center space-x-2">
+                <Lock className="h-5 w-5" />
+                <span>{language === 'en' ? 'Change Password' : 'Cambiar Contraseña'}</span>
+              </DialogTitle>
+              <DialogDescription>
+                {language === 'en' ? 'Enter your current password and choose a new one' : 'Ingresa tu contraseña actual y elige una nueva'}
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4">
+              {/* Current Password */}
+              <div className="space-y-2">
+                <Label htmlFor="current-password">{language === 'en' ? 'Current Password' : 'Contraseña Actual'}</Label>
+                <div className="relative">
+                  <Input
+                    id="current-password"
+                    type={showCurrentPassword ? "text" : "password"}
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    placeholder={language === 'en' ? 'Enter current password' : 'Ingresa contraseña actual'}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                    onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                  >
+                    {showCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
+                </div>
+              </div>
+
+              {/* New Password */}
+              <div className="space-y-2">
+                <Label htmlFor="new-password">{language === 'en' ? 'New Password' : 'Nueva Contraseña'}</Label>
+                <div className="relative">
+                  <Input
+                    id="new-password"
+                    type={showNewPassword ? "text" : "password"}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder={language === 'en' ? 'Enter new password' : 'Ingresa nueva contraseña'}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                    onClick={() => setShowNewPassword(!showNewPassword)}
+                  >
+                    {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Confirm Password */}
+              <div className="space-y-2">
+                <Label htmlFor="confirm-password">{language === 'en' ? 'Confirm New Password' : 'Confirmar Nueva Contraseña'}</Label>
+                <div className="relative">
+                  <Input
+                    id="confirm-password"
+                    type={showConfirmPassword ? "text" : "password"}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder={language === 'en' ? 'Confirm new password' : 'Confirma nueva contraseña'}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  >
+                    {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowChangePasswordModal(false)}
+                disabled={isChangingPassword}
+              >
+                {language === 'en' ? 'Cancel' : 'Cancelar'}
+              </Button>
+              <Button
+                onClick={handleChangePassword}
+                disabled={isChangingPassword || !currentPassword || !newPassword || !confirmPassword}
+                className="flex items-center space-x-2"
+              >
+                {isChangingPassword ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                    <span>{language === 'en' ? 'Changing...' : 'Cambiando...'}</span>
+                  </>
+                ) : (
+                  <>
+                    <Lock className="h-4 w-4" />
+                    <span>{language === 'en' ? 'Change Password' : 'Cambiar Contraseña'}</span>
+                  </>
+                )}
+              </Button>
             </div>
           </DialogContent>
         </Dialog>

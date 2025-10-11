@@ -139,6 +139,9 @@ const EmployeeDashboard = () => {
     if (!bankName || bankName.trim() === '') {
       return language === 'en' ? 'Bank name is required' : 'El nombre del banco es requerido';
     }
+    if (bankName.toLowerCase() === 'pending') {
+      return language === 'en' ? 'Please select a valid bank name' : 'Por favor selecciona un nombre de banco válido';
+    }
     return '';
   };
 
@@ -167,8 +170,20 @@ const EmployeeDashboard = () => {
     if (!cedula || cedula.trim() === '') {
       return language === 'en' ? 'Cédula is required' : 'La cédula es requerida';
     }
-    if (!/^[EVJevj][0-9]{6,8}$/.test(cedula)) {
-      return language === 'en' ? 'Cédula must start with E or V, followed by 6-8 digits' : 'La cédula debe comenzar con E o V, seguido de 6-8 dígitos';
+    // Venezuelan cédula format: V followed by 7-8 digits, or E followed by 6-8 digits
+    if (!/^[EV][0-9]{6,8}$/.test(cedula)) {
+      const digitCount = cedula.replace(/^[EV]/, '').length;
+      if (digitCount > 8) {
+        return language === 'en' 
+          ? `Cédula has too many digits (${digitCount}). Must be 6-8 digits after E or V` 
+          : `La cédula tiene demasiados dígitos (${digitCount}). Debe tener 6-8 dígitos después de E o V`;
+      } else if (digitCount < 6) {
+        return language === 'en' 
+          ? `Cédula has too few digits (${digitCount}). Must be 6-8 digits after E or V` 
+          : `La cédula tiene muy pocos dígitos (${digitCount}). Debe tener 6-8 dígitos después de E o V`;
+      } else {
+        return language === 'en' ? 'Cédula must start with E or V, followed by 6-8 digits' : 'La cédula debe comenzar con E o V, seguido de 6-8 dígitos';
+      }
     }
     return '';
   };
@@ -679,16 +694,15 @@ const EmployeeDashboard = () => {
         throw new Error(t('employee.error.noEmployee'));
       }
 
-      // We validate phone and cedula (required when any pagomovil field is present)
+      // Validate PagoMóvil section if any field is filled
       const hasAny = !!(paymentInfoData.pagomovil_phone || paymentInfoData.pagomovil_cedula || paymentInfoData.pagomovil_bank_name);
       if (hasAny) {
-        const phoneErr = paymentInfoData.pagomovil_phone ? '' : (language === 'en' ? 'Phone number is required' : 'El número de teléfono es requerido');
-        const cedulaErr = paymentInfoData.pagomovil_cedula ? '' : (language === 'en' ? 'Cédula is required' : 'La cédula es requerida');
-        setValidationErrors(prev => ({ ...prev, pagomovil_phone: phoneErr, pagomovil_cedula: cedulaErr }));
-        if (phoneErr || cedulaErr) {
+        // Run full validation
+        const isPagomovilValid = validatePagomovil();
+        if (!isPagomovilValid) {
           toast({
             title: t('common.error'),
-            description: language === 'en' ? 'Please complete phone and ID' : 'Por favor completa teléfono y cédula',
+            description: language === 'en' ? 'Please fix the validation errors before saving' : 'Por favor corrige los errores de validación antes de guardar',
             variant: 'destructive',
           });
           return;
@@ -1857,9 +1871,11 @@ const EmployeeDashboard = () => {
                       <Select
                         value={paymentInfoData.bank_name}
                         onValueChange={(value) => {
-                          
                           setPaymentInfoData(prev => ({ ...prev, bank_name: value }));
-                          clearFieldError('bank_name');
+                          
+                          // Real-time validation
+                          const error = validateBankName(value);
+                          setValidationErrors(prev => ({ ...prev, bank_name: error }));
                         }}
                       >
                         <SelectTrigger className="mt-1">
@@ -1892,8 +1908,14 @@ const EmployeeDashboard = () => {
                       <Input
                         value={paymentInfoData.account_number}
                         onChange={(e) => {
-                          setPaymentInfoData(prev => ({ ...prev, account_number: e.target.value }));
-                          clearFieldError('account_number');
+                          const value = e.target.value;
+                          // Only allow numeric characters
+                          const numericValue = value.replace(/[^0-9]/g, '');
+                          setPaymentInfoData(prev => ({ ...prev, account_number: numericValue }));
+                          
+                          // Real-time validation
+                          const error = validateAccountNumber(numericValue);
+                          setValidationErrors(prev => ({ ...prev, account_number: error }));
                         }}
                         placeholder={language === 'en' ? '20 digits' : '20 dígitos'}
                         maxLength={20}
@@ -1991,8 +2013,21 @@ const EmployeeDashboard = () => {
                       <Input
                         value={paymentInfoData.pagomovil_phone}
                         onChange={(e) => {
-                          setPaymentInfoData(prev => ({ ...prev, pagomovil_phone: e.target.value }));
-                          clearFieldError('pagomovil_phone');
+                          const value = e.target.value;
+                          // Only allow numeric characters and + at the beginning
+                          let filteredValue = value;
+                          if (value.startsWith('+')) {
+                            // Allow + at start, then only digits (max 12 digits after +)
+                            filteredValue = '+' + value.slice(1).replace(/[^0-9]/g, '').slice(0, 12);
+                          } else {
+                            // Only allow digits (max 11 digits)
+                            filteredValue = value.replace(/[^0-9]/g, '').slice(0, 11);
+                          }
+                          setPaymentInfoData(prev => ({ ...prev, pagomovil_phone: filteredValue }));
+                          
+                          // Real-time validation
+                          const error = validatePagomovilPhone(filteredValue);
+                          setValidationErrors(prev => ({ ...prev, pagomovil_phone: error }));
                         }}
                         placeholder={language === 'en' ? '+58XXXXXXXXXX' : '+58XXXXXXXXXX'}
                         className={`mt-1 ${validationErrors.pagomovil_phone ? 'border-red-500' : ''}`}
@@ -2010,8 +2045,29 @@ const EmployeeDashboard = () => {
                       <Input
                         value={paymentInfoData.pagomovil_cedula}
                         onChange={(e) => {
-                          setPaymentInfoData(prev => ({ ...prev, pagomovil_cedula: e.target.value }));
-                          clearFieldError('pagomovil_cedula');
+                          const value = e.target.value;
+                          // Only allow E, V, and numeric characters (max 9 characters total: 1 letter + 8 digits)
+                          let filteredValue = value;
+                          if (value.length === 0) {
+                            filteredValue = '';
+                          } else if (value.length === 1) {
+                            // First character must be E or V
+                            filteredValue = (value.toUpperCase() === 'E' || value.toUpperCase() === 'V') ? value.toUpperCase() : '';
+                          } else {
+                            // First character E or V, rest only digits (max 8 digits)
+                            const firstChar = value[0].toUpperCase();
+                            if (firstChar === 'E' || firstChar === 'V') {
+                              const digits = value.slice(1).replace(/[^0-9]/g, '').slice(0, 8);
+                              filteredValue = firstChar + digits;
+                            } else {
+                              filteredValue = '';
+                            }
+                          }
+                          setPaymentInfoData(prev => ({ ...prev, pagomovil_cedula: filteredValue }));
+                          
+                          // Real-time validation
+                          const error = validatePagomovilCedula(filteredValue);
+                          setValidationErrors(prev => ({ ...prev, pagomovil_cedula: error }));
                         }}
                         placeholder={language === 'en' ? 'E12345678' : 'E12345678'}
                         className={`mt-1 ${validationErrors.pagomovil_cedula ? 'border-red-500' : ''}`}
@@ -2032,9 +2088,11 @@ const EmployeeDashboard = () => {
                       <Select
                         value={paymentInfoData.pagomovil_bank_name}
                         onValueChange={(value) => {
-                          
                           setPaymentInfoData(prev => ({ ...prev, pagomovil_bank_name: value }));
-                          clearFieldError('pagomovil_bank_name');
+                          
+                          // Real-time validation
+                          const error = validatePagomovilBankName(value);
+                          setValidationErrors(prev => ({ ...prev, pagomovil_bank_name: error }));
                         }}
                       >
                         <SelectTrigger className="mt-1">

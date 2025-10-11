@@ -56,8 +56,10 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
   const maxAvailable = employeeData.availableAmount;
 
   // Determine available payment methods
-  const hasBankTransfer = employeeData.bank_name && employeeData.account_number;
-  const hasPagomovil = employeeData.pagomovil_phone && employeeData.pagomovil_cedula && employeeData.pagomovil_bank_name;
+  const hasBankTransfer = employeeData.bank_name && employeeData.account_number && 
+    employeeData.bank_name.toLowerCase() !== 'pending' && employeeData.bank_name.trim() !== '';
+  const hasPagomovil = employeeData.pagomovil_phone && employeeData.pagomovil_cedula && employeeData.pagomovil_bank_name &&
+    employeeData.pagomovil_bank_name.toLowerCase() !== 'pending' && employeeData.pagomovil_bank_name.trim() !== '';
   
   // Set default payment method
   useEffect(() => {
@@ -134,6 +136,18 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
               .replace('{max}', maxAvailable.toFixed(2))
           : `With this request you would use $${totalAfterRequest.toFixed(2)} of $${maxTotalAvailable.toFixed(2)} available. You can request $${maxAvailable.toFixed(2)} USD more.`,
         variant: "destructive"
+      });
+      return;
+    }
+
+    // Check if any valid payment methods are available
+    if (!hasBankTransfer && !hasPagomovil) {
+      toast({
+        title: t('common.error'),
+        description: language === 'en' 
+          ? 'Bank information is not properly saved. Please complete your payment information before requesting an advance.' 
+          : 'La información bancaria no está guardada correctamente. Por favor completa tu información de pago antes de solicitar un adelanto.',
+        variant: 'destructive'
       });
       return;
     }
@@ -444,6 +458,23 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
               )}
             </div>
 
+            {/* Bank Information Warning */}
+            {(!hasBankTransfer && !hasPagomovil) && (
+              <div className="flex items-start space-x-2 p-4 bg-red-50 border border-red-200 rounded-lg">
+                <AlertCircle className="h-5 w-5 text-red-500 mt-0.5" />
+                <div>
+                  <div className="font-medium text-red-700">
+                    {language === 'en' ? 'Bank Information Required' : 'Información Bancaria Requerida'}
+                  </div>
+                  <div className="text-sm text-red-600 mt-1">
+                    {language === 'en' 
+                      ? 'Please complete your payment information in the Payment Information section before requesting an advance.' 
+                      : 'Por favor completa tu información de pago en la sección de Información de Pago antes de solicitar un adelanto.'}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Payment Method Selection */}
             {(hasBankTransfer || hasPagomovil) && (
               <div>
@@ -558,7 +589,7 @@ export const AdvanceRequestForm = ({ employeeData, onAdvanceSubmitted, existingA
               className="w-full h-12 text-base font-semibold" 
               variant="hero" 
               onClick={handleSubmit}
-              disabled={isSubmitting || requestAmount < 20 || requestAmount > maxAvailable || hasPendingAdvance}
+              disabled={isSubmitting || requestAmount < 20 || requestAmount > maxAvailable || hasPendingAdvance || (!hasBankTransfer && !hasPagomovil)}
             >
               {isSubmitting ? (
                 <div className="flex items-center space-x-2">

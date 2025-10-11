@@ -407,6 +407,69 @@ const CompanyDashboard = () => {
     fee.status === 'pending' || fee.status === 'unpaid'
   );
 
+  // Calculate analytics from advance request data
+  const calculateAnalytics = () => {
+    if (activeAdvances.length === 0) {
+      return {
+        mostActiveDay: t('days.monday'),
+        peakHour: '10:00 AM',
+        mostActiveEmployees: 0,
+        maxAmount: 0,
+        minAmount: 0
+      };
+    }
+
+    // Calculate most active day
+    const dayCounts: { [key: string]: number } = {};
+    const hourCounts: { [key: number]: number } = {};
+    const employeeAdvanceCounts: { [key: string]: number } = {};
+
+    activeAdvances.forEach(advance => {
+      const date = new Date(advance.created_at);
+      const dayName = date.toLocaleDateString(language === 'en' ? 'en-US' : 'es-ES', { weekday: 'long' });
+      const hour = date.getHours();
+      
+      dayCounts[dayName] = (dayCounts[dayName] || 0) + 1;
+      hourCounts[hour] = (hourCounts[hour] || 0) + 1;
+      employeeAdvanceCounts[advance.employee_id] = (employeeAdvanceCounts[advance.employee_id] || 0) + 1;
+    });
+
+    // Find most active day
+    const mostActiveDay = Object.keys(dayCounts).length > 0 
+      ? Object.keys(dayCounts).reduce((a, b) => dayCounts[a] > dayCounts[b] ? a : b, 'Monday')
+      : 'Monday';
+    
+    // Find peak hour
+    const peakHourNum = Object.keys(hourCounts).length > 0
+      ? Object.keys(hourCounts).reduce((a, b) => hourCounts[parseInt(a)] > hourCounts[parseInt(b)] ? a : b, '10')
+      : '10';
+    const peakHour = new Date(0, 0, 0, parseInt(peakHourNum)).toLocaleTimeString(language === 'en' ? 'en-US' : 'es-ES', { 
+      hour: 'numeric', 
+      minute: '2-digit',
+      hour12: true 
+    });
+
+    // Find most active employees (those with most advance requests)
+    const sortedEmployees = Object.entries(employeeAdvanceCounts)
+      .sort(([,a], [,b]) => b - a)
+      .slice(0, 3); // Top 3 most active employees
+
+    // Calculate max and min advance amounts
+    const amounts = activeAdvances.map(advance => advance.requested_amount || 0);
+    const maxAmount = amounts.length > 0 ? Math.max(...amounts) : 0;
+    const minAmount = amounts.length > 0 ? Math.min(...amounts) : 0;
+
+    return {
+      mostActiveDay: mostActiveDay,
+      peakHour: peakHour,
+      mostActiveEmployees: sortedEmployees.length,
+      maxAmount: maxAmount,
+      minAmount: minAmount
+    };
+  };
+
+  const analytics = calculateAnalytics();
+
   // Report data calculations - use ALL advances for reporting (not only unpaid)
   const reportData = {
     totalAdvances: activeAdvances.reduce((sum, advance) => sum + advance.requested_amount, 0),
@@ -427,9 +490,11 @@ const CompanyDashboard = () => {
     averageAdvanceAmount: activeAdvances.length > 0
       ? activeAdvances.reduce((sum, advance) => sum + (advance.requested_amount || 0), 0) / activeAdvances.length
       : 0,
-    mostActiveEmployees: employees.filter(emp => emp.is_active).length > 0 ? employees.filter(emp => emp.is_active).length : 0,
-    mostActiveDay: t('days.monday'), // Placeholder until computed from timestamps
-    peakHour: '10:00 AM', // Placeholder until computed from timestamps
+    mostActiveEmployees: analytics.mostActiveEmployees,
+    mostActiveDay: analytics.mostActiveDay,
+    peakHour: analytics.peakHour,
+    maxAmount: analytics.maxAmount,
+    minAmount: analytics.minAmount,
     monthlyGrowth: monthlyChangePercent
   };
 
@@ -723,8 +788,52 @@ const CompanyDashboard = () => {
         throw new Error(t('company.billing.couldNotLoadPayments'));
       }
       
+      // Recalculate amounts for pending payments to ensure they match current billing logic
+      const updatedPayments = await Promise.all(payments.map(async (payment) => {
+        if (payment.status === 'pending') {
+          // Recalculate the amount for pending payments using current billing logic
+          const currentBillingPeriod = getCurrentBillingPeriod();
+          
+          // Get completed advances for this period
+          const { data: advances } = await supabase
+            .from("advance_transactions")
+            .select("requested_amount, fee_amount")
+            .eq("company_id", companyData.id)
+            .eq("status", "completed")
+            .gte("created_at", currentBillingPeriod.startDate.toISOString())
+            .lte("created_at", currentBillingPeriod.endDate.toISOString());
+          
+          if (advances) {
+            const currentPeriodCompletedAdvances = advances;
+            const currentPeriodTotalAdvances = currentPeriodCompletedAdvances
+              .reduce((sum, advance) => sum + advance.requested_amount, 0);
+            const currentPeriodCommissionFees = currentPeriodCompletedAdvances
+              .reduce((sum, advance) => sum + advance.fee_amount, 0);
+            
+            // Calculate correct amount based on billing period
+            const isFirstPeriod = currentBillingPeriod.period === 'first';
+            const correctAmount = isFirstPeriod 
+              ? currentPeriodTotalAdvances  // First period: Advance amounts only
+              : currentPeriodTotalAdvances + currentPeriodCommissionFees;  // Second period: Advance amounts + Employee fees
+            
+            // Update the payment record if amount has changed
+            if (Math.abs(payment.amount - correctAmount) > 0.01) {
+              const { error: updateError } = await supabase
+                .from("company_payments")
+                .update({ amount: correctAmount })
+                .eq("id", payment.id);
+              
+              if (!updateError) {
+                payment.amount = correctAmount;
+              }
+            }
+          }
+        }
+        return payment;
+      }));
+      
       // Transform data for UI
-      const transformedPayments = payments.map(payment => ({
+      const transformedPayments = updatedPayments.map(payment => ({
         id: payment.id,
         invoiceNumber: payment.invoice_number,
         amount: payment.amount,
@@ -791,12 +900,15 @@ const CompanyDashboard = () => {
     .filter(advance => advance.status === 'pending' || advance.status === 'approved' || advance.status === 'processing')
     .reduce((sum, advance) => sum + advance.requested_amount, 0);
   
-  // Calculate total advances amount for billing (all advances in period)
-  const currentPeriodTotalAdvances = currentPeriodAdvances
+  // Calculate total advances amount for billing (only COMPLETED advances in period)
+  const currentPeriodCompletedAdvances = currentPeriodAdvances
+    .filter(advance => advance.status === 'completed');
+  
+  const currentPeriodTotalAdvances = currentPeriodCompletedAdvances
     .reduce((sum, advance) => sum + advance.requested_amount, 0);
   
-  // Calculate commission fees for current period
-  const currentPeriodCommissionFees = currentPeriodAdvances
+  // Calculate commission fees for current period (only for completed advances)
+  const currentPeriodCommissionFees = currentPeriodCompletedAdvances
     .reduce((sum, advance) => sum + (advance.fee_amount || 0), 0);
 
   // Calculate employee fees for current billing period
@@ -855,7 +967,7 @@ const CompanyDashboard = () => {
     paymentHistory: paymentHistory,
     billingPeriod: currentBillingPeriod,
     // Additional data for billing breakdown
-    currentPeriodAdvancesCount: currentPeriodAdvances.length,
+    currentPeriodAdvancesCount: currentPeriodCompletedAdvances.length,
     currentPeriodCommissionFees: currentPeriodCommissionFees,
     currentPeriodTotalAdvances: currentPeriodTotalAdvances,
     isFirstPeriod: isFirstPeriod,
@@ -3310,10 +3422,12 @@ const CompanyDashboard = () => {
             employeeParticipationRate: employees.length > 0 
               ? (employees.filter(emp => emp.is_active && activeAdvances.some(adv => adv.employee_id === emp.id)).length / employees.length) * 100
               : 0,
-            mostActiveEmployees: employees.filter(emp => emp.is_active).length,
-            mostActiveDay: t('days.monday'), // This would need to be calculated based on actual data
-            peakHour: '9:00 AM', // This would need to be calculated based on actual data
-            monthlyGrowth: 0, // This would need to be calculated based on actual data
+            mostActiveEmployees: analytics.mostActiveEmployees,
+            mostActiveDay: analytics.mostActiveDay,
+            peakHour: analytics.peakHour,
+            maxAmount: analytics.maxAmount,
+            minAmount: analytics.minAmount,
+            monthlyGrowth: monthlyChangePercent,
             approvedAdvances: activeAdvances.filter(adv => adv.status === 'completed' || adv.status === 'approved').length,
             pendingAdvances: activeAdvances.filter(adv => adv.status === 'pending' || adv.status === 'processing').length,
             rejectedAdvances: activeAdvances.filter(adv => adv.status === 'failed').length,
@@ -3328,6 +3442,8 @@ const CompanyDashboard = () => {
             [t('company.reports.pendingRequests')]: globalReportData.pendingAdvances || 0,
             [t('company.reports.rejectedRequests')]: globalReportData.rejectedAdvances || 0,
             [t('company.reports.totalAmount')]: globalReportData.totalAdvances || 0,
+            [t('company.maxAmount')]: globalReportData.maxAmount || 0,
+            [t('company.minAmount')]: globalReportData.minAmount || 0,
             [t('company.reports.avgAmount')]: globalReportData.averageAdvanceAmount || 0,
             [t('company.participationRate')]: globalReportData.employeeParticipationRate || 0,
             [t('company.mostActiveEmployees')]: globalReportData.mostActiveEmployees || 0,
@@ -3646,6 +3762,8 @@ const CompanyDashboard = () => {
       mostActiveEmployees: String(reportData.mostActiveEmployees),
       mostActiveDay: reportData.mostActiveDay,
       peakHour: reportData.peakHour,
+      maxAmount: `$${(reportData.maxAmount || 0).toFixed(2)}`,
+      minAmount: `$${(reportData.minAmount || 0).toFixed(2)}`,
       monthlyGrowth: `${reportData.monthlyGrowth >= 0 ? '+' : ''}${reportData.monthlyGrowth.toFixed(1)}%`,
     };
 
@@ -3654,6 +3772,8 @@ const CompanyDashboard = () => {
       [t('company.mostActiveEmployees') + ':', analytics.mostActiveEmployees],
       [t('company.mostActiveDay') + ':', analytics.mostActiveDay],
       [t('company.peakHour') + ':', analytics.peakHour],
+      [t('company.maxAmount') + ':', analytics.maxAmount],
+      [t('company.minAmount') + ':', analytics.minAmount],
       [t('company.monthlyGrowth') + ':', analytics.monthlyGrowth],
     ];
 
@@ -3868,25 +3988,57 @@ const CompanyDashboard = () => {
       const currentAmount = calculateRealTotalOutstanding();
       const today = new Date().toISOString().split('T')[0];
       
-      // Create payment record in Supabase (optional - continue if fails)
+      // Update existing pending billing record instead of creating new one
       try {
-        const { data: paymentData, error: paymentError } = await supabase
+        // Find the current pending billing record for this period
+        const { data: existingBilling, error: findError } = await supabase
           .from("company_payments")
-          .insert([{
-            company_id: companyData.id,
-            amount: currentAmount,
-            status: 'paid',
-            payment_method: paymentMethod,
-            payment_details: paymentDetails,
-            paid_date: today,
-            invoice_number: `INV-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`,
-            period: `${new Date().toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}`,
-            due_date: billingData.nextDueDate
-          }])
-          .select();
+          .select("*")
+          .eq("company_id", companyData.id)
+          .eq("status", "pending")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
         
-        if (paymentError) {
-          console.warn('Warning: Could not create payment record:', paymentError);
+        if (findError) {
+          console.warn('Warning: Could not find existing billing record:', findError);
+        }
+        
+        if (existingBilling) {
+          // Update existing billing record to paid
+          const { error: updateError } = await supabase
+            .from("company_payments")
+            .update({
+              status: 'confirmed',
+              payment_method: paymentMethod,
+              payment_details: paymentDetails,
+              paid_date: today
+            })
+            .eq("id", existingBilling.id);
+          
+          if (updateError) {
+            console.warn('Warning: Could not update billing record:', updateError);
+          }
+        } else {
+          // If no existing billing record found, create a new one (fallback)
+          const { data: paymentData, error: paymentError } = await supabase
+            .from("company_payments")
+            .insert([{
+              company_id: companyData.id,
+              amount: currentAmount,
+              status: 'confirmed',
+              payment_method: paymentMethod,
+              payment_details: paymentDetails,
+              paid_date: today,
+              invoice_number: `INV-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`,
+              period: `${new Date().toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}`,
+              due_date: billingData.nextDueDate
+            }])
+            .select();
+          
+          if (paymentError) {
+            console.warn('Warning: Could not create payment record:', paymentError);
+          }
         }
       } catch (dbError) {
         console.warn('Database error (continuing with local updates):', dbError);
@@ -5464,6 +5616,14 @@ const CompanyDashboard = () => {
                       <span className="font-medium">{reportData.peakHour}</span>
                     </div>
                     <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">{t('company.maxAmount')}:</span>
+                      <span className="font-medium text-green-600">${(reportData.maxAmount || 0).toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">{t('company.minAmount')}:</span>
+                      <span className="font-medium text-blue-600">${(reportData.minAmount || 0).toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
                       <span className="text-sm text-muted-foreground">{t('company.monthlyGrowth')}:</span>
                       <span className={`font-medium ${reportData.monthlyGrowth >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                         {reportData.monthlyGrowth >= 0 ? '+' : ''}{reportData.monthlyGrowth.toFixed(1)}%
@@ -6763,7 +6923,7 @@ const CompanyDashboard = () => {
                 </div>
                 <div className="text-center">
                   <div className="text-2xl font-bold text-blue-600">
-                    ${selectedInvoice.amount.toFixed(2)}
+                    ${invoiceDetails.reduce((sum, a) => sum + Number(a.requested_amount || 0), 0).toFixed(2)}
                   </div>
                   <div className="text-sm text-muted-foreground">Invoice Total</div>
                 </div>
@@ -6790,7 +6950,7 @@ const CompanyDashboard = () => {
                   <div className="border-t pt-2">
                     <div className="flex justify-between font-semibold text-lg">
                       <span>Total Invoice Amount:</span>
-                      <span>${selectedInvoice.amount.toFixed(2)}</span>
+                      <span>${invoiceDetails.reduce((sum, a) => sum + Number(a.requested_amount || 0), 0).toFixed(2)}</span>
                     </div>
                   </div>
                   <div className="flex justify-between">

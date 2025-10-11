@@ -18,7 +18,7 @@ interface Invoice {
   company_name: string;
   company_rif: string;
   amount: number;
-  status: 'draft' | 'sent' | 'paid' | 'overdue';
+  status: 'draft' | 'sent' | 'paid' | 'confirmed' | 'overdue';
   due_date: string;
   created_at: string;
   paid_date?: string;
@@ -107,6 +107,7 @@ const BillingDashboard: React.FC = () => {
           company_rif: payment.companies?.rif || 'Unknown RIF',
           amount: payment.amount,
           status: payment.status === 'paid' ? 'paid' : 
+                  payment.status === 'confirmed' ? 'confirmed' :
                   payment.status === 'pending' ? 'sent' : 'draft',
           due_date: payment.due_date,
           created_at: payment.created_at,
@@ -187,6 +188,8 @@ const BillingDashboard: React.FC = () => {
     switch (status) {
       case 'paid':
         return 'default';
+      case 'confirmed':
+        return 'secondary';
       case 'sent':
         return 'secondary';
       case 'overdue':
@@ -203,6 +206,8 @@ const BillingDashboard: React.FC = () => {
     switch (status) {
       case 'paid':
         return <CheckCircle className="h-4 w-4 text-green-600" />;
+      case 'confirmed':
+        return <CheckCircle className="h-4 w-4 text-orange-600" />;
       case 'sent':
         return <Clock className="h-4 w-4 text-blue-600" />;
       case 'overdue':
@@ -224,6 +229,46 @@ const BillingDashboard: React.FC = () => {
   const handleMarkAsPaid = (invoice: Invoice) => {
     setSelectedInvoice(invoice);
     setShowPaymentModal(true);
+  };
+
+  // Handle mark as confirm
+  const handleMarkAsConfirm = async (invoice: Invoice) => {
+    try {
+      const { error } = await supabase
+        .from('company_payments')
+        .update({
+          status: 'paid',
+          operator_name: 'Operator', // You might want to get this from user context
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', invoice.id);
+
+      if (error) {
+        console.error('Error updating payment status:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to confirm payment',
+          variant: 'destructive'
+        });
+        return;
+      }
+
+      // Show success message
+      toast({
+        title: 'Payment Confirmed',
+        description: `Payment for ${invoice.company_name} has been confirmed`,
+      });
+
+      // Refresh the invoices list
+      fetchInvoices(currentPage);
+    } catch (error) {
+      console.error('Error marking as confirm:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to confirm payment',
+        variant: 'destructive'
+      });
+    }
   };
 
   // Handle payment confirmation
@@ -390,6 +435,17 @@ const BillingDashboard: React.FC = () => {
                         >
                           <CheckCircle className="h-4 w-4 mr-2" />
                           Mark as Paid
+                        </Button>
+                      )}
+
+                      {invoice.status === 'confirmed' && (
+                        <Button
+                          variant="default"
+                          size="sm"
+                          onClick={() => handleMarkAsConfirm(invoice)}
+                        >
+                          <CheckCircle className="h-4 w-4 mr-2" />
+                          Mark as Confirm
                         </Button>
                       )}
                     </div>
