@@ -916,6 +916,7 @@ const translations: Translations = {
   'company.approve': { en: 'Approve', es: 'Aprobar' },
   'company.approved': { en: 'Approved', es: 'Aprobado' },
   'company.employeeManagement': { en: 'Employee Management', es: 'Gestión de Empleados' },
+  'company.deletedEmployees': { en: 'Deleted Employees', es: 'Empleados Eliminados' },
   'company.managePayroll': { en: 'Manage your payroll and registered employees', es: 'Administra tu nómina y empleados registrados' },
   'company.searchEmployee': { en: 'Search employee...', es: 'Buscar empleado...' },
   'company.addEmployee': { en: 'Add Employee', es: 'Agregar Empleado' },
@@ -1581,6 +1582,7 @@ const translations: Translations = {
   // Employee Dashboard - Error messages
   'employee.error.unauthenticated': { en: 'User not authenticated', es: 'Usuario no autenticado' },
   'employee.error.loadEmployeeData': { en: 'Error loading employee data', es: 'Error al cargar datos del empleado' },
+  'employee.error.employeeNotFound': { en: 'Employee not found', es: 'Empleado no encontrado' },
   'employee.error.cancelAdvance': { en: 'Error cancelling advance', es: 'Error al cancelar el adelanto' },
   
   // Payment methods

@@ -325,10 +325,30 @@ const EmployeeDashboard = () => {
           .from("employees")
           .select("*")
           .eq("auth_user_id", user.id)
+          .is("deleted_at", null)
           .single();
 
         if (employeeError) {
           throw new Error(`${t('employee.error.loadEmployeeData')}: ${employeeError.message}`);
+        }
+
+        if (!employeeData) {
+          throw new Error(t('employee.error.employeeNotFound'));
+        }
+
+        // Check if employee is soft-deleted
+        if (employeeData.deleted_at) {
+          // Employee has been deleted, sign them out and redirect
+          await supabase.auth.signOut();
+          toast({
+            title: t('common.error'),
+            description: language === 'en' 
+              ? 'Your employee account has been deactivated. Please contact your company administrator.'
+              : 'Tu cuenta de empleado ha sido desactivada. Por favor contacta al administrador de tu empresa.',
+            variant: 'destructive'
+          });
+          window.location.href = '/login';
+          return;
         }
 
         setEmployee(employeeData);
@@ -498,9 +518,25 @@ const EmployeeDashboard = () => {
         .from("employees")
         .select("*")
         .eq("auth_user_id", user.id)
+        .is("deleted_at", null)
         .single();
 
       if (!employeeError && employeeData) {
+        // Check if employee is soft-deleted
+        if (employeeData.deleted_at) {
+          // Employee has been deleted, sign them out and redirect
+          await supabase.auth.signOut();
+          toast({
+            title: t('common.error'),
+            description: language === 'en' 
+              ? 'Your employee account has been deactivated. Please contact your company administrator.'
+              : 'Tu cuenta de empleado ha sido desactivada. Por favor contacta al administrador de tu empresa.',
+            variant: 'destructive'
+          });
+          window.location.href = '/login';
+          return;
+        }
+        
         setEmployee(employeeData);
         
         // Populate payment info data

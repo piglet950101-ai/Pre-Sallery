@@ -11,6 +11,7 @@ import Header from "@/components/Header";
 import ScrollToTopButton from "@/components/ScrollToTopButton";
 import { 
   Users, 
+  User,
   DollarSign, 
   TrendingUp, 
   Clock,
@@ -32,6 +33,7 @@ import {
   UserX,
   UserCheck,
   Trash2,
+  RotateCcw,
   Upload,
   FileSpreadsheet,
   Check,
@@ -108,6 +110,7 @@ interface Employee {
   auth_email?: string;
   cedula_front_url?: string | null;
   cedula_back_url?: string | null;
+  deleted_at?: string | null;
 }
 
 const CompanyDashboard = () => {
@@ -220,6 +223,7 @@ const CompanyDashboard = () => {
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [deletedEmployees, setDeletedEmployees] = useState<Employee[]>([]);
   const [isLoadingEmployees, setIsLoadingEmployees] = useState(true);
   const [employeeFees, setEmployeeFees] = useState<any[]>([]);
   const [isLoadingEmployeeFees, setIsLoadingEmployeeFees] = useState(true);
@@ -1111,22 +1115,36 @@ const CompanyDashboard = () => {
           console.error('Error loading change requests:', error);
         }
         
-        // Fetch employees for this company with auth user email
+        // Fetch active employees for this company (exclude soft-deleted)
         const { data: employeesData, error: employeesError } = await supabase
-          .from("employees_with_auth")
+          .from("employees")
           .select("*")
           .eq("company_id", companyId)
+          .is("deleted_at", null)
           .order("created_at", { ascending: false });
         
         if (employeesError) {
           throw new Error(`Error al cargar empleados: ${employeesError.message}`);
         }
         
-        // For now, just use the existing employee data
-        // The auth_user_id field might not be populated yet
+        // Fetch deleted employees for this company
+        const { data: deletedEmployeesData, error: deletedEmployeesError } = await supabase
+          .from("employees")
+          .select("*")
+          .eq("company_id", companyId)
+          .not("deleted_at", "is", null)
+          .order("deleted_at", { ascending: false });
+        
+        if (deletedEmployeesError) {
+          console.error('Error loading deleted employees:', deletedEmployeesError);
+        }
+        
+        // Use the employee data directly (email is already in employees table)
         const employeesWithEmails = employeesData || [];
+        const deletedEmployeesWithEmails = deletedEmployeesData || [];
         
         setEmployees(employeesWithEmails);
+        setDeletedEmployees(deletedEmployeesWithEmails);
         
         // Fetch employee fees for this company
         fetchEmployeeFees();
@@ -2014,95 +2032,69 @@ const CompanyDashboard = () => {
     }
   };
 
+  const restoreEmployee = async (employee: Employee) => {
+    try {
+      setIsLoading(true);
+      
+      // Restore the employee by setting deleted_at to null
+      const { error } = await supabase
+        .from("employees")
+        .update({ deleted_at: null })
+        .eq("id", employee.id);
+
+      if (error) {
+        throw new Error(`Failed to restore employee: ${error.message}`);
+      }
+
+      // Move from deleted to active employees
+      setDeletedEmployees(prev => prev.filter(e => e.id !== employee.id));
+      setEmployees(prev => [employee, ...prev]);
+      
+      toast({
+        title: t('common.success'),
+        description: language === 'en'
+          ? 'Employee has been restored successfully.'
+          : 'El empleado ha sido restaurado exitosamente.',
+        variant: 'default'
+      });
+    } catch (error) {
+      console.error('Error restoring employee:', error);
+      toast({
+        title: t('common.error'),
+        description: error instanceof Error ? error.message : (language === 'en' ? 'Failed to restore employee' : 'Error al restaurar empleado'),
+        variant: 'destructive'
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const confirmDeleteEmployee = async () => {
     if (!employeeToDelete) return;
     try {
       setIsLoading(true);
       
-      // First, check for any remaining foreign key references
-
-      // Check for any remaining references in all possible tables
-      const tablesToCheck = ['audit_logs', 'employee_fees', 'change_requests', 'advance_transactions'];
-      for (const table of tablesToCheck) {
-        const { data: remainingRecords, error: checkError } = await supabase
-          .from(table)
-          .select('id')
-          .eq('employee_id', employeeToDelete.id)
-          .limit(1);
-
-        if (checkError) {
-          // Handle check error silently
-        } else if (remainingRecords && remainingRecords.length > 0) {
-          // Found remaining records
-        }
-      }
-
-      // Skip audit logs deletion due to RLS policies
-      // The foreign key constraint should handle this with CASCADE DELETE
-
-      // Delete employee fees for this employee
-      const { error: feeError } = await supabase
-        .from("employee_fees")
-        .delete()
-        .eq("employee_id", employeeToDelete.id);
-      
-      if (feeError) {
-        throw new Error(`Failed to delete employee fees: ${feeError.message}`);
-      }
-
-      // Delete change requests for this employee
-      const { error: changeRequestError } = await supabase
-        .from("change_requests")
-        .delete()
-        .eq("employee_id", employeeToDelete.id);
-      
-      if (changeRequestError) {
-        throw new Error(`Failed to delete change requests: ${changeRequestError.message}`);
-      }
-
-      // Delete advance transactions for this employee
-      const { error: advanceError } = await supabase
-        .from("advance_transactions")
-        .delete()
-        .eq("employee_id", employeeToDelete.id);
-      
-      if (advanceError) {
-        throw new Error(`Failed to delete advance transactions: ${advanceError.message}`);
-      }
-
-      // Final verification: Check if any references still exist (excluding audit_logs)
-      const tablesToCheckExcludingAudit = tablesToCheck.filter(table => table !== 'audit_logs');
-
-      for (const table of tablesToCheckExcludingAudit) {
-        const { data: finalCheck, error: finalCheckError } = await supabase
-          .from(table)
-          .select('id')
-          .eq('employee_id', employeeToDelete.id)
-          .limit(1);
-
-        if (finalCheckError) {
-          // Handle check error silently
-        } else if (finalCheck && finalCheck.length > 0) {
-          throw new Error(`Cannot delete employee: still has references in ${table}`);
-        }
-      }
-
-      // Now delete the employee
+      // Soft delete the employee by setting deleted_at timestamp
       const { error } = await supabase
         .from("employees")
-        .delete()
+        .update({ deleted_at: new Date().toISOString() })
         .eq("id", employeeToDelete.id);
 
       if (error) {
         throw new Error(`Failed to delete employee: ${error.message}`);
       }
 
-      // Remove from local state
+      // Remove from local state and add to deleted employees
+      const deletedEmployee = { ...employeeToDelete, deleted_at: new Date().toISOString() };
       setEmployees(prev => prev.filter(e => e.id !== employeeToDelete.id));
+      setDeletedEmployees(prev => [deletedEmployee, ...prev]);
 
       toast({
-        title: t('company.billing.employeeDeleted'),
-        description: `${employeeToDelete.first_name} ${employeeToDelete.last_name} ${t('company.billing.employeeDeletedDesc')}`,
+        title: t('common.success'),
+        description: language === 'en'
+          ? 'Employee has been deleted successfully. Their history has been preserved.'
+          : 'El empleado ha sido eliminado exitosamente. Su historial ha sido preservado.',
+        variant: 'default'
       });
     } catch (err: any) {
       toast({
@@ -4856,12 +4848,20 @@ const CompanyDashboard = () => {
           <TabsContent value="employees" className="space-y-6">
             {/* Nested Tabs for Employees Section */}
             <Tabs defaultValue="employee-management" className="space-y-6">
-              <TabsList className="grid w-full grid-cols-2">
+              <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="employee-management" className="relative">
                   {t('company.employeeManagement')}
                   {pendingEmployees > 0 && (
                     <Badge variant="destructive" className="ml-2 h-5 w-5 flex items-center justify-center p-0 text-xs">
                       {pendingEmployees}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="deleted-employees" className="relative">
+                  {t('company.deletedEmployees')}
+                  {deletedEmployees.length > 0 && (
+                    <Badge variant="secondary" className="ml-2 h-5 w-5 flex items-center justify-center p-0 text-xs">
+                      {deletedEmployees.length}
                     </Badge>
                   )}
                 </TabsTrigger>
@@ -5387,6 +5387,99 @@ const CompanyDashboard = () => {
                             </div>
                           ))
                         }
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="deleted-employees" className="space-y-6">
+                {/* Deleted Employees Summary */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Card className="border-none shadow-elegant">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">{t('company.deletedEmployees')}</CardTitle>
+                      <Trash2 className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold text-red-600">{deletedEmployees.length}</div>
+                      <p className="text-xs text-muted-foreground">
+                        {language === 'en' ? 'Deleted employees' : 'Empleados eliminados'}
+                      </p>
+                    </CardContent>
+                  </Card>
+                  
+                  <Card className="border-none shadow-elegant">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">{language === 'en' ? 'Can be restored' : 'Pueden ser restaurados'}</CardTitle>
+                      <RotateCcw className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold text-green-600">{deletedEmployees.length}</div>
+                      <p className="text-xs text-muted-foreground">
+                        {language === 'en' ? 'All deleted employees' : 'Todos los empleados eliminados'}
+                      </p>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Deleted Employees List */}
+                <Card className="border-none shadow-elegant">
+                  <CardHeader>
+                    <CardTitle className="flex items-center space-x-2">
+                      <Trash2 className="h-5 w-5 text-red-500" />
+                      <span>{t('company.deletedEmployees')}</span>
+                    </CardTitle>
+                    <CardDescription>
+                      {language === 'en' 
+                        ? 'Employees that have been deleted but their history is preserved. You can restore them if needed.'
+                        : 'Empleados que han sido eliminados pero su historial está preservado. Puedes restaurarlos si es necesario.'}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {deletedEmployees.length === 0 ? (
+                      <div className="text-center py-8">
+                        <Trash2 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                        <h3 className="text-lg font-semibold text-muted-foreground mb-2">
+                          {language === 'en' ? 'No deleted employees' : 'No hay empleados eliminados'}
+                        </h3>
+                        <p className="text-sm text-muted-foreground">
+                          {language === 'en' 
+                            ? 'Deleted employees will appear here with their history preserved.'
+                            : 'Los empleados eliminados aparecerán aquí con su historial preservado.'}
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {deletedEmployees.map((employee) => (
+                          <div key={employee.id} className="flex items-center justify-between p-4 border rounded-lg bg-muted/30">
+                            <div className="flex items-center space-x-4">
+                              <div className="h-10 w-10 bg-red-100 rounded-full flex items-center justify-center">
+                                <User className="h-5 w-5 text-red-600" />
+                              </div>
+                              <div>
+                                <div className="font-medium">{employee.first_name} {employee.last_name}</div>
+                                <div className="text-sm text-muted-foreground">
+                                  {employee.email} • {employee.position}
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {language === 'en' ? 'Deleted on' : 'Eliminado el'}: {new Date(employee.deleted_at).toLocaleDateString()}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => restoreEmployee(employee)}
+                                disabled={isLoading}
+                              >
+                                <RotateCcw className="h-4 w-4 mr-2" />
+                                {language === 'en' ? 'Restore' : 'Restaurar'}
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     )}
                   </CardContent>
