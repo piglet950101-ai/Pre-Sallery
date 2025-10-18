@@ -560,11 +560,6 @@ const EmployeeDashboard = () => {
       if (!requestsError) {
         setAdvanceRequests(requestsData || []);
       }
-
-      toast({
-        title: t('company.billing.dataUpdated'),
-        description: t('company.billing.dataUpdatedDesc'),
-      });
     } catch (error: any) {
       console.error("Error refreshing data:", error);
       toast({

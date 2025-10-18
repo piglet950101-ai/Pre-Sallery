@@ -1,7 +1,7 @@
 import { ReactNode, useEffect, useState } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth, getUserRole, getActualUserRole } from "@/contexts/AuthContext";
-import PermissionDenied from "./PermissionDenied";
+import InlinePermissionError from "./InlinePermissionError";
 import { supabase } from "@/lib/supabase";
 
 interface EmployeeStatus {
@@ -93,7 +93,7 @@ const ProtectedRoute = ({ children, role }: { children: ReactNode; role?: string
   if (role) {
     // Check if user has the required role
     if (actualUserRole !== role) {
-      return <PermissionDenied requiredRole={role} userRole={actualUserRole} />;
+      return <InlinePermissionError requiredRole={role} userRole={actualUserRole} />;
     }
     
     // Employees should still access onboarding (password/KYC) even if not active

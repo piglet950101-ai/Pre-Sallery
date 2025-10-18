@@ -630,11 +630,6 @@ const CompanyDashboard = () => {
       
       // Also refresh payment history to show new invoices
       await fetchPaymentHistory();
-      
-      toast({
-        title: t('company.billing.dataUpdated'),
-        description: t('company.billing.dataUpdatedDesc'),
-      });
     } catch (error) {
       console.error('Error in refreshCompanyData:', error);
     }
@@ -2183,11 +2178,6 @@ const CompanyDashboard = () => {
       if (updateError) {
         throw new Error(`Error al actualizar empleado: ${updateError.message}`);
       }
-      
-      toast({
-        title: t('company.billing.dataUpdated'),
-        description: t('company.billing.dataUpdatedDesc'),
-      });
       
       // Refresh employee list
       const { data: { user: refreshUser } } = await supabase.auth.getUser();

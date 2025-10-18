@@ -40,27 +40,47 @@ const Login = () => {
     }
   };
 
+  // Helper function to check if email exists in any role table
+  const checkEmailExists = async (email: string) => {
+    try {
+      // Check in companies table
+      const { data: companyData } = await supabase
+        .from('companies')
+        .select('id')
+        .eq('email', email)
+        .maybeSingle();
+      
+      if (companyData) return true;
+      
+      // Check in employees table
+      const { data: employeeData } = await supabase
+        .from('employees')
+        .select('id')
+        .eq('email', email)
+        .maybeSingle();
+      
+      if (employeeData) return true;
+      
+      // Check in operators table
+      const { data: operatorData } = await supabase
+        .from('operators')
+        .select('id')
+        .eq('email', email)
+        .maybeSingle();
+      
+      return !!operatorData;
+    } catch (error) {
+      console.error('Error checking email existence:', error);
+      return false;
+    }
+  };
+
   const signIn = async (email: string, password: string, fallbackRedirect: string, roleToSet?: string) => {
     try {
       setIsLoading(true);
       
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
-
-
-      // Only set metadata if a session exists (email may require confirmation)
-      if (roleToSet && data.session) {
-        const updateResult = await supabase.auth.updateUser({ data: { role: roleToSet } });
-        
-        // best-effort company record ensure
-        const userId = data.session.user.id;
-        if (roleToSet === "company") {
-          await ensureCompanyRecord(userId, { email });
-        }
-        if (roleToSet === "employee") {
-          await ensureEmployeeRecord(userId, { email });
-        }
-      }
 
       if (!data.session) {
         toast({
@@ -70,8 +90,85 @@ const Login = () => {
         return;
       }
 
-      // Resolve redirect by role if available
-      const role = (data.session.user.app_metadata as any)?.role ?? (data.session.user.user_metadata as any)?.role;
+      // Check the actual role from database instead of setting it based on login tab
+      const userId = data.session.user.id;
+      let actualRole = null;
+      
+      // Check if user is a company
+      const { data: companyData } = await supabase
+        .from('companies')
+        .select('id, is_approved')
+        .eq('auth_user_id', userId)
+        .maybeSingle();
+      
+      if (companyData) {
+        actualRole = 'company';
+      } else {
+        // Check if user is an employee
+        const { data: employeeData } = await supabase
+          .from('employees')
+          .select('id, is_active')
+          .eq('auth_user_id', userId)
+          .maybeSingle();
+        
+        if (employeeData) {
+          actualRole = 'employee';
+        } else {
+          // Check if user is an operator (admin)
+          const { data: operatorData } = await supabase
+            .from('operators')
+            .select('id')
+            .eq('auth_user_id', userId)
+            .maybeSingle();
+          
+          if (operatorData) {
+            actualRole = 'operator';
+          }
+        }
+      }
+
+      // If no role found in database, show error
+      if (!actualRole) {
+        await supabase.auth.signOut();
+        toast({
+          title: t('login.noRoleFound') ?? 'Account Not Found',
+          description: t('login.noRoleFoundDesc') ?? 'No account found for this email. Please register first.',
+          variant: 'destructive'
+        });
+        return;
+      }
+
+      // Check if the selected login tab matches the actual role
+      if (roleToSet && roleToSet !== actualRole) {
+        await supabase.auth.signOut();
+        const roleNames = {
+          'employee': 'employee',
+          'company': 'company',
+          'operator': 'platform operator'
+        };
+        toast({
+          title: t('login.wrongRoleTitle') ?? 'Access Denied',
+          description: (t('login.wrongRoleDesc') ?? 'You are not registered as a {role}. Please use the correct login tab.').replace('{role}', roleNames[roleToSet as keyof typeof roleNames]),
+          variant: 'destructive'
+        });
+        return;
+      }
+
+      // Update metadata with actual role
+      if (data.session) {
+        const updateResult = await supabase.auth.updateUser({ data: { role: actualRole } });
+        
+        // best-effort company record ensure
+        if (actualRole === "company") {
+          await ensureCompanyRecord(userId, { email });
+        }
+        if (actualRole === "employee") {
+          await ensureEmployeeRecord(userId, { email });
+        }
+      }
+
+      // Resolve redirect by actual role from database
+      const role = actualRole;
       
       // If the user is a company, check if they're approved
       if (role === 'company') {
@@ -185,21 +282,30 @@ const Login = () => {
       
       // Handle specific error types
       // Note: Supabase returns "Invalid login credentials" for both wrong password AND non-existent user
-      // We'll provide a more generic but helpful message that covers both cases
+      // We'll check if the email exists to provide more specific error messages
       if (err?.message?.includes('Invalid login credentials') || 
           err?.message?.includes('Invalid credentials') ||
           err?.message?.includes('Wrong password') ||
           err?.message?.includes('incorrect password') ||
           err?.message?.includes('Invalid password') ||
           err?.status === 400) {
-        errorTitle = t('login.invalidCredentials') ?? 'Invalid Credentials';
-        errorDescription = t('login.invalidCredentialsDesc') ?? 'The email or password you entered is incorrect. Please check your credentials and try again, or create a new account if you don\'t have one.';
+        
+        // Check if email exists to determine if it's wrong email or wrong password
+        const emailExists = await checkEmailExists(email);
+        
+        if (emailExists) {
+          errorTitle = t('login.invalidCredentials') ?? 'Wrong Password';
+          errorDescription = t('login.invalidCredentialsDesc') ?? 'The password you entered is incorrect. Please try again.';
+        } else {
+          errorTitle = t('login.userNotFound') ?? 'Email Not Found';
+          errorDescription = t('login.userNotFoundDesc') ?? 'No account found with this email address. Please check your email or create a new account.';
+        }
       } else if (err?.message?.includes('User not found') ||
                  err?.message?.includes('No user found') ||
                  err?.message?.includes('Email not found') ||
                  err?.message?.includes('Invalid email') ||
                  err?.message?.includes('User does not exist')) {
-        errorTitle = t('login.userNotFound') ?? 'User Not Found';
+        errorTitle = t('login.userNotFound') ?? 'Email Not Found';
         errorDescription = t('login.userNotFoundDesc') ?? 'No account found with this email address. Please check your email or create a new account.';
       } else if (err?.message?.includes('Too many requests') ||
                  err?.message?.includes('Rate limit') ||

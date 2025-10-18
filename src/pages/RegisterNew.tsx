@@ -36,6 +36,7 @@ const Register = () => {
   const [companyPasswordError, setCompanyPasswordError] = useState("");
   const [companyConfirmPasswordError, setCompanyConfirmPasswordError] = useState("");
   const [companyRifImage, setCompanyRifImage] = useState<File | null>(null);
+  const [fileInputKey, setFileInputKey] = useState(0);
   const [activeTab, setActiveTab] = useState("company");
 
   // Helpers
@@ -84,6 +85,13 @@ const Register = () => {
 
   const handleCompanyRifImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
+    
+    // Clear the input value to allow re-selecting the same file
+    event.target.value = '';
+    
+    // Force file input to re-render by changing key
+    setFileInputKey(prev => prev + 1);
+    
     if (!file) return;
     if (!file.type.startsWith('image/') && file.type !== 'application/pdf') {
       setCompanyRifImage(null);
@@ -108,18 +116,17 @@ const Register = () => {
       reader.onload = async () => {
         try {
           const base64Content = reader.result as string;
+          const base64Data = base64Content.split(',')[1]; // Remove data:image/jpeg;base64, prefix
           
-          
-          
+         
           const { data, error } = await supabase.functions.invoke('validate-rif-expiration', {
             body: {
-              file_content: base64Content.split(',')[1], // Remove data:image/jpeg;base64, prefix
+              file_content: base64Data,
               file_type: file.type,
               document_text: null,
               document_url: null
             }
           });
-          
           
           
           if (error) {
@@ -128,7 +135,6 @@ const Register = () => {
           }
           
           // Log extracted data
-          
           
           if (data.is_expired) {
             
@@ -663,7 +669,14 @@ const Register = () => {
                   <div className="mt-3">
                     <Label htmlFor="company-rif-image" className="text-base">{t('registration.rifImage')} *</Label>
                     <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-4">
-                      <input id="company-rif-image" type="file" accept="image/*,.pdf" className="hidden" onChange={handleCompanyRifImageUpload} />
+                      <input 
+                        key={fileInputKey}
+                        id="company-rif-image" 
+                        type="file" 
+                        accept="image/*,.pdf" 
+                        className="hidden" 
+                        onChange={handleCompanyRifImageUpload} 
+                      />
                       {!companyRifImage ? (
                         <div className="text-center space-y-2">
                           <Button variant="outline" onClick={() => document.getElementById('company-rif-image')?.click()}>
@@ -680,7 +693,10 @@ const Register = () => {
                           <p className="font-medium">{companyRifImage.name}</p>
                           <p className="text-xs text-muted-foreground">{(companyRifImage.size/1024/1024).toFixed(2)} MB</p>
                           <div className="mt-2">
-                            <Button variant="outline" onClick={() => setCompanyRifImage(null)}>
+                            <Button variant="outline" onClick={() => {
+                              setCompanyRifImage(null);
+                              setFileInputKey(prev => prev + 1); // Reset file input
+                            }}>
                               {t('common.remove') || 'Remove'}
                             </Button>
                           </div>

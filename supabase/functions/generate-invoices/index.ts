@@ -73,9 +73,9 @@ serve(async (req) => {
     const is15th = day === 15;
     const isLastDay = day === lastDayOfMonth;
     const forced = body?.force === true;
-    // if (!forced && !is15th && !isLastDay) {
-    //   return new Response(JSON.stringify({ success: false, message: 'Not a billing day, skipping' }), { status: 200, headers: { "Content-Type": "application/json", ...cors() } });
-    // } 
+    if (!forced && !is15th && !isLastDay) {
+      return new Response(JSON.stringify({ success: false, message: 'Not a billing day, skipping' }), { status: 200, headers: { "Content-Type": "application/json", ...cors() } });
+    } 
 
     const isSecondHalf = forced ? (body?.half === 'second') : isLastDay;
     const period = isSecondHalf ? getSecondHalfPeriod(now) : getFirstHalfPeriod(now);
