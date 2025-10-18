@@ -53,7 +53,6 @@ import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useState, useEffect, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
-import * as XLSX from 'xlsx';
 import { format, startOfDay, endOfDay } from 'date-fns';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
@@ -298,8 +297,8 @@ const CompanyDashboard = () => {
   // Billing detail modal states
   const [showBillingDetailModal, setShowBillingDetailModal] = useState(false);
 
-  // Function to create Excel template with bank dropdown
-  const createExcelTemplateWithDropdown = () => {
+  // Function to create CSV template
+  const createCsvTemplate = () => {
     const banks = [
       'Banco de Venezuela',
       'Banco Mercantil',
@@ -326,80 +325,97 @@ const CompanyDashboard = () => {
       'Banco Universal'
     ];
 
-    const workbook = XLSX.utils.book_new();
-    
+    // CSV headers
+    const headers = [
+      'correo_electronico',
+      'nombre',
+      'apellido',
+      'telefono',
+      'salario_mensual',
+      'horas_trabajo',
+      'año_ingreso',
+      'banco',
+      'numero_cuenta',
+      'tipo_cuenta',
+      'cedula',
+      'direccion',
+      'ciudad',
+      'estado',
+      'codigo_postal',
+      'dependientes',
+      'contacto_emergencia',
+      'telefono_emergencia',
+      'cargo'
+    ];
+
+    // Sample data with valid formats
     const sampleData = [
-      {
-        correo_electronico: 'juan.perez@empresa.com',
-        nombre: 'Juan',
-        apellido: 'Pérez',
-        telefono: '+58-412-1234567',
-        salario_mensual: 500000,
-        horas_trabajo: 40,
-        año_ingreso: 2023,
-        banco: 'Banco de Venezuela',
-        numero_cuenta: '0102-1234-5678-9012',
-        tipo_cuenta: 'Corriente',
-        cedula: 'V-12345678',
-        direccion: 'Av. Principal 123',
-        ciudad: 'Caracas',
-        estado: 'Distrito Capital',
-        codigo_postal: '1010',
-        dependientes: 2,
-        contacto_emergencia: 'Maria Pérez',
-        telefono_emergencia: '+58-414-9876543',
-        cargo: 'Gerente'
-      },
-      {
-        correo_electronico: 'maria.rodriguez@empresa.com',
-        nombre: 'Maria',
-        apellido: 'Rodríguez',
-        telefono: '+58-424-2345678',
-        salario_mensual: 450000,
-        horas_trabajo: 40,
-        año_ingreso: 2022,
-        banco: 'Banco Mercantil',
-        numero_cuenta: '0105-2345-6789-0123',
-        tipo_cuenta: 'Ahorros',
-        cedula: 'E-87654321',
-        direccion: 'Calle Secundaria 456',
-        ciudad: 'Valencia',
-        estado: 'Carabobo',
-        codigo_postal: '2001',
-        dependientes: 1,
-        contacto_emergencia: 'Carlos Rodríguez',
-        telefono_emergencia: '+58-416-8765432',
-        cargo: 'Supervisor'
-      }
+      [
+        'juan.perez@empresa.com',
+        'Juan',
+        'Pérez',
+        '+584121234567',
+        '500000',
+        '40',
+        '2023',
+        'Banco de Venezuela',
+        'V-12345678',
+        'checking',
+        'V-12345678',
+        'Av. Principal 123',
+        'Caracas',
+        'Distrito Capital',
+        '1010',
+        '2',
+        'Maria Pérez',
+        '+584149876543',
+        'Gerente'
+      ],
+      [
+        'maria.rodriguez@empresa.com',
+        'Maria',
+        'Rodríguez',
+        '+584242345678',
+        '450000',
+        '40',
+        '2022',
+        'Banco Mercantil',
+        'E-87654321',
+        'savings',
+        'E-87654321',
+        'Calle Secundaria 456',
+        'Valencia',
+        'Carabobo',
+        '2001',
+        '1',
+        'Carlos Rodríguez',
+        '+584168765432',
+        'Supervisor'
+      ]
     ];
 
-    const worksheet = XLSX.utils.json_to_sheet(sampleData);
+    // Create CSV content
+    let csvContent = '';
     
-    const colWidths = [
-      { wch: 25 }, { wch: 15 }, { wch: 15 }, { wch: 18 }, { wch: 15 },
-      { wch: 12 }, { wch: 12 }, { wch: 35 }, { wch: 20 }, { wch: 12 },
-      { wch: 15 }, { wch: 25 }, { wch: 15 }, { wch: 18 }, { wch: 12 },
-      { wch: 12 }, { wch: 20 }, { wch: 18 }, { wch: 15 }
-    ];
-    worksheet['!cols'] = colWidths;
-
-    const dataValidation = {
-      sqref: 'H2:H1000',
-      type: 'list',
-      allowBlank: true,
-      formula1: 'Bancos!$A$1:$A$23'
-    };
-
-    worksheet['!dataValidation'] = [dataValidation];
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Empleados');
+    // Add headers
+    csvContent += headers.join(',') + '\n';
     
-    // Add banks sheet after employees sheet
-    const banksData = banks.map(bank => [bank]);
-    const banksSheet = XLSX.utils.aoa_to_sheet(banksData);
-    banksSheet['!cols'] = [{ wch: 50 }];
-    XLSX.utils.book_append_sheet(workbook, banksSheet, 'Bancos');
+    // Add sample data
+    sampleData.forEach(row => {
+      csvContent += row.map(field => `${field}`).join(',') + '\n';
+    });
     
-    XLSX.writeFile(workbook, 'plantilla-empleados.xlsx');
+   
+    // Create and download file
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'plantilla-empleados.csv');
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
   const [invoiceDetails, setInvoiceDetails] = useState<any[]>([]);
@@ -1432,6 +1448,52 @@ const CompanyDashboard = () => {
   const generateActivationCode = () => {
     // Generate a 6-digit activation code
     return Math.floor(100000 + Math.random() * 900000).toString();
+  };
+
+  const getFriendlyErrorMessage = (error: any, rowNumber: number): string => {
+    const errorMessage = error.message || error.toString();
+    
+    // Check for specific constraint violations
+    if (errorMessage.includes('employees_account_type_check')) {
+      return `Row ${rowNumber}: Invalid account type. Please use "checking", "savings", or "current"`;
+    }
+    
+    if (errorMessage.includes('employees_account_number_format_check')) {
+      return `Row ${rowNumber}: Invalid account number format. Please use a valid account number format`;
+    }
+    
+    if (errorMessage.includes('employees_cedula_format_check')) {
+      return `Row ${rowNumber}: Invalid cedula format. Must be E or V followed by optional hyphen and 6-8 digits (e.g., V12345678, V-12345678, E8765432, E-8765432)`;
+    }
+    
+    if (errorMessage.includes('employees_phone_format_check')) {
+      return `Row ${rowNumber}: Invalid phone number format. Please use a valid phone number`;
+    }
+    
+    if (errorMessage.includes('employees_email_format_check')) {
+      return `Row ${rowNumber}: Invalid email format. Please use a valid email address`;
+    }
+    
+    if (errorMessage.includes('duplicate key value violates unique constraint')) {
+      if (errorMessage.includes('email')) {
+        return `Row ${rowNumber}: Email already exists. Please use a different email address`;
+      }
+      if (errorMessage.includes('cedula')) {
+        return `Row ${rowNumber}: Cedula already exists. Please use a different cedula number`;
+      }
+      return `Row ${rowNumber}: Duplicate data found. Please check for duplicate entries`;
+    }
+    
+    if (errorMessage.includes('violates check constraint')) {
+      return `Row ${rowNumber}: Invalid data format. Please check the data format and try again`;
+    }
+    
+    if (errorMessage.includes('not-null constraint')) {
+      return `Row ${rowNumber}: Required field is missing. Please fill in all required fields`;
+    }
+    
+    // Default fallback
+    return `Row ${rowNumber}: ${errorMessage}`;
   };
 
 
@@ -2514,7 +2576,7 @@ const CompanyDashboard = () => {
             .select();
 
           if (insertError) {
-            errors.push(`Row ${row.rowNumber}: ${insertError.message}`);
+            errors.push(getFriendlyErrorMessage(insertError, row.rowNumber));
             errorCount++;
           } else if (!newEmployee || newEmployee.length === 0) {
             errors.push(`Row ${row.rowNumber}: Employee was not created`);
@@ -2560,13 +2622,13 @@ const CompanyDashboard = () => {
 
               if (authError) {
                 console.error(`Auth user creation failed for ${user.email}:`, authError);
-                errors.push(`Row ${row.rowNumber}: Auth user creation failed - ${authError.message}`);
+                errors.push(`Row ${row.rowNumber}: Failed to create user account - ${authError.message}`);
                 errorCount++;
                 // Don't count as success if auth user creation failed
                 continue;
               } else if (!authData.user) {
                 console.error(`Auth user creation returned no user for ${user.email}`);
-                errors.push(`Row ${row.rowNumber}: Auth user creation returned no user`);
+                errors.push(`Row ${row.rowNumber}: User account creation failed`);
                 errorCount++;
                 continue;
               } else {
@@ -2600,7 +2662,7 @@ const CompanyDashboard = () => {
 
                 if (updateResult.error) {
                   console.error(`Failed to update employee with auth_user_id:`, updateResult.error);
-                  errors.push(`Row ${row.rowNumber}: Failed to link auth user to employee`);
+                  errors.push(`Row ${row.rowNumber}: Failed to link user account to employee record`);
                   errorCount++;
                   continue;
                 }
@@ -2652,7 +2714,7 @@ const CompanyDashboard = () => {
             }
           }
         } catch (rowError: any) {
-          errors.push(`Row ${row.rowNumber}: ${rowError.message}`);
+          errors.push(getFriendlyErrorMessage(rowError, row.rowNumber));
           errorCount++;
         }
       }
@@ -6669,7 +6731,7 @@ const CompanyDashboard = () => {
                       size="sm" 
                       className="bg-white border-blue-300 text-blue-700 hover:bg-blue-50"
                       onClick={() => {
-                        createExcelTemplateWithDropdown();
+                        createCsvTemplate();
                       }}
                     >
                       <Download className="h-4 w-4 mr-2" />
@@ -6684,6 +6746,14 @@ const CompanyDashboard = () => {
                 <Upload className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                 <h3 className="text-lg font-medium mb-2">{t('company.csvUpload.selectFile')}</h3>
                 <p className="text-muted-foreground mb-4">{t('company.csvUpload.dragDrop')}</p>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                  <p className="text-sm text-blue-800">
+                    <strong>Tip:</strong> The template includes 2 sample employees and 5 empty rows. Fill in the empty rows with your employee data and upload directly - no modifications needed!
+                  </p>
+                  <p className="text-sm text-blue-700 mt-2">
+                    <strong>Format Guidelines:</strong> Use "checking", "savings", or "current" for account type. Phone format: +584121234567. Cedula format: V-12345678 or E-87654321.
+                  </p>
+                </div>
                 <input
                   type="file"
                   accept=".csv"

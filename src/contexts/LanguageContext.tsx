@@ -1609,7 +1609,7 @@ const translations: Translations = {
   'company.csvUpload.title': { en: 'Upload Employees CSV', es: 'Subir CSV de Empleados' },
   'company.csvUpload.description': { en: 'Upload a CSV file to add multiple employees at once. Download the template below to get started.', es: 'Sube un archivo CSV para agregar múltiples empleados a la vez. Descarga la plantilla a continuación para comenzar.' },
   'company.csvUpload.templateTitle': { en: 'CSV Template', es: 'Plantilla CSV' },
-  'company.csvUpload.templateDescription': { en: 'Complete Excel template with bank dropdown.', es: 'Plantilla Excel completa con lista desplegable de bancos.' },
+  'company.csvUpload.templateDescription': { en: 'Simple CSV template with sample data. Fill in the empty rows and upload directly.', es: 'Plantilla CSV simple con datos de ejemplo. Completa las filas vacías y sube directamente.' },
   'company.csvUpload.downloadTemplate': { en: 'Download CSV Template', es: 'Plantilla CSV de ejemplo para cargar nomina de empleados' },
   'company.csvUpload.selectFile': { en: 'Select CSV File', es: 'Seleccionar Archivo CSV' },
   'company.csvUpload.dragDrop': { en: 'Drag and drop your CSV file here, or click to select', es: 'Arrastra y suelta tu archivo CSV aquí, o haz clic para seleccionar' },
