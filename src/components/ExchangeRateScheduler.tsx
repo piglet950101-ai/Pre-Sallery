@@ -26,20 +26,33 @@ export const ExchangeRateScheduler: React.FC = () => {
     try {
       setIsLoading(true);
       
-      // Get the latest notification about exchange rate checks
-      const { data: notifications, error } = await supabase
-        .from('notifications')
-        .select('created_at, type, title, message, severity, metadata')
-        .in('type', ['exchange_rate_updated', 'exchange_rate_check', 'exchange_rate_update_failed'])
+      // Check the latest exchange rate to determine status
+      const { data: latestRate, error: rateError } = await supabase
+        .from('exchange_rates')
+        .select('created_at, updated_at, as_of_date, usd_to_ves, source')
         .order('created_at', { ascending: false })
-        .limit(5);
+        .limit(1)
+        .maybeSingle();
 
-      if (error) {
-        console.error('Error loading notifications:', error);
+      if (rateError) {
+        console.error('Error loading exchange rate:', rateError);
+        // Set default status if we can't load data
+        const nextCheck = new Date();
+        nextCheck.setHours(18, 10, 0, 0); // 6:10 PM
+        if (nextCheck <= new Date()) {
+          nextCheck.setDate(nextCheck.getDate() + 1); // Next day if already past 6:10 PM
+        }
+
+        setStatus({
+          lastCheck: null,
+          nextCheck: nextCheck.toISOString(),
+          isEnabled: true,
+          status: 'pending',
+          message: 'Unable to load exchange rate data'
+        });
         return;
       }
 
-      const latestCheck = notifications?.[0];
       const nextCheck = new Date();
       nextCheck.setHours(18, 10, 0, 0); // 6:10 PM
       if (nextCheck <= new Date()) {
@@ -47,33 +60,41 @@ export const ExchangeRateScheduler: React.FC = () => {
       }
 
       let schedulerStatus: SchedulerStatus = {
-        lastCheck: latestCheck?.created_at || null,
+        lastCheck: latestRate?.updated_at || latestRate?.created_at || null,
         nextCheck: nextCheck.toISOString(),
         isEnabled: true,
-        status: 'pending',
-        message: 'Scheduled check not yet run today'
+        status: 'success',
+        message: 'Exchange rate monitoring active'
       };
 
-      if (latestCheck) {
-        switch (latestCheck.type) {
-          case 'exchange_rate_updated':
-            schedulerStatus.status = 'success';
-            schedulerStatus.message = latestCheck.message || 'Exchange rate updated successfully';
-            break;
-          case 'exchange_rate_check':
-            schedulerStatus.status = 'success';
-            schedulerStatus.message = latestCheck.message || 'Exchange rate check completed';
-            break;
-          case 'exchange_rate_update_failed':
-            schedulerStatus.status = 'error';
-            schedulerStatus.message = latestCheck.message || 'Exchange rate update failed';
-            break;
+      // Check if rate is stale (older than 24 hours)
+      if (latestRate) {
+        const rateDate = new Date(latestRate.updated_at || latestRate.created_at);
+        const hoursSinceUpdate = (Date.now() - rateDate.getTime()) / (1000 * 60 * 60);
+        
+        if (hoursSinceUpdate > 24) {
+          schedulerStatus.status = 'warning';
+          schedulerStatus.message = `Exchange rate is ${Math.round(hoursSinceUpdate)} hours old - may need updating`;
+        } else {
+          schedulerStatus.status = 'success';
+          schedulerStatus.message = `Exchange rate updated ${Math.round(hoursSinceUpdate)} hours ago`;
         }
+      } else {
+        schedulerStatus.status = 'error';
+        schedulerStatus.message = 'No exchange rate data found';
       }
 
       setStatus(schedulerStatus);
     } catch (error) {
       console.error('Failed to load scheduler status:', error);
+      // Set error status
+      setStatus({
+        lastCheck: null,
+        nextCheck: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        isEnabled: false,
+        status: 'error',
+        message: 'Failed to load scheduler status'
+      });
     } finally {
       setIsLoading(false);
     }
@@ -159,6 +180,9 @@ export const ExchangeRateScheduler: React.FC = () => {
   };
 
   if (!status) return null;
+
+  // Only show the component if there are issues (not success status)
+  if (status.status === 'success') return null;
 
   const StatusIcon = getStatusIcon();
 

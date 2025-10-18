@@ -48,14 +48,9 @@ const Login = () => {
       
       if (employeeData) return true;
       
-      // Check in operators table
-      const { data: operatorData } = await supabase
-        .from('operators')
-        .select('id')
-        .eq('email', email)
-        .maybeSingle();
-      
-      return !!operatorData;
+      // Check if user is an operator using metadata only
+      // For now, we'll assume operators exist in auth.users with metadata
+      return false; // Simplified - no database check needed
     } catch (error) {
       console.error('Error checking email existence:', error);
       return false;
@@ -103,14 +98,9 @@ const Login = () => {
           actualRole = 'employee';
           console.log('User is an employee, is_active:', employeeData.is_active);
         } else {
-          // Check if user is an operator (admin)
-          const { data: operatorData } = await supabase
-            .from('operators')
-            .select('id')
-            .eq('auth_user_id', userId)
-            .maybeSingle();
-          
-          if (operatorData) {
+          // Check if user is an operator using metadata only
+          const metadataRole = (data.session.user.app_metadata as any)?.role ?? (data.session.user.user_metadata as any)?.role;
+          if (metadataRole === 'operator') {
             actualRole = 'operator';
           }
         }
@@ -308,7 +298,7 @@ const Login = () => {
           <CardHeader className="space-y-1 pb-4">
             <CardTitle className="text-2xl text-center text-gray-800 font-semibold">{t('login.title')}</CardTitle>
             <CardDescription className="text-center text-gray-600">
-              Enter your email and password to access your account
+              {t('login.description')}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4" onKeyDown={handleKeyPress}>

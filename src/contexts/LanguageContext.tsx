@@ -173,6 +173,7 @@ const translations: Translations = {
   // Login Page
   'login.title': { en: 'Welcome Back', es: 'Bienvenido de Vuelta' },
   'login.subtitle': { en: 'Sign in to your account', es: 'Inicia sesión en tu cuenta' },
+  'login.description': { en: 'Enter your email and password to access your account', es: 'Ingresa tu correo y contraseña para acceder a tu cuenta' },
   'login.email': { en: 'Email', es: 'Correo' },
   'login.password': { en: 'Password', es: 'Contraseña' },
   'login.submit': { en: 'Sign In', es: 'Iniciar Sesión' },

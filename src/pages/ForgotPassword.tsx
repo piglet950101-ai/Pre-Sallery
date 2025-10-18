@@ -18,8 +18,14 @@ const ForgotPassword = () => {
   const handleSend = async () => {
     try {
       setIsLoading(true);
+      
+      // Get the correct redirect URL based on environment
+      const redirectUrl = import.meta.env.PROD 
+        ? 'https://presallary.vercel.app/reset-password'  // Replace with your actual Vercel URL
+        : `${window.location.origin}/reset-password`;
+      
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
+        redirectTo: redirectUrl,
       });
       if (error) throw error;
       toast({ title: t('forgotPassword.checkEmail') });

@@ -456,7 +456,9 @@ const Register = () => {
         email: cleanEmail,
         password: employeePassword,
         options: {
-          emailRedirectTo: `${window.location.origin}/login`,
+          emailRedirectTo: import.meta.env.PROD 
+          ? 'https://presallary.vercel.app/reset-password'  // Replace with your actual Vercel URL
+            : `${window.location.origin}/login`,
           data: {
             role: 'employee',
             first_name: employeeFirstName,

@@ -53,14 +53,9 @@ const PublicRoute = ({ children }: PublicRouteProps) => {
         return;
       }
       
-      // Check if user is an operator
-      const { data: operatorData } = await supabase
-        .from('operators')
-        .select('id')
-        .eq('auth_user_id', userId)
-        .maybeSingle();
-      
-      if (operatorData) {
+      // Check if user is an operator using metadata only
+      const metadataRole = (user.app_metadata as any)?.role ?? (user.user_metadata as any)?.role;
+      if (metadataRole === 'operator') {
         actualRole = 'operator';
         setRedirectPath("/operator");
         return;
@@ -68,10 +63,10 @@ const PublicRoute = ({ children }: PublicRouteProps) => {
 
       // If no role found in database, check user metadata as fallback
       console.log('No role found in database, checking user metadata...');
-      const metadataRole = (user.app_metadata as any)?.role ?? (user.user_metadata as any)?.role;
-      console.log('Metadata role:', metadataRole);
+      const fallbackMetadataRole = (user.app_metadata as any)?.role ?? (user.user_metadata as any)?.role;
+      console.log('Metadata role:', fallbackMetadataRole);
       
-      if (metadataRole === 'operator') {
+      if (fallbackMetadataRole === 'operator') {
         actualRole = 'operator';
         setRedirectPath("/operator");
       } else {

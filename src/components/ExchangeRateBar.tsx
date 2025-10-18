@@ -102,26 +102,9 @@ export const ExchangeRateBar: React.FC = () => {
         return;
       }
 
-      try {
-        // Check if user is an operator from database
-        const { data: operatorData } = await supabase
-          .from('operators')
-          .select('id')
-          .eq('auth_user_id', user.id)
-          .maybeSingle();
-        
-        if (operatorData) {
-          setIsOperator(true);
-          return;
-        }
-
-        // Fallback to metadata check
-        const metadataRole = (user.app_metadata as any)?.role ?? (user.user_metadata as any)?.role;
-        setIsOperator(metadataRole === 'operator');
-      } catch (error) {
-        console.error('Error checking user role:', error);
-        setIsOperator(false);
-      }
+      // Check if user is an operator using metadata only
+      const metadataRole = (user.app_metadata as any)?.role ?? (user.user_metadata as any)?.role;
+      setIsOperator(metadataRole === 'operator');
     };
 
     checkUserRole();
