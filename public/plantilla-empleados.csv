@@ -1,0 +1,13 @@
+correo_electronico,nombre,apellido,telefono,salario_mensual,horas_trabajo,año_ingreso,banco,numero_cuenta,tipo_cuenta,cedula,direccion,ciudad,estado,codigo_postal,dependientes,contacto_emergencia,telefono_emergencia,cargo
+juan.perez@empresa.com,Juan,Pérez,+58-412-1234567,500000,40,2023,Banco de Venezuela,0102-1234-5678-9012,Corriente,V-12345678,Av. Principal 123,Caracas,Distrito Capital,1010,2,Maria Pérez,+58-414-9876543,Gerente
+maria.rodriguez@empresa.com,Maria,Rodríguez,+58-424-2345678,450000,40,2022,Banco Mercantil,0105-2345-6789-0123,Ahorros,E-87654321,Calle Secundaria 456,Valencia,Carabobo,2001,1,Carlos Rodríguez,+58-416-8765432,Supervisor
+
+# INSTRUCCIONES PARA DROPDOWN DE BANCOS EN EXCEL:
+# 1. Abre este archivo en Excel
+# 2. Selecciona la columna "banco" (columna H)
+# 3. Ve a Datos → Validación de datos
+# 4. Selecciona "Lista" en el tipo de validación
+# 5. En "Origen" pega esta lista de bancos:
+# Banco de Venezuela,Banco Mercantil,Banesco,BBVA Provincial,Banco del Tesoro,100% Banco,Banco Bicentenario,Banco de la Fuerza Armada Nacional Bolivariana,Banco Nacional de Crédito,Banco del Pueblo Soberano,Banco Agrícola de Venezuela,Banco de Comercio Exterior,Banco Central de Venezuela,Banco de Desarrollo Económico y Social,Banco Industrial de Venezuela,Banco Latino,Banco Provincial,Banco Venezolano de Crédito,Banco Exterior,Banco Internacional de Desarrollo,Banco Plaza,Banco Sofitasa,Banco Universal
+# 6. Haz clic en "Aceptar"
+# 7. Ahora tendrás un dropdown de bancos en la columna banco

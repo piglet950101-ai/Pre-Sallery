@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { DollarSign, Building, User, CheckCircle, Shield } from "lucide-react";
+import { DollarSign, Building, User, CheckCircle } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
@@ -39,16 +39,6 @@ const Register = () => {
   const [fileInputKey, setFileInputKey] = useState(0);
   const [activeTab, setActiveTab] = useState("company");
 
-  // Operator signup state
-  const [operatorEmail, setOperatorEmail] = useState("");
-  const [operatorPassword, setOperatorPassword] = useState("");
-  const [operatorConfirmPassword, setOperatorConfirmPassword] = useState("");
-  const [operatorName, setOperatorName] = useState("");
-  const [isLoadingOperator, setIsLoadingOperator] = useState(false);
-  const [operatorNameError, setOperatorNameError] = useState("");
-  const [operatorEmailError, setOperatorEmailError] = useState("");
-  const [operatorPasswordError, setOperatorPasswordError] = useState("");
-  const [operatorConfirmPasswordError, setOperatorConfirmPasswordError] = useState("");
 
   // Helpers
   const isValidCompanyName = (name: string) => name.trim().length >= 2;
@@ -68,8 +58,6 @@ const Register = () => {
         signUpCompany();
       } else if (activeTab === 'employee') {
         signUpEmployee();
-      } else if (activeTab === 'operator') {
-        signUpOperator();
       }
     }
   };
@@ -402,86 +390,6 @@ const Register = () => {
     }
   };
 
-  const signUpOperator = async () => {
-    try {
-      setIsLoadingOperator(true);
-      
-      // Validate inputs
-      const nameOk = operatorName.trim().length >= 2;
-      const emailOk = isValidEmail(operatorEmail);
-      const passwordOk = isValidPassword(operatorPassword);
-      const passwordsMatchOk = passwordsMatch(operatorPassword, operatorConfirmPassword);
-
-      setOperatorNameError(nameOk ? "" : "Name must be at least 2 characters");
-      setOperatorEmailError(emailOk ? "" : "Invalid email format");
-      setOperatorPasswordError(passwordOk ? "" : "Password must be at least 6 characters");
-      setOperatorConfirmPasswordError(passwordsMatchOk ? "" : "Passwords do not match");
-
-      if (!nameOk || !emailOk || !passwordOk || !passwordsMatchOk) {
-        throw new Error("Please fix the errors above");
-      }
-
-      // Clean and normalize email
-      const cleanEmail = operatorEmail.trim().toLowerCase();
-
-      // Create Supabase auth user
-      const { data, error } = await supabase.auth.signUp({
-        email: cleanEmail,
-        password: operatorPassword,
-        options: {
-          emailRedirectTo: `${window.location.origin}/login`,
-          data: {
-            role: 'operator',
-            name: operatorName
-          }
-        }
-      });
-      
-      if (error) throw error;
-      
-      // Require email verification before creating operator row
-      if (!data.session) {
-        toast({
-          title: t('register.emailNotVerifiedTitle'),
-          description: t('register.emailNotVerifiedDesc'),
-          variant: 'destructive'
-        });
-        return;
-      }
-      
-      // Create operator record
-      const { data: newOperator, error: insertError } = await supabase
-        .from("operators")
-        .insert({
-          auth_user_id: data.user.id,
-          name: operatorName,
-          email: cleanEmail
-        })
-        .select()
-        .single();
-      
-      if (insertError) {
-        console.error('Operator creation error:', insertError);
-        throw new Error(`Failed to create operator account: ${insertError.message}`);
-      }
-      
-      toast({ 
-        title: t('register.operatorSuccess'),
-        description: t('register.operatorSuccessDesc')
-      });
-      
-      // Redirect directly to operator page
-      navigate('/operator', { replace: true });
-    } catch (err: any) {
-      toast({
-        title: t('register.errorTitle'),
-        description: err?.message ?? t('register.tryAgain'),
-        variant: 'destructive'
-      });
-    } finally {
-      setIsLoadingOperator(false);
-    }
-  };
 
   const signUpEmployee = async () => {
     try {
@@ -679,7 +587,7 @@ const Register = () => {
           </CardHeader>
           <CardContent onKeyDown={handleKeyPress}>
             <Tabs defaultValue="company" value={activeTab} onValueChange={setActiveTab} className="space-y-8">
-              <TabsList className="grid grid-cols-3 h-14">
+              <TabsList className="grid grid-cols-2 h-14">
                 <TabsTrigger value="company" className="flex items-center space-x-3 text-base">
                   <Building className="h-5 w-5" />
                   <span>{t('register.companyTab')}</span>
@@ -687,10 +595,6 @@ const Register = () => {
                 <TabsTrigger value="employee" className="flex items-center space-x-3 text-base">
                   <User className="h-5 w-5" />
                   <span>{t('register.employeeTab')}</span>
-                </TabsTrigger>
-                <TabsTrigger value="operator" className="flex items-center space-x-3 text-base">
-                  <Shield className="h-5 w-5" />
-                  <span>{t('register.operatorTab')}</span>
                 </TabsTrigger>
               </TabsList>
               
@@ -961,85 +865,6 @@ const Register = () => {
                 </div>
               </TabsContent>
 
-              <TabsContent value="operator" className="space-y-6">
-                <div className="bg-primary/20 border border-primary/30 p-5 rounded-lg text-center">
-                  <Shield className="h-10 w-10 text-primary mx-auto mb-3" />
-                  <h4 className="font-semibold text-lg text-primary-foreground">{t('register.operatorTitle')}</h4>
-                  <p className="text-muted-foreground mt-2">
-                    {t('register.operatorDescription')}
-                  </p>
-                </div>
-
-                <div className="space-y-6">
-                  <div className="space-y-3">
-                    <Label htmlFor="operator-name" className="text-base">{t('register.operatorNameLabel')}</Label>
-                    <Input
-                      id="operator-name"
-                      placeholder={t('register.operatorNamePlaceholder')}
-                      className="h-12"
-                      value={operatorName}
-                      onChange={(e) => setOperatorName(e.target.value)}
-                    />
-                    {operatorNameError && (
-                      <p className="text-sm text-destructive">{operatorNameError}</p>
-                    )}
-                  </div>
-
-                  <div className="space-y-3">
-                    <Label htmlFor="operator-email" className="text-base">{t('register.operatorEmailLabel')}</Label>
-                    <Input
-                      id="operator-email"
-                      type="email"
-                      placeholder={t('register.operatorEmailPlaceholder')}
-                      className="h-12"
-                      value={operatorEmail}
-                      onChange={(e) => setOperatorEmail(e.target.value)}
-                    />
-                    {operatorEmailError && (
-                      <p className="text-sm text-destructive">{operatorEmailError}</p>
-                    )}
-                  </div>
-
-                  <div className="space-y-3">
-                    <Label htmlFor="operator-password" className="text-base">{t('register.operatorPasswordLabel')}</Label>
-                    <Input
-                      id="operator-password"
-                      type="password"
-                      placeholder={t('register.operatorPasswordPlaceholder')}
-                      className="h-12"
-                      value={operatorPassword}
-                      onChange={(e) => setOperatorPassword(e.target.value)}
-                    />
-                    {operatorPasswordError && (
-                      <p className="text-sm text-destructive">{operatorPasswordError}</p>
-                    )}
-                  </div>
-
-                  <div className="space-y-3">
-                    <Label htmlFor="operator-confirm-password" className="text-base">{t('register.operatorConfirmPasswordLabel')}</Label>
-                    <Input
-                      id="operator-confirm-password"
-                      type="password"
-                      placeholder={t('register.operatorConfirmPasswordPlaceholder')}
-                      className="h-12"
-                      value={operatorConfirmPassword}
-                      onChange={(e) => setOperatorConfirmPassword(e.target.value)}
-                    />
-                    {operatorConfirmPasswordError && (
-                      <p className="text-sm text-destructive">{operatorConfirmPasswordError}</p>
-                    )}
-                  </div>
-
-                  <Button 
-                    className="w-full h-14 text-base mt-2" 
-                    variant="premium"
-                    disabled={isLoadingOperator}
-                    onClick={signUpOperator}
-                  >
-                    {isLoadingOperator ? t('common.saving') : t('register.createOperatorButton')}
-                  </Button>
-                </div>
-              </TabsContent>
             </Tabs>
           </CardContent>
         </Card>
