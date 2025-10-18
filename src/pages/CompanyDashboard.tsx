@@ -4544,8 +4544,16 @@ const CompanyDashboard = () => {
           </Card>
         </div>
 
-        <Tabs defaultValue="advances" className="space-y-6">
+        <Tabs defaultValue="employees" className="space-y-6">
           <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="employees" className="relative">
+              {t('company.employees')}
+              {totalPendingItems > 0 && (
+                <Badge variant="destructive" className="ml-2 h-5 w-5 flex items-center justify-center p-0 text-xs">
+                  {totalPendingItems}
+                </Badge>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="advances" className="relative">
               {t('company.advances')}
               {companyData.pendingAdvances > 0 && (
@@ -4556,14 +4564,6 @@ const CompanyDashboard = () => {
             </TabsTrigger>
             <TabsTrigger value="reports">{t('company.reports')}</TabsTrigger>
             <TabsTrigger value="billing">{t('company.billing')}</TabsTrigger>
-            <TabsTrigger value="employees" className="relative">
-              {t('company.employees')}
-              {totalPendingItems > 0 && (
-                <Badge variant="destructive" className="ml-2 h-5 w-5 flex items-center justify-center p-0 text-xs">
-                  {totalPendingItems}
-                </Badge>
-              )}
-            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="advances" className="space-y-6">

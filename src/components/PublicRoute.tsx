@@ -19,32 +19,65 @@ const PublicRoute = ({ children }: PublicRouteProps) => {
         return;
       }
 
-      const role = (user.app_metadata as any)?.role ?? (user.user_metadata as any)?.role;
-      if (role === "company") {
-        try {
-          const { data: row } = await supabase
-            .from("companies")
-            .select("is_approved")
-            .eq("auth_user_id", user.id)
-            .maybeSingle();
-          if (!row || row.is_approved !== true) {
-            setRedirectPath("/pending-approval");
-          } else {
-            setRedirectPath("/company");
-          }
-        } catch {
+      // Check actual role from database instead of metadata
+      const userId = user.id;
+      let actualRole = null;
+      
+      // Check if user is a company
+      const { data: companyData } = await supabase
+        .from('companies')
+        .select('id, is_approved')
+        .eq('auth_user_id', userId)
+        .maybeSingle();
+      
+      if (companyData) {
+        actualRole = 'company';
+        if (!companyData.is_approved) {
+          setRedirectPath("/pending-approval");
+        } else {
           setRedirectPath("/company");
         }
         return;
       }
-
-      if (role === "operator") {
+      
+      // Check if user is an employee
+      const { data: employeeData } = await supabase
+        .from('employees')
+        .select('id, is_active')
+        .eq('auth_user_id', userId)
+        .maybeSingle();
+      
+      if (employeeData) {
+        actualRole = 'employee';
+        setRedirectPath("/employee");
+        return;
+      }
+      
+      // Check if user is an operator
+      const { data: operatorData } = await supabase
+        .from('operators')
+        .select('id')
+        .eq('auth_user_id', userId)
+        .maybeSingle();
+      
+      if (operatorData) {
+        actualRole = 'operator';
         setRedirectPath("/operator");
         return;
       }
 
-      // Default to employee
-      setRedirectPath("/employee");
+      // If no role found in database, check user metadata as fallback
+      console.log('No role found in database, checking user metadata...');
+      const metadataRole = (user.app_metadata as any)?.role ?? (user.user_metadata as any)?.role;
+      console.log('Metadata role:', metadataRole);
+      
+      if (metadataRole === 'operator') {
+        actualRole = 'operator';
+        setRedirectPath("/operator");
+      } else {
+        // Default to employee (fallback)
+        setRedirectPath("/employee");
+      }
     };
 
     resolveRedirect();

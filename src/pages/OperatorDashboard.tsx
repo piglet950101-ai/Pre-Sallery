@@ -1334,8 +1334,9 @@ const OperatorDashboard = () => {
 
         </div>
 
-        <Tabs defaultValue="pending" className="space-y-6">
+        <Tabs defaultValue="companies" className="space-y-6">
           <TabsList className="grid w-full grid-cols-5">
+            <TabsTrigger value="companies" className="w-full justify-center">{t('operator.companyManagement')}</TabsTrigger>
             <TabsTrigger value="pending" className="relative w-full justify-center">
               {t('operator.pendingAdvances')}
               {pendingAdvances.length > 0 && (
@@ -1347,7 +1348,6 @@ const OperatorDashboard = () => {
             <TabsTrigger value="batches" className="w-full justify-center">{t('operator.processedBatches')}</TabsTrigger>
             <TabsTrigger value="billing" className="w-full justify-center">{t('operator.billing')}</TabsTrigger>
             <TabsTrigger value="confirmations" className="w-full justify-center">{t('operator.confirmationsTab')}</TabsTrigger>
-            <TabsTrigger value="companies" className="w-full justify-center">{t('operator.companyManagement')}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="pending" className="space-y-6">

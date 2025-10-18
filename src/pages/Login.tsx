@@ -103,6 +103,7 @@ const Login = () => {
       
       if (companyData) {
         actualRole = 'company';
+        console.log('User is a company, is_approved:', companyData.is_approved);
       } else {
         // Check if user is an employee
         const { data: employeeData } = await supabase
@@ -113,6 +114,7 @@ const Login = () => {
         
         if (employeeData) {
           actualRole = 'employee';
+          console.log('User is an employee, is_active:', employeeData.is_active);
         } else {
           // Check if user is an operator (admin)
           const { data: operatorData } = await supabase
@@ -127,19 +129,30 @@ const Login = () => {
         }
       }
 
-      // If no role found in database, show error
+      // If no role found in database, check user metadata as fallback
       if (!actualRole) {
-        await supabase.auth.signOut();
-        toast({
-          title: t('login.noRoleFound') ?? 'Account Not Found',
-          description: t('login.noRoleFoundDesc') ?? 'No account found for this email. Please register first.',
-          variant: 'destructive'
-        });
-        return;
+        console.log('No role found in database, checking user metadata...');
+        const metadataRole = (data.session.user.app_metadata as any)?.role ?? (data.session.user.user_metadata as any)?.role;
+        console.log('Metadata role:', metadataRole);
+        
+        if (metadataRole === 'operator') {
+          actualRole = 'operator';
+          console.log('Found operator role in metadata');
+        } else {
+          await supabase.auth.signOut();
+          toast({
+            title: t('login.noRoleFound') ?? 'Account Not Found',
+            description: t('login.noRoleFoundDesc') ?? 'No account found for this email. Please register first.',
+            variant: 'destructive'
+          });
+          return;
+        }
       }
 
       // Check if the selected login tab matches the actual role
+      console.log('Login role check:', { roleToSet, actualRole });
       if (roleToSet && roleToSet !== actualRole) {
+        console.log('Role mismatch detected, signing out user');
         await supabase.auth.signOut();
         const roleNames = {
           'employee': 'employee',
@@ -219,14 +232,8 @@ const Login = () => {
               await supabase.auth.signOut();
               return;
             } else {
-            // Company pending approval: block company role only
-            toast({
-              title: t('login.companyPending') ?? 'Empresa Pendiente de Aprobación',
-              description: t('login.companyPendingDesc') ?? 'Su empresa está pendiente de aprobación por parte de un operador. Por favor, espere a ser contactado.',
-              variant: "destructive"
-            });
-            await supabase.auth.signOut();
-            return;
+            // Company pending approval: allow login but will be redirected to pending approval page
+            // Don't show error toast or sign out - let ProtectedRoute handle the redirect
             }
           } else {
           }
