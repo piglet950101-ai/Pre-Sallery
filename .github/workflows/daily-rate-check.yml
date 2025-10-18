@@ -1,0 +1,41 @@
+name: Daily Exchange Rate Check
+
+on:
+  schedule:
+    - cron: '10 18 * * *'  # 6:10 PM daily (UTC)
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  check-rate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Exchange Rate
+        run: |
+          echo "🔄 Starting daily exchange rate check at 6:10 PM..."
+          
+          # Call the Supabase function
+          response=$(curl -s -X POST "${{ secrets.SUPABASE_URL }}/functions/v1/daily-rate-check" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Content-Type: application/json")
+          
+          echo "📊 Response: $response"
+          
+          # Check if the response indicates success
+          if echo "$response" | grep -q '"success":true'; then
+            echo "✅ Exchange rate check completed successfully"
+          else
+            echo "⚠️ Exchange rate check completed with warnings or errors"
+            echo "Response: $response"
+          fi
+          
+          # Always exit with 0 to prevent workflow failure
+          exit 0
+
+      - name: Log Completion
+        run: |
+          echo "📅 Daily exchange rate check completed at $(date)"
+          echo "🕕 Time: 6:10 PM daily (UTC)"
+          echo "🌍 Local time zones:"
+          echo "   - Caracas (VET): 2:10 PM"
+          echo "   - New York (EST): 1:10 PM" 
+          echo "   - Los Angeles (PST): 10:10 AM"

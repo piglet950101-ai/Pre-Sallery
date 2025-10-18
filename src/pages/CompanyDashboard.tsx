@@ -297,6 +297,110 @@ const CompanyDashboard = () => {
   
   // Billing detail modal states
   const [showBillingDetailModal, setShowBillingDetailModal] = useState(false);
+
+  // Function to create Excel template with bank dropdown
+  const createExcelTemplateWithDropdown = () => {
+    const banks = [
+      'Banco de Venezuela',
+      'Banco Mercantil',
+      'Banesco',
+      'BBVA Provincial',
+      'Banco del Tesoro',
+      '100% Banco',
+      'Banco Bicentenario',
+      'Banco de la Fuerza Armada Nacional Bolivariana',
+      'Banco Nacional de Crédito',
+      'Banco del Pueblo Soberano',
+      'Banco Agrícola de Venezuela',
+      'Banco de Comercio Exterior',
+      'Banco Central de Venezuela',
+      'Banco de Desarrollo Económico y Social',
+      'Banco Industrial de Venezuela',
+      'Banco Latino',
+      'Banco Provincial',
+      'Banco Venezolano de Crédito',
+      'Banco Exterior',
+      'Banco Internacional de Desarrollo',
+      'Banco Plaza',
+      'Banco Sofitasa',
+      'Banco Universal'
+    ];
+
+    const workbook = XLSX.utils.book_new();
+    
+    const sampleData = [
+      {
+        correo_electronico: 'juan.perez@empresa.com',
+        nombre: 'Juan',
+        apellido: 'Pérez',
+        telefono: '+58-412-1234567',
+        salario_mensual: 500000,
+        horas_trabajo: 40,
+        año_ingreso: 2023,
+        banco: 'Banco de Venezuela',
+        numero_cuenta: '0102-1234-5678-9012',
+        tipo_cuenta: 'Corriente',
+        cedula: 'V-12345678',
+        direccion: 'Av. Principal 123',
+        ciudad: 'Caracas',
+        estado: 'Distrito Capital',
+        codigo_postal: '1010',
+        dependientes: 2,
+        contacto_emergencia: 'Maria Pérez',
+        telefono_emergencia: '+58-414-9876543',
+        cargo: 'Gerente'
+      },
+      {
+        correo_electronico: 'maria.rodriguez@empresa.com',
+        nombre: 'Maria',
+        apellido: 'Rodríguez',
+        telefono: '+58-424-2345678',
+        salario_mensual: 450000,
+        horas_trabajo: 40,
+        año_ingreso: 2022,
+        banco: 'Banco Mercantil',
+        numero_cuenta: '0105-2345-6789-0123',
+        tipo_cuenta: 'Ahorros',
+        cedula: 'E-87654321',
+        direccion: 'Calle Secundaria 456',
+        ciudad: 'Valencia',
+        estado: 'Carabobo',
+        codigo_postal: '2001',
+        dependientes: 1,
+        contacto_emergencia: 'Carlos Rodríguez',
+        telefono_emergencia: '+58-416-8765432',
+        cargo: 'Supervisor'
+      }
+    ];
+
+    const worksheet = XLSX.utils.json_to_sheet(sampleData);
+    
+    const colWidths = [
+      { wch: 25 }, { wch: 15 }, { wch: 15 }, { wch: 18 }, { wch: 15 },
+      { wch: 12 }, { wch: 12 }, { wch: 35 }, { wch: 20 }, { wch: 12 },
+      { wch: 15 }, { wch: 25 }, { wch: 15 }, { wch: 18 }, { wch: 12 },
+      { wch: 12 }, { wch: 20 }, { wch: 18 }, { wch: 15 }
+    ];
+    worksheet['!cols'] = colWidths;
+
+    const dataValidation = {
+      sqref: 'H2:H1000',
+      type: 'list',
+      allowBlank: true,
+      formula1: 'Bancos!$A$1:$A$23'
+    };
+
+    worksheet['!dataValidation'] = [dataValidation];
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Empleados');
+    
+    // Add banks sheet after employees sheet
+    const banksData = banks.map(bank => [bank]);
+    const banksSheet = XLSX.utils.aoa_to_sheet(banksData);
+    banksSheet['!cols'] = [{ wch: 50 }];
+    XLSX.utils.book_append_sheet(workbook, banksSheet, 'Bancos');
+    
+    XLSX.writeFile(workbook, 'plantilla-empleados.xlsx');
+  };
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
   const [invoiceDetails, setInvoiceDetails] = useState<any[]>([]);
   const [isLoadingInvoiceDetails, setIsLoadingInvoiceDetails] = useState(false);
@@ -1134,9 +1238,44 @@ const CompanyDashboard = () => {
           console.error('Error loading deleted employees:', deletedEmployeesError);
         }
         
-        // Use the employee data directly (email is already in employees table)
-        const employeesWithEmails = employeesData || [];
-        const deletedEmployeesWithEmails = deletedEmployeesData || [];
+        // Fetch auth user emails for employees using RPC function
+        const employeesWithEmails = await Promise.all((employeesData || []).map(async (employee) => {
+          if (employee.auth_user_id) {
+            try {
+              const { data: authUserData, error: authError } = await supabase
+                .rpc('get_auth_user_email', { user_id: employee.auth_user_id });
+              
+              if (!authError && authUserData && authUserData.length > 0) {
+                return {
+                  ...employee,
+                  auth_email: authUserData[0].email
+                };
+              }
+            } catch (error) {
+              console.error(`Error fetching auth user email for employee ${employee.id}:`, error);
+            }
+          }
+          return employee;
+        }));
+
+        const deletedEmployeesWithEmails = await Promise.all((deletedEmployeesData || []).map(async (employee) => {
+          if (employee.auth_user_id) {
+            try {
+              const { data: authUserData, error: authError } = await supabase
+                .rpc('get_auth_user_email', { user_id: employee.auth_user_id });
+              
+              if (!authError && authUserData && authUserData.length > 0) {
+                return {
+                  ...employee,
+                  auth_email: authUserData[0].email
+                };
+              }
+            } catch (error) {
+              console.error(`Error fetching auth user email for deleted employee ${employee.id}:`, error);
+            }
+          }
+          return employee;
+        }));
         
         setEmployees(employeesWithEmails);
         setDeletedEmployees(deletedEmployeesWithEmails);
@@ -1338,7 +1477,27 @@ const CompanyDashboard = () => {
         throw new Error(`Error al cargar empleados: ${employeesError.message}`);
       }
       
-      setEmployees(employeesData || []);
+      // Fetch auth user emails for employees using RPC function
+      const employeesWithEmails = await Promise.all((employeesData || []).map(async (employee) => {
+        if (employee.auth_user_id) {
+          try {
+            const { data: authUserData, error: authError } = await supabase
+              .rpc('get_auth_user_email', { user_id: employee.auth_user_id });
+            
+            if (!authError && authUserData && authUserData.length > 0) {
+              return {
+                ...employee,
+                auth_email: authUserData[0].email
+              };
+            }
+          } catch (error) {
+            console.error(`Error fetching auth user email for employee ${employee.id}:`, error);
+          }
+        }
+        return employee;
+      }));
+      
+      setEmployees(employeesWithEmails);
       toast({
         title: t('company.billing.listUpdated'),
         description: t('company.billing.listUpdatedDesc'),
@@ -2342,7 +2501,7 @@ const CompanyDashboard = () => {
 
           // Validate cedula format
           if (employeeData.cedula && !validateCedula(employeeData.cedula)) {
-            errors.push(`Row ${row.rowNumber}: Invalid cedula format. Must be E or V followed by 6-8 digits (e.g., V12345678 or E1234567)`);
+            errors.push(`Row ${row.rowNumber}: Invalid cedula format. Must be E or V followed by optional hyphen and 6-8 digits (e.g., V12345678, V-12345678, E8765432, E-8765432)`);
             errorCount++;
             continue;
           }
@@ -2540,7 +2699,8 @@ const CompanyDashboard = () => {
 
   // Cedula validation function
   const validateCedula = (cedula: string): boolean => {
-    const cedulaPattern = /^[EV]\d{6,8}$/;
+    // E or V followed by optional hyphen and 6-8 digits
+    const cedulaPattern = /^[EV]-?\d{6,8}$/;
     return cedulaPattern.test(cedula);
   };
 
@@ -4323,7 +4483,7 @@ const CompanyDashboard = () => {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-sm text-muted-foreground">{t('company.email')}:</span>
-                        <span className="text-sm font-medium">{user?.email || 'N/A'}</span>
+                        <span className="text-sm font-medium">{viewingEmployee.auth_email || viewingEmployee.email || 'N/A'}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-sm text-muted-foreground">{t('company.phone')}:</span>
@@ -6509,10 +6669,7 @@ const CompanyDashboard = () => {
                       size="sm" 
                       className="bg-white border-blue-300 text-blue-700 hover:bg-blue-50"
                       onClick={() => {
-                        const link = document.createElement('a');
-                        link.href = '/plantilla-empleados.csv';
-                        link.download = 'plantilla-empleados.csv';
-                        link.click();
+                        createExcelTemplateWithDropdown();
                       }}
                     >
                       <Download className="h-4 w-4 mr-2" />
@@ -6562,9 +6719,6 @@ const CompanyDashboard = () => {
                   <p className="text-sm text-purple-700 mb-2">{t('company.csvUpload.bankInfoDesc')}</p>
                   <div className="text-xs text-purple-600 mb-2">
                     <strong>Bancos principales:</strong> Banco de Venezuela, Banco Mercantil, Banesco, BBVA Provincial, Banco del Tesoro, 100% Banco, Banco Bicentenario, Banco de la Fuerza Armada Nacional Bolivariana, Banco Nacional de Crédito, Banco del Pueblo Soberano, Banco Agrícola de Venezuela, Banco de Comercio Exterior, Banco Central de Venezuela, Banco de Desarrollo Económico y Social, Banco Industrial de Venezuela, Banco Latino, Banco Provincial, Banco Venezolano de Crédito, Banco Exterior, Banco Internacional de Desarrollo, Banco Plaza, Banco Sofitasa, Banco Universal, Banco de Inversión, Banco de Ahorro y Préstamo, Banco Comercial, Banco de Desarrollo, Banco Hipotecario, Banco de Inversión y Desarrollo
-                  </div>
-                  <div className="text-xs text-purple-600">
-                    <strong>💡 Tip:</strong> La plantilla descargada incluye instrucciones para configurar lista desplegable de bancos en Excel
                   </div>
                 </div>
                 
@@ -6632,6 +6786,7 @@ const CompanyDashboard = () => {
                         <th className="p-2 text-left">Last Name</th>
                         <th className="p-2 text-left">Email</th>
                         <th className="p-2 text-left">Phone</th>
+                        <th className="p-2 text-left">Cedula</th>
                         <th className="p-2 text-left">Salary</th>
                       </tr>
                     </thead>
@@ -6651,6 +6806,7 @@ const CompanyDashboard = () => {
                             <td className="p-2">{row.apellido || row.lastname || row.last_name || row['last name'] || '-'}</td>
                             <td className="p-2">{row.correo_electronico || row.email || '-'}</td>
                             <td className="p-2">{row.telefono || row.phone || row.phone_number || row['phone number'] || '-'}</td>
+                            <td className="p-2">{row.cedula || row.cedula_number || row['cedula number'] || '-'}</td>
                             <td className="p-2">{row.salario_mensual || row.salary || row.monthly_salary || row['monthly salary'] || '-'}</td>
                           </tr>
                         );

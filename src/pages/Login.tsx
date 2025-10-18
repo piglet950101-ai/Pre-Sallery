@@ -2,8 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { DollarSign, Building, User, Shield } from "lucide-react";
+import { DollarSign } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
@@ -16,27 +15,15 @@ const Login = () => {
   const { t } = useLanguage();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [employeeEmail, setEmployeeEmail] = useState("");
-  const [employeePassword, setEmployeePassword] = useState("");
-  const [companyEmail, setCompanyEmail] = useState("");
-  const [companyPassword, setCompanyPassword] = useState("");
-  const [adminEmail, setAdminEmail] = useState("");
-  const [adminPassword, setAdminPassword] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState("employee");
 
   // Handle Enter key press
   const handleKeyPress = (event: React.KeyboardEvent) => {
     if (event.key === 'Enter') {
       event.preventDefault();
-      
-      if (activeTab === 'employee') {
-        signIn(employeeEmail, employeePassword, "/employee", "employee");
-      } else if (activeTab === 'company') {
-        signIn(companyEmail, companyPassword, "/company", "company");
-      } else if (activeTab === 'admin') {
-        signIn(adminEmail, adminPassword, "/operator", "operator");
-      }
+      signIn();
     }
   };
 
@@ -75,7 +62,7 @@ const Login = () => {
     }
   };
 
-  const signIn = async (email: string, password: string, fallbackRedirect: string, roleToSet?: string) => {
+  const signIn = async () => {
     try {
       setIsLoading(true);
       
@@ -90,7 +77,7 @@ const Login = () => {
         return;
       }
 
-      // Check the actual role from database instead of setting it based on login tab
+      // Automatically detect user role from database
       const userId = data.session.user.id;
       let actualRole = null;
       
@@ -149,24 +136,6 @@ const Login = () => {
         }
       }
 
-      // Check if the selected login tab matches the actual role
-      console.log('Login role check:', { roleToSet, actualRole });
-      if (roleToSet && roleToSet !== actualRole) {
-        console.log('Role mismatch detected, signing out user');
-        await supabase.auth.signOut();
-        const roleNames = {
-          'employee': 'employee',
-          'company': 'company',
-          'operator': 'platform operator'
-        };
-        toast({
-          title: t('login.wrongRoleTitle') ?? 'Access Denied',
-          description: (t('login.wrongRoleDesc') ?? 'You are not registered as a {role}. Please use the correct login tab.').replace('{role}', roleNames[roleToSet as keyof typeof roleNames]),
-          variant: 'destructive'
-        });
-        return;
-      }
-
       // Update metadata with actual role
       if (data.session) {
         const updateResult = await supabase.auth.updateUser({ data: { role: actualRole } });
@@ -180,29 +149,8 @@ const Login = () => {
         }
       }
 
-      // Resolve redirect by actual role from database
-      const role = actualRole;
-      
-      // If the user is a company, check if they're approved
-      if (role === 'company') {
-        const { data: companyRow, error: companyErr } = await supabase
-          .from('companies')
-          .select('is_approved')
-          .eq('auth_user_id', data.session.user.id)
-          .maybeSingle();
-        if (companyErr) {
-          console.error('Error checking company approval:', companyErr);
-        }
-        if (!companyRow || companyRow.is_approved !== true) {
-          await supabase.auth.signOut();
-          toast({
-            title: t('login.companyPending') ?? 'Company Pending Approval',
-            description: t('login.companyPendingDesc') ?? 'Your company is pending approval by an operator. Please wait to be contacted.',
-          });
-          return;
-        }
-      }
-      if (role === 'company') {
+      // Handle company approval status
+      if (actualRole === 'company') {
         const { data: companyData, error: companyError } = await supabase
           .from('companies')
           .select('is_approved, rejection_reason, rejected_at, name')
@@ -211,14 +159,12 @@ const Login = () => {
           
         if (companyError) {
           console.error("Error checking company status:", companyError);
-          // If we can't check company status, allow login but show warning
           toast({
             title: t('login.warning') ?? 'Advertencia',
             description: t('login.couldNotVerifyCompany') ?? 'No se pudo verificar el estado de la empresa.',
             variant: "destructive"
           });
         } else if (companyData) {
-          
           if (!companyData.is_approved) {
             // Company is not approved - check if it was rejected
             if (companyData.rejection_reason && companyData.rejection_reason.trim()) {
@@ -228,20 +174,16 @@ const Login = () => {
                 description: `${t('login.rejectionReason') ?? 'Motivo del rechazo'}: ${companyData.rejection_reason}`,
                 variant: "destructive"
               });
-              // Sign out the user since they can't access the system
               await supabase.auth.signOut();
               return;
-            } else {
-            // Company pending approval: allow login but will be redirected to pending approval page
-            // Don't show error toast or sign out - let ProtectedRoute handle the redirect
             }
-          } else {
+            // Company pending approval: allow login but will be redirected to pending approval page
           }
         }
       }
       
-      // If the user is an employee, check status only to show messages (do not block login)
-      if (role === 'employee') {
+      // Handle employee status
+      if (actualRole === 'employee') {
         const { data: employeeData, error: employeeError } = await supabase
           .from('employees')
           .select('is_active, is_approved, rejection_reason, rejected_at, first_name, last_name')
@@ -256,7 +198,6 @@ const Login = () => {
             variant: "destructive"
           });
         } else if (employeeData) {
-          
           // If rejected, block access
           if (employeeData && employeeData.rejection_reason && employeeData.rejection_reason.trim()) {
             toast({
@@ -277,7 +218,8 @@ const Login = () => {
         }
       }
       
-      const pathByRole = role === 'company' ? '/company' : role === 'employee' ? '/employee' : role === 'operator' ? '/operator' : fallbackRedirect;
+      // Redirect based on detected role
+      const pathByRole = actualRole === 'company' ? '/company' : actualRole === 'employee' ? '/employee' : actualRole === 'operator' ? '/operator' : '/login';
       navigate(pathByRole);
       toast({ title: t('login.success') ?? 'Inicio de sesión exitoso' });
     } catch (err: any) {
@@ -288,8 +230,6 @@ const Login = () => {
       let errorDescription = err?.message ?? t('login.errorDescription');
       
       // Handle specific error types
-      // Note: Supabase returns "Invalid login credentials" for both wrong password AND non-existent user
-      // We'll check if the email exists to provide more specific error messages
       if (err?.message?.includes('Invalid login credentials') || 
           err?.message?.includes('Invalid credentials') ||
           err?.message?.includes('Wrong password') ||
@@ -367,120 +307,40 @@ const Login = () => {
         <Card className="shadow-lg border-0 bg-white/90 backdrop-blur-sm">
           <CardHeader className="space-y-1 pb-4">
             <CardTitle className="text-2xl text-center text-gray-800 font-semibold">{t('login.title')}</CardTitle>
+            <CardDescription className="text-center text-gray-600">
+              Enter your email and password to access your account
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4" onKeyDown={handleKeyPress}>
-            <Tabs defaultValue="employee" value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="employee" className="flex items-center space-x-2">
-                  <User className="h-4 w-4" />
-                  <span>{t('register.employee')}</span>
-                </TabsTrigger>
-                <TabsTrigger value="company" className="flex items-center space-x-2">
-                  <Building className="h-4 w-4" />
-                  <span>{t('register.company')}</span>
-                </TabsTrigger>
-                <TabsTrigger value="admin" className="flex items-center space-x-2">
-                  <Shield className="h-4 w-4" />
-                  <span>Admin</span>
-                </TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="employee" className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="employee-email">{t('login.email')}</Label>
-                  <Input
-                    id="employee-email"
-                    type="email"
-                    placeholder="empleado@ejemplo.com"
-                    className="h-12"
-                    value={employeeEmail}
-                    onChange={(e) => setEmployeeEmail(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="employee-password">{t('login.password')}</Label>
-                  <Input
-                    id="employee-password"
-                    type="password"
-                    className="h-12"
-                    value={employeePassword}
-                    onChange={(e) => setEmployeePassword(e.target.value)}
-                  />
-                </div>
-                <Button
-                  className="w-full h-12"
-                  variant="premium"
-                  disabled={isLoading}
-                  onClick={() => signIn(employeeEmail, employeePassword, "/employee", "employee")}
-                >
-                  {t('login.submit')}
-                </Button>
-              </TabsContent>
-
-              <TabsContent value="company" className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="company-email">{t('login.email')}</Label>
-                  <Input
-                    id="company-email"
-                    type="email"
-                    placeholder="admin@empresa.com"
-                    className="h-12"
-                    value={companyEmail}
-                    onChange={(e) => setCompanyEmail(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="company-password">{t('login.password')}</Label>
-                  <Input
-                    id="company-password"
-                    type="password"
-                    className="h-12"
-                    value={companyPassword}
-                    onChange={(e) => setCompanyPassword(e.target.value)}
-                  />
-                </div>
-                <Button
-                  className="w-full h-12"
-                  variant="hero"
-                  disabled={isLoading}
-                  onClick={() => signIn(companyEmail, companyPassword, "/company", "company")}
-                >
-                  {t('login.submit')}
-                </Button>
-              </TabsContent>
-
-              <TabsContent value="admin" className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="admin-email">{t('login.email')}</Label>
-                  <Input
-                    id="admin-email"
-                    type="email"
-                    placeholder="admin@presallery.com"
-                    className="h-12"
-                    value={adminEmail}
-                    onChange={(e) => setAdminEmail(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="admin-password">{t('login.password')}</Label>
-                  <Input
-                    id="admin-password"
-                    type="password"
-                    className="h-12"
-                    value={adminPassword}
-                    onChange={(e) => setAdminPassword(e.target.value)}
-                  />
-                </div>
-                <Button
-                  className="w-full h-12"
-                  variant="destructive"
-                  disabled={isLoading}
-                  onClick={() => signIn(adminEmail, adminPassword, "/operator", "operator")}
-                >
-                  {t('login.submit')}
-                </Button>
-              </TabsContent>
-            </Tabs>
+            <div className="space-y-2">
+              <Label htmlFor="email">{t('login.email')}</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="your@email.com"
+                className="h-12"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">{t('login.password')}</Label>
+              <Input
+                id="password"
+                type="password"
+                className="h-12"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
+            <Button
+              className="w-full h-12"
+              variant="default"
+              disabled={isLoading}
+              onClick={signIn}
+            >
+              {isLoading ? 'Signing in...' : t('login.submit')}
+            </Button>
 
             <div className="text-center space-y-2">
               <Button variant="link" className="text-sm" asChild>

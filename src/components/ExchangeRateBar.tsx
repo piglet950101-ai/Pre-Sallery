@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -20,10 +21,12 @@ const OVERRIDE_KEY = 'fx_usd_ves_override_v1';
 export const ExchangeRateBar: React.FC = () => {
   const { t, language } = useLanguage();
   const { toast } = useToast();
+  const { user } = useAuth();
   const [state, setState] = useState<FxState>({ rate: null, updatedAt: null, error: null, isStale: false, source: null });
   const [showEdit, setShowEdit] = useState(false);
   const [editRate, setEditRate] = useState('');
   const [currentApiRate, setCurrentApiRate] = useState<number | null>(null);
+  const [isOperator, setIsOperator] = useState(false);
 
   const loadFromCache = () => {
     try {
@@ -58,12 +61,12 @@ export const ExchangeRateBar: React.FC = () => {
       // Load from DB (latest view)
       const { data, error } = await supabase
         .from('exchange_rate_latest')
-        .select('usd_to_ves, as_of_date, created_at, source')
+        .select('usd_to_ves, as_of_date, created_at, updated_at, source')
         .maybeSingle();
       if (!error && data?.usd_to_ves) {
-        const updatedAt = data.created_at || data.as_of_date;
-        const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000); // 4 hours for reasonable threshold
-        const isStale = new Date(updatedAt) < fourHoursAgo;
+        const updatedAt = data.updated_at || data.created_at || data.as_of_date;
+        const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000); // 24 hours (1 day) threshold
+        const isStale = new Date(updatedAt) < oneDayAgo;
         
         setState({ 
           rate: Number(data.usd_to_ves), 
@@ -90,6 +93,39 @@ export const ExchangeRateBar: React.FC = () => {
       }
     }
   };
+
+  // Check if user is an operator
+  useEffect(() => {
+    const checkUserRole = async () => {
+      if (!user) {
+        setIsOperator(false);
+        return;
+      }
+
+      try {
+        // Check if user is an operator from database
+        const { data: operatorData } = await supabase
+          .from('operators')
+          .select('id')
+          .eq('auth_user_id', user.id)
+          .maybeSingle();
+        
+        if (operatorData) {
+          setIsOperator(true);
+          return;
+        }
+
+        // Fallback to metadata check
+        const metadataRole = (user.app_metadata as any)?.role ?? (user.user_metadata as any)?.role;
+        setIsOperator(metadataRole === 'operator');
+      } catch (error) {
+        console.error('Error checking user role:', error);
+        setIsOperator(false);
+      }
+    };
+
+    checkUserRole();
+  }, [user]);
 
   useEffect(() => {
     fetchRate();
@@ -252,12 +288,12 @@ export const ExchangeRateBar: React.FC = () => {
           )}
           <div className="text-xs">
             {state.updatedAt && (
-              <span className={state.isStale ? 'text-orange-600' : 'text-blue-700'}>
+              <span className={state.isStale && isOperator ? 'text-orange-600' : 'text-blue-700'}>
                 {t('fx.updated')}: {updatedLabel}
-                {state.isStale && ' ⚠️'}
+                {state.isStale && isOperator && ' ⚠️'}
               </span>
             )}
-            {state.isStale && (
+            {state.isStale && isOperator && (
               <div className="text-xs text-orange-600 mt-1">
                 {t('fx.staleWarning') || 'Rate may be outdated. Consider updating.'}
               </div>

@@ -25,15 +25,15 @@ export const ExchangeRateAlert: React.FC = () => {
       // Fallback: Check exchange rate status directly from database if function doesn't exist
       const { data: latestRate, error } = await supabase
         .from('exchange_rate_latest')
-        .select('usd_to_ves, created_at, as_of_date, source')
+        .select('usd_to_ves, created_at, updated_at, as_of_date, source')
         .maybeSingle();
 
       if (!error && latestRate) {
         const today = new Date().toISOString().slice(0, 10);
-        const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000); // 4 hours for reasonable threshold
-        const lastUpdate = latestRate.created_at || latestRate.as_of_date;
+        const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000); // 24 hours (1 day) threshold
+        const lastUpdate = latestRate.updated_at || latestRate.created_at || latestRate.as_of_date;
         const hasRateToday = latestRate.as_of_date === today;
-        const isStale = new Date(lastUpdate) < fourHoursAgo;
+        const isStale = new Date(lastUpdate) < oneDayAgo;
 
         setStatus({
           hasRateToday,

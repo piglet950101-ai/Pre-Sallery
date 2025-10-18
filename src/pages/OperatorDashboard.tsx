@@ -48,6 +48,7 @@ import PaymentConfirmation from "@/components/operator/PaymentConfirmation";
 import { ExchangeRateAlert } from "@/components/ExchangeRateAlert";
 import { ExchangeRateDeviationAlert } from "@/components/ExchangeRateDeviationAlert";
 import { ExchangeRateChangeAlert } from "@/components/ExchangeRateChangeAlert";
+import { ExchangeRateScheduler } from "@/components/ExchangeRateScheduler";
 
 const OperatorDashboard = () => {
   const { toast } = useToast();
@@ -1268,6 +1269,7 @@ const OperatorDashboard = () => {
         <ExchangeRateAlert />
         <ExchangeRateDeviationAlert />
         <ExchangeRateChangeAlert />
+        <ExchangeRateScheduler />
 
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">

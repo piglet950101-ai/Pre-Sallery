@@ -71,19 +71,16 @@ serve(async (req) => {
     
     
 
-    // Delete existing rate for today and insert new one to update timestamp
-    await supabase
-      .from('exchange_rates')
-      .delete()
-      .eq('as_of_date', today);
-
-    // Insert the new rate (this will set created_at to current timestamp)
+    // Use upsert to properly handle updated_at timestamp
     const { error } = await supabase
       .from('exchange_rates')
-      .insert({ 
+      .upsert({ 
         as_of_date: today, 
         usd_to_ves: rate, 
-        source: sourceVal 
+        source: sourceVal,
+        updated_at: new Date().toISOString()
+      }, { 
+        onConflict: 'as_of_date' 
       });
 
     if (error) {
