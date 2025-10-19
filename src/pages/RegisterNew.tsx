@@ -13,6 +13,7 @@ import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 import { ensureCompanyRecord } from "@/lib/profile";
 import { CompanySelector } from "@/components/CompanySelector";
+import { PhoneInput } from "@/components/PhoneInput";
 
 const Register = () => {
   const { t, language } = useLanguage();
@@ -201,6 +202,7 @@ const Register = () => {
   const [isLoadingEmployee, setIsLoadingEmployee] = useState(false);
   const [employeePasswordError, setEmployeePasswordError] = useState("");
   const [employeeConfirmPasswordError, setEmployeeConfirmPasswordError] = useState("");
+  const [employeePhoneError, setEmployeePhoneError] = useState("");
 
   const signUpCompany = async () => {
     try {
@@ -404,14 +406,16 @@ const Register = () => {
         throw new Error(t('register.nameRequired'));
       }
 
-      // Validate password
+      // Validate password and phone
       const passwordOk = isValidPassword(employeePassword);
       const passwordsMatchOk = passwordsMatch(employeePassword, employeeConfirmPassword);
+      const phoneOk = isValidPhone(employeePhone);
       
       setEmployeePasswordError(passwordOk ? "" : t('registration.passwordTooShort'));
       setEmployeeConfirmPasswordError(passwordsMatchOk ? "" : t('registration.passwordsDoNotMatch'));
+      setEmployeePhoneError(phoneOk ? "" : t('registration.phoneInvalid'));
 
-      if (!passwordOk || !passwordsMatchOk) {
+      if (!passwordOk || !passwordsMatchOk || !phoneOk) {
         throw new Error(t('common.error'));
       }
       
@@ -619,31 +623,29 @@ const Register = () => {
                 </div>
                 
                 
-                <div className="grid grid-cols-2 gap-6">
-                  <div className="space-y-3">
-                    <Label htmlFor="company-email" className="text-base">{t('register.companyEmailLabel')}</Label>
-                    <Input
-                      id="company-email"
-                      type="email"
-                      placeholder={t('register.companyEmailPlaceholder')}
-                    className={`h-12 text-base ${companyEmailError ? 'border-red-500' : ''}`}
-                      value={companyEmail}
-                    onChange={(e) => { const v = e.target.value; setCompanyEmail(v); setCompanyEmailError(!v ? t('registration.emailRequired') : (!isValidEmail(v) ? t('registration.emailInvalid') : '')); }}
-                    />
-                  {companyEmailError && (<p className="text-sm text-red-500">{companyEmailError}</p>)}
-                  </div>
-                  <div className="space-y-3">
-                    <Label htmlFor="company-phone" className="text-base">{t('register.companyPhoneLabel')}</Label>
-                    <Input
-                      id="company-phone"
-                      placeholder={t('register.companyPhonePlaceholder')}
-                    className={`h-12 text-base ${companyPhoneError ? 'border-red-500' : ''}`}
-                      value={companyPhone}
-                    onChange={(e) => { const v = e.target.value; setCompanyPhone(v); setCompanyPhoneError(!v ? t('registration.phoneRequired') : (!isValidPhone(v) ? t('registration.phoneInvalid') : '')); }}
-                    />
-                  {companyPhoneError && (<p className="text-sm text-red-500">{companyPhoneError}</p>)}
-                  </div>
+                <div className="space-y-3">
+                  <Label htmlFor="company-email" className="text-base">{t('register.companyEmailLabel')}</Label>
+                  <Input
+                    id="company-email"
+                    type="email"
+                    placeholder={t('register.companyEmailPlaceholder')}
+                  className={`h-12 text-base ${companyEmailError ? 'border-red-500' : ''}`}
+                    value={companyEmail}
+                  onChange={(e) => { const v = e.target.value; setCompanyEmail(v); setCompanyEmailError(!v ? t('registration.emailRequired') : (!isValidEmail(v) ? t('registration.emailInvalid') : '')); }}
+                  />
+                {companyEmailError && (<p className="text-sm text-red-500">{companyEmailError}</p>)}
                 </div>
+
+                <PhoneInput
+                  label={t('register.companyPhoneLabel')}
+                  placeholder={t('register.companyPhonePlaceholder')}
+                  value={companyPhone}
+                  onChange={(value) => {
+                    setCompanyPhone(value);
+                    setCompanyPhoneError(!value ? t('registration.phoneRequired') : (!isValidPhone(value) ? t('registration.phoneInvalid') : ''));
+                  }}
+                  error={companyPhoneError}
+                />
 
                 <div className="grid grid-cols-2 gap-6">
                   <div className="space-y-3">
@@ -795,29 +797,28 @@ const Register = () => {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-6">
-                    <div className="space-y-3">
-                      <Label htmlFor="employee-email" className="text-base">{t('register.employeeEmailLabel')}</Label>
-                      <Input
-                        id="employee-email"
-                        type="email"
-                        placeholder={t('register.employeeEmailPlaceholder')}
-                        className="h-12 text-base"
-                        value={employeeEmail}
-                        onChange={(e) => setEmployeeEmail(e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-3">
-                      <Label htmlFor="employee-phone" className="text-base">{t('register.employeePhoneLabel')}</Label>
-                      <Input
-                        id="employee-phone"
-                        placeholder={t('register.employeePhonePlaceholder')}
-                        className="h-12 text-base"
-                        value={employeePhone}
-                        onChange={(e) => setEmployeePhone(e.target.value)}
-                      />
-                    </div>
+                  <div className="space-y-3">
+                    <Label htmlFor="employee-email" className="text-base">{t('register.employeeEmailLabel')}</Label>
+                    <Input
+                      id="employee-email"
+                      type="email"
+                      placeholder={t('register.employeeEmailPlaceholder')}
+                      className="h-12 text-base"
+                      value={employeeEmail}
+                      onChange={(e) => setEmployeeEmail(e.target.value)}
+                    />
                   </div>
+
+                  <PhoneInput
+                    label={t('register.employeePhoneLabel')}
+                    placeholder={t('register.employeePhonePlaceholder')}
+                    value={employeePhone}
+                    onChange={(value) => {
+                      setEmployeePhone(value);
+                      setEmployeePhoneError(!value ? t('registration.phoneRequired') : (!isValidPhone(value) ? t('registration.phoneInvalid') : ''));
+                    }}
+                    error={employeePhoneError}
+                  />
 
                   <div className="grid grid-cols-2 gap-6">
                   <div className="space-y-3">
