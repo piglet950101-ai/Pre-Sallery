@@ -28,6 +28,8 @@ const Register = () => {
   const [companyRif, setCompanyRif] = useState("");
   const [companyAddress, setCompanyAddress] = useState("");
   const [companyPhone, setCompanyPhone] = useState("");
+  const [companyPhoneCountry, setCompanyPhoneCountry] = useState(null);
+  const [companyPhoneFocused, setCompanyPhoneFocused] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   // Validation states and RIF image
   const [companyNameError, setCompanyNameError] = useState("");
@@ -44,7 +46,191 @@ const Register = () => {
   // Helpers
   const isValidCompanyName = (name: string) => name.trim().length >= 2;
   const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(email.trim());
-  const isValidPhone = (phone: string) => phone.replace(/\D/g, '').length >= 7;
+  const isValidPhone = (phone: string) => {
+    const digitsOnly = phone.replace(/\D/g, '');
+    // South American phone numbers range from 5-11 digits
+    // Most common range is 7-10 digits
+    if (digitsOnly.length < 7) {
+      return false; // Too short
+    }
+    if (digitsOnly.length > 11) {
+      return false; // Too long
+    }
+    // Additional check: ensure it's not all zeros or repeated digits
+    if (/^(\d)\1+$/.test(digitsOnly)) {
+      return false; // All same digits (e.g., 1111111)
+    }
+    return true;
+  };
+
+  const getPhoneValidationError = (phone: string, country?: any, hasBeenFocused: boolean = false) => {
+    // If field hasn't been focused and phone is empty, don't show error
+    if (!hasBeenFocused && !phone) {
+      return '';
+    }
+    
+    // If field hasn't been focused but phone has data, validate it (for form submission)
+    if (!hasBeenFocused && phone) {
+      // Continue with validation below
+    }
+    
+    // If field has been focused, always validate
+    if (!phone) {
+      return t('registration.phoneRequired');
+    }
+    
+    // Extract only the local phone number (without country code)
+    let localNumber = phone;
+    if (country && phone.startsWith(country.dialCode)) {
+      localNumber = phone.substring(country.dialCode.length).trim();
+    }
+    
+    const digitsOnly = localNumber.replace(/\D/g, '');
+    
+    // Check for repeated digits first
+    if (/^(\d)\1+$/.test(digitsOnly)) {
+      return t('registration.phoneInvalid');
+    }
+    
+    // If country is provided, validate against specific country requirements
+    if (country) {
+      // Hardcoded expected lengths as fallback
+      const countryLengths: { [key: string]: number } = {
+        'AR': 10, // Argentina
+        'BO': 9,  // Bolivia
+        'BR': 11, // Brazil
+        'CL': 9,  // Chile
+        'CO': 10, // Colombia
+        'EC': 9,  // Ecuador
+        'FK': 5,  // Falkland Islands
+        'GF': 8,  // French Guiana
+        'GY': 7,  // Guyana
+        'PE': 9,  // Peru
+        'PY': 9,  // Paraguay
+        'SR': 7,  // Suriname
+        'UY': 8,  // Uruguay
+        'VE': 10  // Venezuela
+      };
+      
+      const expectedLength = countryLengths[country.code] || 10; // Default to 10 if country not found
+      
+      
+      // Always show error until exact length is reached
+      if (digitsOnly.length < expectedLength) {
+        return t('registration.phoneTooShort');
+      }
+      
+      if (digitsOnly.length > expectedLength) {
+        return t('registration.phoneTooLong');
+      }
+      
+      // Additional country-specific validation only when length is correct
+      if (country.code === 'UY' && digitsOnly.length === 8) {
+        // Uruguay: must start with 9 (mobile) or 2 (landline)
+        if (!digitsOnly.startsWith('9') && !digitsOnly.startsWith('2')) {
+          return t('registration.phoneInvalid');
+        }
+      }
+      
+      if (digitsOnly.startsWith('0')) {
+        return t('registration.phoneInvalid');
+      }
+      
+      return ''; // Valid for this country - error disappears
+    }
+    
+    // Fallback validation if no country is provided
+    if (digitsOnly.length < 7) {
+      return t('registration.phoneTooShort');
+    }
+    
+    if (digitsOnly.length > 11) {
+      return t('registration.phoneTooLong');
+    }
+    
+    return t('registration.phoneInvalid');
+  };
+
+  // Separate validation function for form submission (always validates)
+  const validatePhoneForSubmission = (phone: string, country?: any) => {
+    if (!phone) {
+      return t('registration.phoneRequired');
+    }
+    
+    
+    // Extract only the local phone number (without country code)
+    let localNumber = phone;
+    if (country && phone.startsWith(country.dialCode)) {
+      localNumber = phone.substring(country.dialCode.length).trim();
+    }
+    
+    const digitsOnly = localNumber.replace(/\D/g, '');
+    
+    
+    // Check for repeated digits first
+    if (/^(\d)\1+$/.test(digitsOnly)) {
+      return t('registration.phoneInvalid');
+    }
+    
+    // If country is provided, validate against specific country requirements
+    if (country) {
+      // Hardcoded expected lengths as fallback
+      const countryLengths: { [key: string]: number } = {
+        'AR': 10, // Argentina
+        'BO': 9,  // Bolivia
+        'BR': 11, // Brazil
+        'CL': 9,  // Chile
+        'CO': 10, // Colombia
+        'EC': 9,  // Ecuador
+        'FK': 5,  // Falkland Islands
+        'GF': 8,  // French Guiana
+        'GY': 7,  // Guyana
+        'PE': 9,  // Peru
+        'PY': 9,  // Paraguay
+        'SR': 7,  // Suriname
+        'UY': 8,  // Uruguay
+        'VE': 10  // Venezuela
+      };
+      
+      const expectedLength = countryLengths[country.code] || 10; // Default to 10 if country not found
+      
+      
+      // Always show error until exact length is reached
+      if (digitsOnly.length < expectedLength) {
+        return t('registration.phoneTooShort');
+      }
+      
+      if (digitsOnly.length > expectedLength) {
+        return t('registration.phoneTooLong');
+      }
+      
+      // Additional country-specific validation only when length is correct
+      if (country.code === 'UY' && digitsOnly.length === 8) {
+        // Uruguay: must start with 9 (mobile) or 2 (landline)
+        if (!digitsOnly.startsWith('9') && !digitsOnly.startsWith('2')) {
+          return t('registration.phoneInvalid');
+        }
+      }
+      
+      if (digitsOnly.startsWith('0')) {
+        return t('registration.phoneInvalid');
+      }
+      
+      return ''; // Valid for this country - error disappears
+    }
+    
+    // Fallback validation if no country is provided
+    if (digitsOnly.length < 7) {
+      return t('registration.phoneTooShort');
+    }
+    
+    if (digitsOnly.length > 11) {
+      return t('registration.phoneTooLong');
+    }
+    
+    return t('registration.phoneInvalid');
+  };
+
   const isValidRif = (rif: string) => /^[VJG]\d{9}$/.test(rif);
   const isValidPassword = (password: string) => password.length >= 6;
   const passwordsMatch = (password: string, confirmPassword: string) => password === confirmPassword;
@@ -180,20 +366,35 @@ const Register = () => {
   };
 
   const isCompanyFormValid = () => {
+    const phoneValidationError = validatePhoneForSubmission(companyPhone, companyPhoneCountry);
     return isValidCompanyName(companyName)
       && isValidEmail(companyEmail)
-      && isValidPhone(companyPhone)
+      && !phoneValidationError
       && isValidRif(companyRif)
       && isValidPassword(companyPassword)
       && passwordsMatch(companyPassword, companyConfirmPassword)
       && !!companyRifImage
-      && !companyNameError && !companyEmailError && !companyPhoneError && !companyRifError 
+      && !companyNameError && !companyEmailError && !companyRifError 
       && !companyPasswordError && !companyConfirmPasswordError;
+  };
+
+  const isEmployeeFormValid = () => {
+    const phoneValidationError = validatePhoneForSubmission(employeePhone, employeePhoneCountry);
+    return employeeFirstName.trim().length > 0
+      && employeeLastName.trim().length > 0
+      && isValidEmail(employeeEmail)
+      && !phoneValidationError
+      && isValidPassword(employeePassword)
+      && passwordsMatch(employeePassword, employeeConfirmPassword)
+      && selectedCompanyId
+      && !employeePhoneError && !employeePasswordError && !employeeConfirmPasswordError;
   };
   
   // Employee signup state
   const [employeeEmail, setEmployeeEmail] = useState("");
   const [employeePhone, setEmployeePhone] = useState("");
+  const [employeePhoneCountry, setEmployeePhoneCountry] = useState(null);
+  const [employeePhoneFocused, setEmployeePhoneFocused] = useState(false);
   const [employeePassword, setEmployeePassword] = useState("");
   const [employeeConfirmPassword, setEmployeeConfirmPassword] = useState("");
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
@@ -210,7 +411,8 @@ const Register = () => {
       // Validate client-side before submit
       const nameOk = isValidCompanyName(companyName);
       const emailOk = isValidEmail(companyEmail);
-      const phoneOk = isValidPhone(companyPhone);
+      const phoneValidationError = validatePhoneForSubmission(companyPhone, companyPhoneCountry);
+      const phoneOk = !phoneValidationError;
       const rifOk = isValidRif(companyRif);
       const passwordOk = isValidPassword(companyPassword);
       const passwordsMatchOk = passwordsMatch(companyPassword, companyConfirmPassword);
@@ -218,7 +420,7 @@ const Register = () => {
 
       setCompanyNameError(nameOk ? "" : t('registration.companyNameRequired'));
       setCompanyEmailError(emailOk ? "" : t('registration.emailInvalid'));
-      setCompanyPhoneError(phoneOk ? "" : t('registration.phoneInvalid'));
+      setCompanyPhoneError(phoneValidationError);
       setCompanyRifError(rifOk ? "" : t('registration.rifInvalid'));
       setCompanyPasswordError(passwordOk ? "" : t('registration.passwordTooShort'));
       setCompanyConfirmPasswordError(passwordsMatchOk ? "" : t('registration.passwordsDoNotMatch'));
@@ -272,20 +474,20 @@ const Register = () => {
       }
 
       // Upload RIF image to storage (public bucket) first
-      let rifImageUrl: string | null = null;
-      if (companyRifImage) {
-        const fileExt = companyRifImage.name.split('.').pop()?.toLowerCase() || 'jpg';
+        let rifImageUrl: string | null = null;
+        if (companyRifImage) {
+          const fileExt = companyRifImage.name.split('.').pop()?.toLowerCase() || 'jpg';
         const objectKey = `rif/temp/${Date.now()}.${fileExt}`;
-        const { error: uploadErr } = await supabase.storage
-          .from('company-docs')
-          .upload(objectKey, companyRifImage, { upsert: true, contentType: companyRifImage.type });
-        if (uploadErr) {
-          console.error('RIF upload error:', uploadErr);
-        } else {
-          const { data: pubUrl } = supabase.storage.from('company-docs').getPublicUrl(objectKey);
-          rifImageUrl = pubUrl.publicUrl;
+          const { error: uploadErr } = await supabase.storage
+            .from('company-docs')
+            .upload(objectKey, companyRifImage, { upsert: true, contentType: companyRifImage.type });
+          if (uploadErr) {
+            console.error('RIF upload error:', uploadErr);
+          } else {
+            const { data: pubUrl } = supabase.storage.from('company-docs').getPublicUrl(objectKey);
+            rifImageUrl = pubUrl.publicUrl;
+          }
         }
-      }
 
       // Use edge function to create user and company record atomically
       const { data: registerResult, error: registerError } = await supabase.functions.invoke('register-user', {
@@ -295,17 +497,15 @@ const Register = () => {
           userType: 'company',
           language: language,
           companyData: {
-            name: companyName,
-            rif: companyRif,
-            address: companyAddress,
-            phone: companyPhone,
+          name: companyName,
+          rif: companyRif,
+          address: companyAddress,
+          phone: companyPhone,
             rif_image_url: rifImageUrl
           }
         }
       });
 
-      console.log('Register result:', registerResult);
-      console.log('Register error:', registerError);
 
       if (registerError) {
         console.error('Registration error:', registerError);
@@ -348,21 +548,21 @@ const Register = () => {
           }
         }
         
-        toast({
+            toast({
           title: t('register.errorTitle'),
           description: errorMessage,
-          variant: 'destructive'
-        });
+              variant: 'destructive'
+            });
         return;
       }
 
       if (!registerResult.success) {
         console.error('Registration failed:', registerResult);
-        toast({
+            toast({
           title: t('register.errorTitle'),
           description: registerResult.error || 'Registration failed',
-          variant: 'destructive'
-        });
+              variant: 'destructive'
+            });
         return;
       }
 
@@ -386,7 +586,6 @@ const Register = () => {
       toast({ title: t('register.successTitle') });
       
       // Redirect based on the result from edge function
-      console.log('Registration successful, redirecting to:', registerResult.redirectPath);
       navigate(registerResult.redirectPath, { replace: true });
     } catch (err: any) {
       toast({
@@ -415,11 +614,12 @@ const Register = () => {
       // Validate password and phone
       const passwordOk = isValidPassword(employeePassword);
       const passwordsMatchOk = passwordsMatch(employeePassword, employeeConfirmPassword);
-      const phoneOk = isValidPhone(employeePhone);
+      const phoneValidationError = validatePhoneForSubmission(employeePhone, employeePhoneCountry);
+      const phoneOk = !phoneValidationError;
       
       setEmployeePasswordError(passwordOk ? "" : t('registration.passwordTooShort'));
       setEmployeeConfirmPasswordError(passwordsMatchOk ? "" : t('registration.passwordsDoNotMatch'));
-      setEmployeePhoneError(phoneOk ? "" : t('registration.phoneInvalid'));
+      setEmployeePhoneError(phoneValidationError);
 
       if (!passwordOk || !passwordsMatchOk || !phoneOk) {
         throw new Error(t('common.error'));
@@ -464,42 +664,40 @@ const Register = () => {
       // Use edge function to create user and employee record atomically
       const { data: registerResult, error: registerError } = await supabase.functions.invoke('register-user', {
         body: {
-          email: cleanEmail,
-          password: employeePassword,
+        email: cleanEmail,
+        password: employeePassword,
           userType: 'employee',
           language: language,
           employeeData: {
-            company_id: selectedCompanyId,
-            first_name: employeeFirstName,
-            last_name: employeeLastName,
-            phone: employeePhone || null,
-            // Required fields with placeholder values that satisfy check constraints
-            year_of_employment: new Date().getFullYear(),
-            position: 'Pending',
-            employment_start_date: new Date().toISOString().split('T')[0],
-            employment_type: 'full-time', // Must be one of: 'full-time', 'part-time', 'contract'
-            weekly_hours: 40, // Must be > 0 and <= 80
-            monthly_salary: 1, // Must be > 0
-            living_expenses: 0, // Must be >= 0
-            dependents: 0, // Must be >= 0
-            emergency_contact: 'Pending',
-            emergency_phone: 'Pending',
-            address: 'Pending',
-            city: 'Pending',
-            state: 'Pending',
-            bank_name: 'Pending',
-            account_number: '00000000000000000000',
-            account_type: 'savings', // Must be one of: 'savings', 'checking'
-            // Set is_active to false until company approves
-            is_active: false,
-            // Generate a random activation code (not used in new flow but required by schema)
+          company_id: selectedCompanyId,
+          first_name: employeeFirstName,
+          last_name: employeeLastName,
+          phone: employeePhone || null,
+          // Required fields with placeholder values that satisfy check constraints
+          year_of_employment: new Date().getFullYear(),
+          position: 'Pending',
+          employment_start_date: new Date().toISOString().split('T')[0],
+          employment_type: 'full-time', // Must be one of: 'full-time', 'part-time', 'contract'
+          weekly_hours: 40, // Must be > 0 and <= 80
+          monthly_salary: 1, // Must be > 0
+          living_expenses: 0, // Must be >= 0
+          dependents: 0, // Must be >= 0
+          emergency_contact: 'Pending',
+          emergency_phone: 'Pending',
+          address: 'Pending',
+          city: 'Pending',
+          state: 'Pending',
+          bank_name: 'Pending',
+          account_number: '00000000000000000000',
+          account_type: 'savings', // Must be one of: 'savings', 'checking'
+          // Set is_active to false until company approves
+          is_active: false,
+          // Generate a random activation code (not used in new flow but required by schema)
             activation_code: Math.floor(100000 + Math.random() * 900000).toString()
           }
         }
       });
 
-      console.log('Register result:', registerResult);
-      console.log('Register error:', registerError);
 
       if (registerError) {
         console.error('Registration error:', registerError);
@@ -583,7 +781,6 @@ const Register = () => {
       });
       
       // Redirect based on the result from edge function
-      console.log('Employee registration successful, redirecting to:', registerResult.redirectPath);
       navigate(registerResult.redirectPath, { replace: true });
     } catch (err: any) {
       toast({
@@ -626,29 +823,29 @@ const Register = () => {
 
         <Card className="shadow-elegant border-0">
           <CardHeader className="pb-6 items-center ">
-            <CardTitle className="text-2xl ">{t('register.createAccount')}</CardTitle>
-            <CardDescription className="text-base">{t('register.chooseAccountType')}</CardDescription>
+            <CardTitle className="text-2xl">{t('register.createAccount')}</CardTitle>
+            <CardDescription>{t('register.chooseAccountType')}</CardDescription>
           </CardHeader>
           <CardContent onKeyDown={handleKeyPress}>
-            <Tabs defaultValue="company" value={activeTab} onValueChange={setActiveTab} className="space-y-8">
-              <TabsList className="grid grid-cols-2 h-14">
-                <TabsTrigger value="company" className="flex items-center space-x-3 text-base">
+            <Tabs defaultValue="company" value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+              <TabsList className="grid grid-cols-2 h-15">
+                <TabsTrigger value="company" className="flex items-center space-x-3 py-3 px-4">
                   <Building className="h-5 w-5" />
-                  <span>{t('register.companyTab')}</span>
+                  <span className="font-medium">{t('register.companyTab')}</span>
                 </TabsTrigger>
-                <TabsTrigger value="employee" className="flex items-center space-x-3 text-base">
+                <TabsTrigger value="employee" className="flex items-center space-x-3 py-3 px-4">
                   <User className="h-5 w-5" />
-                  <span>{t('register.employeeTab')}</span>
+                  <span className="font-medium">{t('register.employeeTab')}</span>
                 </TabsTrigger>
               </TabsList>
               
-              <TabsContent value="company" className="space-y-6">
-                <div className="space-y-3">
-                  <Label htmlFor="company-name" className="text-base">{t('register.companyNameLabel')}</Label>
+              <TabsContent value="company" className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="company-name">{t('register.companyNameLabel')}</Label>
                   <Input
                     id="company-name"
                     placeholder={t('register.companyNamePlaceholder')}
-                    className={`h-12 text-base ${companyNameError ? 'border-red-500' : ''}`}
+                    className={`h-12 ${companyNameError ? 'border-red-500' : ''}`}
                     value={companyName}
                     onChange={(e) => {
                       const v = e.target.value; setCompanyName(v);
@@ -661,33 +858,37 @@ const Register = () => {
                 </div>
                 
                 
-                <div className="space-y-3">
-                  <Label htmlFor="company-email" className="text-base">{t('register.companyEmailLabel')}</Label>
-                  <Input
-                    id="company-email"
-                    type="email"
-                    placeholder={t('register.companyEmailPlaceholder')}
-                  className={`h-12 text-base ${companyEmailError ? 'border-red-500' : ''}`}
-                    value={companyEmail}
-                  onChange={(e) => { const v = e.target.value; setCompanyEmail(v); setCompanyEmailError(!v ? t('registration.emailRequired') : (!isValidEmail(v) ? t('registration.emailInvalid') : '')); }}
-                  />
-                {companyEmailError && (<p className="text-sm text-red-500">{companyEmailError}</p>)}
-                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="company-email">{t('register.companyEmailLabel')}</Label>
+                    <Input
+                      id="company-email"
+                      type="email"
+                      placeholder={t('register.companyEmailPlaceholder')}
+                  className={`h-12 ${companyEmailError ? 'border-red-500' : ''}`}
+                      value={companyEmail}
+                    onChange={(e) => { const v = e.target.value; setCompanyEmail(v); setCompanyEmailError(!v ? t('registration.emailRequired') : (!isValidEmail(v) ? t('registration.emailInvalid') : '')); }}
+                    />
+                  {companyEmailError && (<p className="text-sm text-red-500">{companyEmailError}</p>)}
+                  </div>
 
                 <PhoneInput
                   label={t('register.companyPhoneLabel')}
-                  placeholder={t('register.companyPhonePlaceholder')}
-                  value={companyPhone}
-                  onChange={(value) => {
+                      placeholder={t('register.companyPhonePlaceholder')}
+                      value={companyPhone}
+                  onChange={(value, country) => {
                     setCompanyPhone(value);
-                    setCompanyPhoneError(!value ? t('registration.phoneRequired') : (!isValidPhone(value) ? t('registration.phoneInvalid') : ''));
+                    setCompanyPhoneCountry(country);
+                    // Use the country from the parameter, or fall back to stored country
+                    const countryToUse = country || companyPhoneCountry;
+                    setCompanyPhoneError(getPhoneValidationError(value, countryToUse, companyPhoneFocused));
                   }}
+                  onFocus={() => setCompanyPhoneFocused(true)}
                   error={companyPhoneError}
                 />
 
                 <div className="grid grid-cols-2 gap-6">
-                  <div className="space-y-3">
-                    <Label htmlFor="company-password" className="text-base">{t('register.companyPasswordLabel')}</Label>
+                  <div className="space-y-2">
+                    <Label htmlFor="company-password" >{t('register.companyPasswordLabel')}</Label>
                     <Input
                       id="company-password"
                       type="password"
@@ -705,8 +906,8 @@ const Register = () => {
                     />
                     {companyPasswordError && (<p className="text-sm text-red-500">{companyPasswordError}</p>)}
                   </div>
-                  <div className="space-y-3">
-                    <Label htmlFor="company-confirm-password" className="text-base">{t('register.confirmPasswordLabel')}</Label>
+                  <div className="space-y-2">
+                    <Label htmlFor="company-confirm-password" >{t('register.confirmPasswordLabel')}</Label>
                     <Input
                       id="company-confirm-password"
                       type="password"
@@ -723,8 +924,8 @@ const Register = () => {
                 </div>
 
                 
-                <div className="space-y-3">
-                  <Label htmlFor="company-rif" className="text-base">{t('register.companyRifLabel')}</Label>
+                <div className="space-y-2">
+                  <Label htmlFor="company-rif" >{t('register.companyRifLabel')}</Label>
                   <Input
                     id="company-rif"
                     placeholder="J123456789"
@@ -737,7 +938,7 @@ const Register = () => {
 
                   {/* RIF Image Upload */}
                   <div className="mt-3">
-                    <Label htmlFor="company-rif-image" className="text-base">{t('registration.rifImage')} *</Label>
+                    <Label htmlFor="company-rif-image" >{t('registration.rifImage')} *</Label>
                     <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-4">
                       <input 
                         key={fileInputKey}
@@ -776,8 +977,8 @@ const Register = () => {
                   </div>
                 </div>
                 
-                <div className="space-y-3">
-                  <Label htmlFor="company-address" className="text-base">{t('register.companyAddressLabel')}</Label>
+                <div className="space-y-2">
+                  <Label htmlFor="company-address" >{t('register.companyAddressLabel')}</Label>
                   <Textarea
                     id="company-address"
                     placeholder={t('register.companyAddressPlaceholder')}
@@ -790,7 +991,7 @@ const Register = () => {
                
 
                 <Button
-                  className="w-full h-14 text-base mt-2"
+                  className="w-full h-14 mt-2"
                   variant="hero"
                   disabled={isLoading || !isCompanyFormValid()}
                   onClick={signUpCompany}
@@ -799,7 +1000,7 @@ const Register = () => {
                 </Button>
               </TabsContent>
 
-              <TabsContent value="employee" className="space-y-6">
+              <TabsContent value="employee" className="space-y-4">
                 <div className="bg-secondary/20 border border-secondary/30 p-5 rounded-lg text-center">
                   <User className="h-10 w-10 text-secondary mx-auto mb-3" />
                   <h4 className="font-semibold text-lg text-secondary-foreground">{t('register.employeeTitle')}</h4>
@@ -808,15 +1009,15 @@ const Register = () => {
                   </p>
                 </div>
 
-                <div className="space-y-6">
+                <div className="space-y-4">
                   <CompanySelector 
                     onCompanySelect={setSelectedCompanyId}
                     selectedCompanyId={selectedCompanyId}
                   />
                   
                   <div className="grid grid-cols-2 gap-6">
-                    <div className="space-y-3">
-                      <Label htmlFor="employee-first-name" className="text-base">{t('common.firstName')}</Label>
+                    <div className="space-y-2">
+                      <Label htmlFor="employee-first-name" >{t('common.firstName')}</Label>
                       <Input
                         id="employee-first-name"
                         className="h-12 text-base"
@@ -824,8 +1025,8 @@ const Register = () => {
                         onChange={(e) => setEmployeeFirstName(e.target.value)}
                       />
                     </div>
-                    <div className="space-y-3">
-                      <Label htmlFor="employee-last-name" className="text-base">{t('common.lastName')}</Label>
+                    <div className="space-y-2">
+                      <Label htmlFor="employee-last-name" >{t('common.lastName')}</Label>
                       <Input
                         id="employee-last-name"
                         className="h-12 text-base"
@@ -835,32 +1036,36 @@ const Register = () => {
                     </div>
                   </div>
 
-                  <div className="space-y-3">
-                    <Label htmlFor="employee-email" className="text-base">{t('register.employeeEmailLabel')}</Label>
-                    <Input
-                      id="employee-email"
-                      type="email"
-                      placeholder={t('register.employeeEmailPlaceholder')}
-                      className="h-12 text-base"
-                      value={employeeEmail}
-                      onChange={(e) => setEmployeeEmail(e.target.value)}
-                    />
-                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="employee-email" >{t('register.employeeEmailLabel')}</Label>
+                      <Input
+                        id="employee-email"
+                        type="email"
+                        placeholder={t('register.employeeEmailPlaceholder')}
+                        className="h-12 text-base"
+                        value={employeeEmail}
+                        onChange={(e) => setEmployeeEmail(e.target.value)}
+                      />
+                    </div>
 
                   <PhoneInput
                     label={t('register.employeePhoneLabel')}
-                    placeholder={t('register.employeePhonePlaceholder')}
-                    value={employeePhone}
-                    onChange={(value) => {
+                        placeholder={t('register.employeePhonePlaceholder')}
+                        value={employeePhone}
+                    onChange={(value, country) => {
                       setEmployeePhone(value);
-                      setEmployeePhoneError(!value ? t('registration.phoneRequired') : (!isValidPhone(value) ? t('registration.phoneInvalid') : ''));
+                      setEmployeePhoneCountry(country);
+                      // Use the country from the parameter, or fall back to stored country
+                      const countryToUse = country || employeePhoneCountry;
+                      setEmployeePhoneError(getPhoneValidationError(value, countryToUse, employeePhoneFocused));
                     }}
+                    onFocus={() => setEmployeePhoneFocused(true)}
                     error={employeePhoneError}
                   />
 
                   <div className="grid grid-cols-2 gap-6">
-                  <div className="space-y-3">
-                    <Label htmlFor="employee-password" className="text-base">{t('register.employeePasswordLabel')}</Label>
+                  <div className="space-y-2">
+                    <Label htmlFor="employee-password" >{t('register.employeePasswordLabel')}</Label>
                     <Input
                       id="employee-password"
                       type="password"
@@ -878,8 +1083,8 @@ const Register = () => {
                       />
                       {employeePasswordError && (<p className="text-sm text-red-500">{employeePasswordError}</p>)}
                     </div>
-                    <div className="space-y-3">
-                      <Label htmlFor="employee-confirm-password" className="text-base">{t('register.confirmPasswordLabel')}</Label>
+                    <div className="space-y-2">
+                      <Label htmlFor="employee-confirm-password" >{t('register.confirmPasswordLabel')}</Label>
                       <Input
                         id="employee-confirm-password"
                         type="password"
@@ -896,9 +1101,9 @@ const Register = () => {
                   </div>
 
                   <Button 
-                    className="w-full h-14 text-base mt-2" 
+                    className="w-full h-14 mt-2" 
                     variant="premium"
-                    disabled={isLoadingEmployee}
+                    disabled={isLoadingEmployee || !isEmployeeFormValid()}
                     onClick={signUpEmployee}
                   >
                     {isLoadingEmployee ? t('common.saving') : t('register.createEmployeeButton')}
@@ -913,7 +1118,7 @@ const Register = () => {
         <div className="text-center">
           <p className="text-muted-foreground">
             {t('register.haveAccount')} {" "}
-            <Button variant="link" className="p-0 text-base font-semibold" asChild>
+            <Button variant="link" className="p-0 font-semibold" asChild>
               <Link to="/login">{t('register.loginLink')}</Link>
             </Button>
           </p>

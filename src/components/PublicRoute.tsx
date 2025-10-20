@@ -62,9 +62,7 @@ const PublicRoute = ({ children }: PublicRouteProps) => {
       }
 
       // If no role found in database, check user metadata as fallback
-      console.log('No role found in database, checking user metadata...');
       const fallbackMetadataRole = (user.app_metadata as any)?.role ?? (user.user_metadata as any)?.role;
-      console.log('Metadata role:', fallbackMetadataRole);
       
       if (fallbackMetadataRole === 'operator') {
         actualRole = 'operator';

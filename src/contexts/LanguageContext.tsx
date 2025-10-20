@@ -1186,6 +1186,8 @@ const translations: Translations = {
   'registration.emailRequired': { en: 'Email is required', es: 'El email es obligatorio' },
   'registration.emailInvalid': { en: 'Enter a valid email address', es: 'Ingresa un email válido' },
   'registration.phoneRequired': { en: 'Phone is required', es: 'El teléfono es obligatorio' },
+  'registration.phoneTooShort': { en: 'Phone number is too short', es: 'El número de teléfono es muy corto' },
+  'registration.phoneTooLong': { en: 'Phone number is too long', es: 'El número de teléfono es muy largo' },
   'registration.phoneInvalid': { en: 'Enter a valid phone number', es: 'Ingresa un teléfono válido' },
   'registration.passwordRequired': { en: 'Password is required', es: 'La contraseña es obligatoria' },
   'registration.passwordTooShort': { en: 'Password must be at least 6 characters', es: 'La contraseña debe tener al menos 6 caracteres' },

@@ -37,13 +37,10 @@ const ProtectedRoute = ({ children, role }: { children: ReactNode; role?: string
           
           // If no role found and we're checking for company, retry a few times
           while (!roleFromDb && retryCount < maxRetries && role === 'company') {
-            console.log(`ProtectedRoute - No role found, retrying... (${retryCount + 1}/${maxRetries})`);
             await new Promise(resolve => setTimeout(resolve, 500));
             roleFromDb = await getActualUserRole(user.id);
             retryCount++;
           }
-          
-          console.log('ProtectedRoute - Detected role:', roleFromDb, 'Required role:', role);
           setActualUserRole(roleFromDb);
           
           // If user is an employee, check if they're active
@@ -56,7 +53,6 @@ const ProtectedRoute = ({ children, role }: { children: ReactNode; role?: string
               .maybeSingle();
               
             if (error) {
-              console.error("Error checking employee status:", error);
               setIsEmployeeActive(false);
             } else {
               setIsEmployeeActive((data as EmployeeStatus)?.is_active ?? false);
@@ -73,7 +69,6 @@ const ProtectedRoute = ({ children, role }: { children: ReactNode; role?: string
               .eq('auth_user_id', user.id)
               .maybeSingle();
             if (error) {
-              console.error('Error checking company approval:', error);
               setIsCompanyApproved(false);
             } else {
               setIsCompanyApproved((data as CompanyStatus)?.is_approved ?? false);
@@ -81,7 +76,6 @@ const ProtectedRoute = ({ children, role }: { children: ReactNode; role?: string
             setIsCheckingCompanyStatus(false);
           }
         } catch (error) {
-          console.error("Error fetching actual user role:", error);
         } finally {
           setIsCheckingRole(false);
         }

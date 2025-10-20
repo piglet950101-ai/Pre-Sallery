@@ -52,7 +52,6 @@ const Login = () => {
       // For now, we'll assume operators exist in auth.users with metadata
       return false; // Simplified - no database check needed
     } catch (error) {
-      console.error('Error checking email existence:', error);
       return false;
     }
   };
@@ -74,7 +73,6 @@ const Login = () => {
           .maybeSingle();
 
         if (employeeError) {
-          console.error('Error checking employee:', employeeError);
           throw error; // Throw original auth error
         }
 
@@ -89,7 +87,6 @@ const Login = () => {
               .single();
 
             if (fullEmployeeError) {
-              console.error('Error fetching employee data:', fullEmployeeError);
               throw error; // Throw original auth error
             }
 
@@ -108,7 +105,6 @@ const Login = () => {
             });
 
             if (authError) {
-              console.error('Error creating auth user for employee:', authError);
               throw error; // Throw original auth error
             }
 
@@ -124,7 +120,6 @@ const Login = () => {
                 .eq('id', employeeData.id);
 
               if (updateError) {
-                console.error('Error updating employee with auth_user_id:', updateError);
                 throw error; // Throw original auth error
               }
 
@@ -138,7 +133,6 @@ const Login = () => {
               throw error; // Throw original auth error
             }
           } catch (createError) {
-            console.error('Error in employee auth creation process:', createError);
             throw error; // Throw original auth error
           }
         } else {
@@ -169,7 +163,6 @@ const Login = () => {
       
       if (companyData) {
         actualRole = 'company';
-        console.log('User is a company, is_approved:', companyData.is_approved);
       } else {
         // Check if user is an employee - with retry for newly created accounts
         let employeeData = null;
@@ -194,7 +187,6 @@ const Login = () => {
         
         if (employeeData) {
           actualRole = 'employee';
-          console.log('User is an employee, is_active:', employeeData.is_active);
         } else {
           // Check if user is an operator using metadata only
           const metadataRole = (data.session.user.app_metadata as any)?.role ?? (data.session.user.user_metadata as any)?.role;
@@ -206,13 +198,10 @@ const Login = () => {
 
       // If no role found in database, check user metadata as fallback
       if (!actualRole) {
-        console.log('No role found in database, checking user metadata...');
         const metadataRole = (data.session.user.app_metadata as any)?.role ?? (data.session.user.user_metadata as any)?.role;
-        console.log('Metadata role:', metadataRole);
         
         if (metadataRole === 'operator') {
           actualRole = 'operator';
-          console.log('Found operator role in metadata');
         } else {
           // Final fallback: check if employee exists by email (in case auth_user_id wasn't set)
           const { data: employeeByEmail } = await supabase
@@ -230,7 +219,6 @@ const Login = () => {
             
             if (!updateError) {
               actualRole = 'employee';
-              console.log('Found employee by email and updated auth_user_id');
             }
           }
           
@@ -268,7 +256,6 @@ const Login = () => {
           .single();
           
         if (companyError) {
-          console.error("Error checking company status:", companyError);
           toast({
             title: t('login.warning') ?? 'Advertencia',
             description: t('login.couldNotVerifyCompany') ?? 'No se pudo verificar el estado de la empresa.',
@@ -301,7 +288,6 @@ const Login = () => {
           .maybeSingle();
           
         if (employeeError) {
-          console.error("Error checking employee status:", employeeError);
           toast({
             title: t('login.warning') ?? 'Advertencia',
             description: t('login.couldNotVerifyEmployee') ?? 'No se pudo verificar el estado del empleado.',
@@ -322,12 +308,6 @@ const Login = () => {
           // Only check the database flag - this ensures change password is shown only once
           const mustChangePassword = employeeData.must_change_password === true;
           
-          console.log('Employee login check:', {
-            must_change_password: employeeData.must_change_password,
-            mustChangePassword,
-            created_at: data.session.user.created_at,
-            updated_at: data.session.user.updated_at
-          });
           
           if (mustChangePassword) {
             // Redirect to employee page where change password form will be displayed
@@ -354,7 +334,6 @@ const Login = () => {
       navigate(pathByRole);
       toast({ title: t('login.success') ?? 'Inicio de sesión exitoso' });
     } catch (err: any) {
-      console.error("Login error:", err);
       
       // Check for specific error types
       let errorTitle = t('login.errorTitle');

@@ -133,7 +133,8 @@ interface PhoneInputProps {
   label: string;
   placeholder?: string;
   value: string;
-  onChange: (value: string) => void;
+  onChange: (value: string, country?: Country) => void;
+  onFocus?: () => void;
   error?: string;
   className?: string;
   disabled?: boolean;
@@ -168,6 +169,7 @@ export const PhoneInput: React.FC<PhoneInputProps> = ({
   placeholder,
   value,
   onChange,
+  onFocus,
   error,
   className,
   disabled = false
@@ -351,7 +353,7 @@ export const PhoneInput: React.FC<PhoneInputProps> = ({
     setSelectedIndex(0); // Reset selected index
     // Clear the phone number when country changes
     setPhoneNumber('');
-    onChange('');
+    onChange('', selectedCountry);
   };
 
   const handleDropdownToggle = () => {
@@ -372,7 +374,7 @@ export const PhoneInput: React.FC<PhoneInputProps> = ({
     
     // Send the full number with country code
     const fullNumber = selectedCountry.dialCode + ' ' + formatted;
-    onChange(fullNumber);
+    onChange(fullNumber, selectedCountry);
   };
 
   return (
@@ -467,6 +469,7 @@ export const PhoneInput: React.FC<PhoneInputProps> = ({
             placeholder={getPlaceholder(selectedCountry)}
             value={phoneNumber}
             onChange={handlePhoneChange}
+            onFocus={onFocus}
             disabled={disabled}
             maxLength={20}
             className={cn(

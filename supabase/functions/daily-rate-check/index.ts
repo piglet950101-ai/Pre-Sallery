@@ -17,7 +17,6 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    console.log("Starting daily exchange rate check at 6:10 PM...");
 
     // Check current exchange rate status
     const { data: latestRate, error: rateError } = await supabase
@@ -26,7 +25,6 @@ serve(async (req) => {
       .maybeSingle();
 
     if (rateError) {
-      console.error("Error fetching latest rate:", rateError);
       return new Response(JSON.stringify({
         success: false,
         message: "Failed to fetch current exchange rate",
@@ -69,7 +67,6 @@ serve(async (req) => {
 
     // If rate needs update, try to fetch from API
     if (status.needsUpdate) {
-      console.log("Exchange rate needs update, fetching from API...");
       
       try {
         const apiResponse = await fetch('https://bcv-api.rafnixg.dev/rates/', { 
@@ -102,11 +99,8 @@ serve(async (req) => {
             });
 
           if (upsertError) {
-            console.error("Error upserting updated rate:", upsertError);
             throw upsertError;
           }
-
-          console.log(`Successfully updated exchange rate to ${rate} VES`);
           
           // Create notification for successful update
           await supabase
@@ -138,7 +132,6 @@ serve(async (req) => {
           throw new Error(`BCV API response invalid: ${JSON.stringify(apiData)}`);
         }
       } catch (apiError) {
-        console.error("Failed to fetch from API:", apiError);
         
         // Create notification for failed update
         await supabase
@@ -167,7 +160,6 @@ serve(async (req) => {
         });
       }
     } else {
-      console.log("Exchange rate is current, no update needed");
       
       // Create notification that rate is current
       await supabase
@@ -198,7 +190,6 @@ serve(async (req) => {
     }
 
   } catch (error) {
-    console.error("Daily rate check error:", error);
     
     return new Response(JSON.stringify({
       success: false,

@@ -40,17 +40,6 @@ export const ExchangeRateAlert: React.FC = () => {
         // 2. the rate was updated within the last 24 hours (regardless of as_of_date)
         const hasRecentRate = hasRateToday || (lastUpdate && new Date(lastUpdate) > oneDayAgo);
 
-        console.log('Exchange Rate Alert Debug:', {
-          today,
-          asOfDate: latestRate.as_of_date,
-          hasRateToday,
-          lastUpdate,
-          oneDayAgo: oneDayAgo.toISOString(),
-          isStale,
-          hasRecentRate,
-          rate: latestRate.usd_to_ves,
-          source: latestRate.source
-        });
 
         setStatus({
           hasRateToday: hasRecentRate, // Use the more robust check
@@ -70,8 +59,7 @@ export const ExchangeRateAlert: React.FC = () => {
         });
       }
     } catch (error) {
-      console.error('Failed to check exchange rate status:', error);
-      // Set a default error state
+       // Set a default error state
       setStatus({
         hasRateToday: false,
         isStale: true,
@@ -97,7 +85,7 @@ export const ExchangeRateAlert: React.FC = () => {
           return;
         }
       } catch (functionError) {
-        
+        // Function not available, continue to next fallback
       }
       
       // Fallback to hourly update function
@@ -109,7 +97,7 @@ export const ExchangeRateAlert: React.FC = () => {
           return;
         }
       } catch (functionError) {
-        
+        // Function not available, continue to next fallback
       }
       
       // Fallback: Try the main update function
@@ -121,12 +109,10 @@ export const ExchangeRateAlert: React.FC = () => {
           return;
         }
       } catch (fallbackError) {
-        console.error('Both update functions failed:', fallbackError);
         throw new Error('Unable to update exchange rate - functions may not be deployed');
       }
       
     } catch (error) {
-      console.error('Failed to update exchange rate:', error);
     } finally {
       setIsLoading(false);
     }

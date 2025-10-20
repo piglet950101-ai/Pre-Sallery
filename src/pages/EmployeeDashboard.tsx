@@ -349,21 +349,12 @@ const EmployeeDashboard = () => {
 
         setEmployee(employeeData);
         
-        // Debug: Log the must_change_password flag
-        console.log('EmployeeDashboard - must_change_password flag:', employeeData.must_change_password);
-        console.log('EmployeeDashboard - Setting mustChangePassword to:', employeeData.must_change_password === true);
         
         // Show password change screen ONLY if database flag is true (one-time only)
         setMustChangePassword(employeeData.must_change_password === true);
         
         // Check if cedula images are uploaded
         const hasCedulaImages = employeeData.cedula_front_url && employeeData.cedula_back_url;
-        console.log('EmployeeDashboard - Cedula check:', {
-          cedula_front_url: employeeData.cedula_front_url,
-          cedula_back_url: employeeData.cedula_back_url,
-          hasCedulaImages,
-          mustUploadCedula: !hasCedulaImages
-        });
         setMustUploadCedula(!hasCedulaImages);
         
         // Populate payment info data
@@ -376,12 +367,6 @@ const EmployeeDashboard = () => {
           pagomovil_bank_name: employeeData.pagomovil_bank_name || ''
         });
         
-        // Debug: Log employee approval status
-        /* logs removed */ ({
-          is_approved: employeeData.is_approved,
-          is_verified: employeeData.is_verified,
-          is_active: employeeData.is_active
-        });
 
         // Company approval state for info messaging later
         if (employeeData?.company_id) {
@@ -414,14 +399,12 @@ const EmployeeDashboard = () => {
           .order("created_at", { ascending: false });
 
         if (requestsError) {
-          console.error("Error loading advance requests:", requestsError);
-          // Don't throw here, just log the error
+          // Don't throw here, just continue without advance requests
         } else {
           setAdvanceRequests(requestsData || []);
         }
 
       } catch (error: any) {
-        console.error("Error fetching employee data:", error);
         toast({
           title: t('common.error'),
           description: error?.message ?? t('common.noData'),
@@ -492,11 +475,10 @@ const EmployeeDashboard = () => {
             setBanks(banksData);
           }
         } catch (dbError) {
-          
+          // Database error, continue with hardcoded banks
         }
         
       } catch (error) {
-        console.error("Error fetching banks:", error);
         // Fallback to hardcoded list
         setBanks([
           { id: '1', name: 'Banco de Venezuela', code: 'BDV' },
@@ -513,10 +495,6 @@ const EmployeeDashboard = () => {
     fetchBanks();
   }, []);
 
-  // Debug: Log banks state changes
-  useEffect(() => {
-    
-  }, [banks]);
 
   const refreshData = async () => {
     try {
@@ -574,7 +552,6 @@ const EmployeeDashboard = () => {
         setAdvanceRequests(requestsData || []);
       }
     } catch (error: any) {
-      console.error("Error refreshing data:", error);
       toast({
         title: t('common.error'),
         description: t('company.billing.couldNotLoadEmployees'),
@@ -648,7 +625,6 @@ const EmployeeDashboard = () => {
       });
 
     } catch (error: any) {
-      console.error("Error saving payment info:", error);
       toast({
         title: t('common.error'),
         description: error?.message ?? t('common.tryAgain'),
@@ -718,7 +694,6 @@ const EmployeeDashboard = () => {
         description: language === 'en' ? 'Your bank transfer information has been saved.' : 'Tu información de transferencia bancaria ha sido guardada.',
       });
     } catch (error: any) {
-      console.error('Error saving bank transfer info:', error);
       toast({
         title: t('common.error'),
         description: error?.message ?? t('common.tryAgain'),
@@ -809,7 +784,6 @@ const EmployeeDashboard = () => {
         description: language === 'en' ? 'Your Pago Móvil information has been saved.' : 'Tu información de Pago Móvil ha sido guardada.',
       });
     } catch (error: any) {
-      console.error('Error saving pagomovil info:', error);
       toast({
         title: t('common.error'),
         description: error?.message ?? t('common.tryAgain'),
@@ -891,7 +865,6 @@ const EmployeeDashboard = () => {
       setAdvanceToCancel(null);
       refreshData();
     } catch (error: any) {
-      console.error("Error cancelling advance:", error);
       toast({
         title: t('common.error'),
         description: error?.message ?? t('employee.couldNotCancel'),
@@ -1073,19 +1046,14 @@ const EmployeeDashboard = () => {
       // Update employee record to mark password as changed
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        console.log('Updating employee record for user:', user.id);
-        
         const { error: updateError } = await supabase
           .from('employees')
           .update({ must_change_password: false })
           .eq('auth_user_id', user.id);
         
         if (updateError) {
-          console.error('Error updating employee record:', updateError);
           throw new Error(`Failed to update employee record: ${updateError.message}`);
         }
-        
-        console.log('Employee record updated successfully');
         
         // Also update auth user metadata to clear the flag
         const { error: metadataError } = await supabase.auth.updateUser({
@@ -1096,10 +1064,7 @@ const EmployeeDashboard = () => {
         });
         
         if (metadataError) {
-          console.error('Error updating auth metadata:', metadataError);
           // Don't throw error, continue since database was updated
-        } else {
-          console.log('Auth metadata updated successfully');
         }
       }
 
@@ -1116,7 +1081,6 @@ const EmployeeDashboard = () => {
       await refreshData();
       
     } catch (err: any) {
-      console.error("Change password error:", err);
       
       let errorTitle = t('changePassword.error') ?? 'Error al cambiar contraseña';
       let errorDescription = err?.message ?? t('changePassword.errorDesc') ?? 'Ocurrió un error al cambiar la contraseña.';
@@ -1301,14 +1265,6 @@ const EmployeeDashboard = () => {
 
   const isEmployeeApproved = employee?.is_approved === true;
 
-  // Debug: Log gating decision
-  /* logs removed */ ({
-    justSubmittedKyc,
-    isCompanyApproved,
-    isEmployeeApproved,
-    employeeId: employee?.id,
-    willShowGatingScreen: justSubmittedKyc || !isCompanyApproved || !isEmployeeApproved
-  });
 
   // Gate all features until company approval AND employee approval, even after password change and KYC upload
   // This ensures employees cannot access advance requests until both company and employee are approved

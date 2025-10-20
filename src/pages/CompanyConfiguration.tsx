@@ -163,7 +163,6 @@ const CompanyConfiguration = () => {
           .upload(objectKey, rifImage, { upsert: true, contentType: rifImage.type });
         
         if (uploadErr) {
-          console.error('RIF upload error:', uploadErr);
           toast({
             title: t('common.error'),
             description: 'Error al subir el documento RIF',
@@ -196,7 +195,6 @@ const CompanyConfiguration = () => {
         .select();
 
       if (updateError) {
-        console.error('Error updating company data:', updateError);
         toast({
           title: t('common.error'),
           description: `Failed to update company data: ${updateError.message}`,
@@ -234,7 +232,6 @@ const CompanyConfiguration = () => {
         description: t('config.sectionSavedDesc').replace('{section}', t('config.tabs.company')),
       });
     } catch (error) {
-      console.error('Error saving company data:', error);
       toast({
         title: t('common.error'),
         description: 'An unexpected error occurred while saving company data',
@@ -319,7 +316,6 @@ const CompanyConfiguration = () => {
       });
 
       if (updateError) {
-        console.error('Error updating password:', updateError);
         toast({
           title: t('common.error'),
           description: 'Failed to update password',
@@ -345,7 +341,6 @@ const CompanyConfiguration = () => {
         description: 'Your password has been updated successfully',
       });
     } catch (error) {
-      console.error('Error changing password:', error);
       toast({
         title: t('common.error'),
         description: 'An unexpected error occurred',
@@ -367,35 +362,23 @@ const CompanyConfiguration = () => {
 
   // Handle file input click to reset before selection
   const handleFileInputClick = (event: React.MouseEvent<HTMLInputElement>) => {
-    console.log('File input clicked - clearing value');
     // Clear the value before opening file picker
     event.currentTarget.value = '';
   };
 
   // Handle label click to ensure file input is reset
   const handleLabelClick = (event: React.MouseEvent<HTMLLabelElement>) => {
-    console.log('Label clicked - clearing file input');
     // Clear the file input value when label is clicked
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
-      console.log('File input value cleared via label click');
     }
   };
 
   // RIF image upload handler
   const handleRifImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    console.log('=== onChange EVENT TRIGGERED ===');
-    console.log('Event target:', event.target);
-    console.log('Files:', event.target.files);
-    console.log('Files length:', event.target.files?.length);
-    
-    
     const file = event.target.files?.[0];
     
-    console.log('File selected:', file?.name, file?.size, file?.type);
-    
     if (!file) {
-      console.log('No file selected - exiting');
       return;
     }
 
@@ -431,7 +414,6 @@ const CompanyConfiguration = () => {
 
     // Validate RIF expiration date using the validation function
     try {
-      console.log('Starting RIF validation for:', file.name);
       setIsUploadingRif(true);
       toast({
         title: t('common.loading'),
@@ -455,12 +437,10 @@ const CompanyConfiguration = () => {
           });
 
           if (error) {
-            console.error('RIF validation error:', error);
             throw error;
           }
 
           if (data.is_expired) {
-            console.log('RIF document is expired');
             toast({
               title: 'Documento RIF vencido',
               description: 'El documento RIF ha vencido. Por favor, sube un documento válido.',
@@ -469,7 +449,6 @@ const CompanyConfiguration = () => {
             return;
           }
 
-          console.log('RIF validation successful');
           toast({
             title: t('common.success'),
             description: data.message,
@@ -479,7 +458,6 @@ const CompanyConfiguration = () => {
           setRifImage(file);
 
         } catch (error: any) {
-          console.error('RIF validation error:', error);
           toast({
             title: 'Error de validación',
             description: 'Error al validar el documento RIF. Asegúrate de que el documento sea claro y legible.',
@@ -493,7 +471,6 @@ const CompanyConfiguration = () => {
       reader.readAsDataURL(file);
 
     } catch (error: any) {
-      console.error('RIF validation error:', error);
       toast({
         title: 'Error de validación',
         description: 'Error al validar el documento RIF.',
@@ -505,22 +482,16 @@ const CompanyConfiguration = () => {
 
   // Initialize upload form
   const initializeUploadForm = () => {
-    console.log('=== INITIALIZING UPLOAD FORM ===');
     setRifImage(null);
     setIsUploadingRif(false);
     // Clear the file input value
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
-      console.log('File input value cleared in initialization');
-    } else {
-      console.log('File input ref is null during initialization');
     }
     setFileInputKey(prev => {
       const newKey = prev + 1;
-      console.log('File input key updated to:', newKey);
       return newKey;
     });
-    console.log('Upload form initialization complete');
   };
 
   // Handle removing RIF image
@@ -547,7 +518,6 @@ const CompanyConfiguration = () => {
         .single();
 
       if (companyError) {
-        console.error('Error fetching company data:', companyError);
         toast({
           title: t('common.error'),
           description: 'Failed to fetch company data. Please contact support.',
@@ -557,7 +527,6 @@ const CompanyConfiguration = () => {
       }
 
       if (!company) {
-        console.error('No company found for user');
         toast({
           title: t('common.error'),
           description: 'No company associated with this user. Please contact support.',
@@ -568,7 +537,6 @@ const CompanyConfiguration = () => {
 
       // Check if company is approved
       if (!company.is_approved) {
-        console.warn('Company is not approved. Redirecting to login.');
         await supabase.auth.signOut();
         window.location.href = '/login';
         return;
@@ -584,7 +552,6 @@ const CompanyConfiguration = () => {
       setOriginalCompanyInfo(companyData); // Store original data for comparison
       setCurrentRifImageUrl(company.rif_image_url || null); // Store current RIF image URL
     } catch (error) {
-      console.error('Error fetching company data:', error);
       toast({
         title: t('common.error'),
         description: 'An unexpected error occurred while loading company data',

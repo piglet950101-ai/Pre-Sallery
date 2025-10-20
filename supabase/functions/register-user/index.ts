@@ -47,15 +47,6 @@ serve(async (req) => {
   try {
     const { email, password, userType, companyData, employeeData, language = 'en' } = await req.json()
 
-    console.log('Registration request received:', {
-      email,
-      userType,
-      language,
-      hasCompanyData: !!companyData,
-      hasEmployeeData: !!employeeData,
-      companyDataKeys: companyData ? Object.keys(companyData) : null,
-      employeeDataKeys: employeeData ? Object.keys(employeeData) : null
-    })
 
     if (!email || !password || !userType) {
       return new Response(
@@ -86,7 +77,6 @@ serve(async (req) => {
     const { data: existingUsers, error: authError } = await supabaseAdmin.auth.admin.listUsers()
     
     if (authError) {
-      console.error('Error checking existing users:', authError)
       return new Response(
         JSON.stringify({ error: 'Failed to check existing users' }),
         { 
@@ -118,7 +108,6 @@ serve(async (req) => {
     })
 
     if (createError) {
-      console.error('Error creating auth user:', createError)
       return new Response(
         JSON.stringify({ success: false, error: getErrorMessage('failed_to_create_user', language) }),
         { 
@@ -142,14 +131,12 @@ serve(async (req) => {
     const supabase = supabaseAdmin
 
     // Test database connection and check companies table structure
-    console.log('Testing database connection...')
     const { data: testData, error: testError } = await supabase
       .from('companies')
       .select('*')
       .limit(1)
     
     if (testError) {
-      console.error('Database connection test failed:', testError)
       return new Response(
         JSON.stringify({ 
           error: 'Database connection failed',
@@ -162,14 +149,12 @@ serve(async (req) => {
         }
       )
     }
-    console.log('Database connection successful')
 
     let redirectPath = '/';
     let userData = null;
 
     if (userType === 'company') {
       // Check if RIF already exists
-      console.log('Checking if RIF already exists:', companyData?.rif)
       const { data: existingCompany, error: checkError } = await supabase
         .from('companies')
         .select('id, name')
@@ -177,7 +162,6 @@ serve(async (req) => {
         .maybeSingle()
 
       if (checkError) {
-        console.error('Error checking RIF:', checkError)
         await supabaseAdmin.auth.admin.deleteUser(authUser.user.id)
         return new Response(
           JSON.stringify({ 
@@ -192,7 +176,6 @@ serve(async (req) => {
       }
 
       if (existingCompany) {
-        console.error('RIF already exists:', existingCompany)
         await supabaseAdmin.auth.admin.deleteUser(authUser.user.id)
         return new Response(
           JSON.stringify({ 
@@ -208,25 +191,6 @@ serve(async (req) => {
       }
 
       // Create company record
-      console.log('Creating company with data:', {
-        auth_user_id: authUser.user.id,
-        name: companyData?.name,
-        rif: companyData?.rif,
-        address: companyData?.address,
-        phone: companyData?.phone,
-        rif_image_url: companyData?.rif_image_url
-      })
-
-      // Try to insert company record
-      console.log('Attempting to insert company record...')
-      
-      // First, let's try to see if we can read from companies table
-      const { data: testRead, error: readError } = await supabase
-        .from('companies')
-        .select('id')
-        .limit(1)
-      
-      console.log('Test read from companies:', { testRead, readError })
       
       const { data: company, error: companyError } = await supabase
         .from('companies')
@@ -242,20 +206,12 @@ serve(async (req) => {
         .select()
         .single()
 
-      console.log('Company insert result:', { company, companyError })
-
       if (companyError) {
-        console.error('Error creating company:', companyError)
-        console.error('Company data received:', companyData)
-        console.error('Auth user ID:', authUser.user.id)
-        console.error('Full error object:', JSON.stringify(companyError, null, 2))
-        
         // Clean up auth user if company creation fails
         try {
           await supabaseAdmin.auth.admin.deleteUser(authUser.user.id)
-          console.log('Successfully cleaned up auth user')
         } catch (cleanupError) {
-          console.error('Failed to cleanup auth user:', cleanupError)
+          // Failed to cleanup auth user
         }
         
         return new Response(
@@ -273,7 +229,6 @@ serve(async (req) => {
         )
       }
 
-      console.log('Company created successfully:', company)
 
       redirectPath = '/company';
       userData = company;
@@ -318,8 +273,6 @@ serve(async (req) => {
         .single()
 
       if (employeeError) {
-        console.error('Error creating employee:', employeeError)
-        console.error('Employee data received:', employeeData)
         // Clean up auth user if employee creation fails
         await supabaseAdmin.auth.admin.deleteUser(authUser.user.id)
         return new Response(
@@ -354,7 +307,6 @@ serve(async (req) => {
     )
 
   } catch (error) {
-    console.error('Error in register-user function:', error)
     return new Response(
       JSON.stringify({ error: 'Internal server error' }),
       { 
