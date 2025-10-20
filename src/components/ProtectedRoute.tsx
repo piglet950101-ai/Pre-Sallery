@@ -27,7 +27,23 @@ const ProtectedRoute = ({ children, role }: { children: ReactNode; role?: string
       if (user && role) {
         setIsCheckingRole(true);
         try {
-          const roleFromDb = await getActualUserRole(user.id);
+          // Add a small delay to ensure database records are fully created
+          await new Promise(resolve => setTimeout(resolve, 200));
+          
+          // Try to get role with retry mechanism
+          let roleFromDb = await getActualUserRole(user.id);
+          let retryCount = 0;
+          const maxRetries = 3;
+          
+          // If no role found and we're checking for company, retry a few times
+          while (!roleFromDb && retryCount < maxRetries && role === 'company') {
+            console.log(`ProtectedRoute - No role found, retrying... (${retryCount + 1}/${maxRetries})`);
+            await new Promise(resolve => setTimeout(resolve, 500));
+            roleFromDb = await getActualUserRole(user.id);
+            retryCount++;
+          }
+          
+          console.log('ProtectedRoute - Detected role:', roleFromDb, 'Required role:', role);
           setActualUserRole(roleFromDb);
           
           // If user is an employee, check if they're active
@@ -91,9 +107,22 @@ const ProtectedRoute = ({ children, role }: { children: ReactNode; role?: string
   }
 
   if (role) {
-    // Check if user has the required role
-    if (actualUserRole !== role) {
+    // Only show error if we've finished checking and the role doesn't match
+    // Don't show error while role is still being determined (null)
+    if (actualUserRole !== null && actualUserRole !== role) {
       return <InlinePermissionError requiredRole={role} userRole={actualUserRole} />;
+    }
+    
+    // If we're still checking the role, show loading instead of error
+    if (actualUserRole === null && !isCheckingRole) {
+      return (
+        <div className="min-h-screen bg-background flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-muted-foreground">Determining access...</p>
+          </div>
+        </div>
+      );
     }
     
     // Employees should still access onboarding (password/KYC) even if not active

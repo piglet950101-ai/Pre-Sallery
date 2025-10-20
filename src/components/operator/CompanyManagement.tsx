@@ -78,9 +78,9 @@ const CompanyManagement: React.FC = () => {
     try {
       setIsLoading(true);
       
-       // Get companies directly from base table
+       // Get companies with auth email using the companies_with_auth view
         const { data: companiesData, error: companiesError } = await supabase
-          .from('companies')
+          .from('companies_with_auth')
           .select('*')
           .order('created_at', { ascending: false });
 
@@ -115,7 +115,7 @@ const CompanyManagement: React.FC = () => {
           id: company.id,
           name: company.name,
           rif: company.rif,
-          email: company.email,
+          email: company.auth_email || null,
           phone: company.phone,
           address: company.address,
           city: company.city,
@@ -162,8 +162,7 @@ const CompanyManagement: React.FC = () => {
       filtered = filtered.filter(company =>
         company.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         company.rif.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        company.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (company.auth_email && company.auth_email.toLowerCase().includes(searchTerm.toLowerCase()))
+        company.email?.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
@@ -229,7 +228,7 @@ const CompanyManagement: React.FC = () => {
     try {
       // Try to send real email via Edge Function if available
       try {
-        const toEmail = company.email || (company as any).auth_email || '';
+        const toEmail = company.email || '';
         if (toEmail) {
           await supabase.functions.invoke('send-company-activated-email', {
             body: {
@@ -278,7 +277,7 @@ const CompanyManagement: React.FC = () => {
     try {
       // Try to send real email via Edge Function if available
       try {
-        const toEmail = company.email || (company as any).auth_email || '';
+        const toEmail = company.email || '';
         
         if (toEmail) {
           const response = await supabase.functions.invoke('send-company-revoked-email', {
@@ -576,7 +575,7 @@ const CompanyManagement: React.FC = () => {
                     <div>
                       <div className="font-medium">{company.name}</div>
                       <div className="text-sm text-muted-foreground">
-                        {company.auth_email || company.email || company.rif}
+                        {company.email || company.rif}
                       </div>
                     </div>
                   </div>
@@ -680,7 +679,7 @@ const CompanyManagement: React.FC = () => {
                     </div>
                     <div>
                       <label className="text-sm font-medium text-muted-foreground">{t('operator.email')}</label>
-                      <p className="text-lg font-semibold">{selectedCompany.auth_email || selectedCompany.email}</p>
+                      <p className="text-lg font-semibold">{selectedCompany.email || 'No email available'}</p>
                     </div>
                     <div>
                       <label className="text-sm font-medium text-muted-foreground">{t('operator.phone')}</label>

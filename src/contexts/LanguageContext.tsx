@@ -317,6 +317,14 @@ const translations: Translations = {
   'register.employmentTypeError': { en: 'Invalid employment type', es: 'Tipo de empleo inválido' },
   'register.accountTypeError': { en: 'Invalid account type', es: 'Tipo de cuenta inválido' },
   
+  // Edge function error messages
+  'register.emailAlreadyRegistered': { en: 'Email already registered', es: 'Correo electrónico ya registrado' },
+  'register.rifAlreadyExists': { en: 'RIF already exists', es: 'RIF ya existe' },
+  'register.failedToCreateUser': { en: 'Failed to create user account', es: 'Error al crear la cuenta de usuario' },
+  'register.userCreationFailed': { en: 'User creation failed', es: 'Falló la creación del usuario' },
+  'register.failedToCreateCompany': { en: 'Failed to create company record', es: 'Error al crear el registro de empresa' },
+  'register.failedToCreateEmployee': { en: 'Failed to create employee record', es: 'Error al crear el registro de empleado' },
+  
   // Pending Approval Page
   'pendingApproval.title': { en: 'Account Pending Approval', es: 'Cuenta Pendiente de Aprobación' },
   'pendingApproval.description': { en: 'Your account has been created but is waiting for approval from your company administrator.', es: 'Tu cuenta ha sido creada pero está esperando la aprobación del administrador de tu empresa.' },

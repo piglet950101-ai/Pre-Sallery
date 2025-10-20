@@ -34,9 +34,26 @@ export const ExchangeRateAlert: React.FC = () => {
         const lastUpdate = latestRate.updated_at || latestRate.created_at || latestRate.as_of_date;
         const hasRateToday = latestRate.as_of_date === today;
         const isStale = new Date(lastUpdate) < oneDayAgo;
+        
+        // More robust check: consider rate as "today's rate" if:
+        // 1. as_of_date matches today, OR
+        // 2. the rate was updated within the last 24 hours (regardless of as_of_date)
+        const hasRecentRate = hasRateToday || (lastUpdate && new Date(lastUpdate) > oneDayAgo);
+
+        console.log('Exchange Rate Alert Debug:', {
+          today,
+          asOfDate: latestRate.as_of_date,
+          hasRateToday,
+          lastUpdate,
+          oneDayAgo: oneDayAgo.toISOString(),
+          isStale,
+          hasRecentRate,
+          rate: latestRate.usd_to_ves,
+          source: latestRate.source
+        });
 
         setStatus({
-          hasRateToday,
+          hasRateToday: hasRecentRate, // Use the more robust check
           isStale,
           lastUpdate,
           source: latestRate.source,

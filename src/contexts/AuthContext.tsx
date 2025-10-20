@@ -53,13 +53,42 @@ export const getUserRole = (user: User | null): string | null => {
 // Function to get the actual user role from database (more reliable)
 export const getActualUserRole = async (userId: string): Promise<string | null> => {
   try {
+    // Check if user is a company
+    const { data: companyData } = await supabase
+      .from('companies')
+      .select('id')
+      .eq('auth_user_id', userId)
+      .maybeSingle();
+    
+    if (companyData) {
+      return 'company';
+    }
+    
+    // Check if user is an employee
+    const { data: employeeData } = await supabase
+      .from('employees')
+      .select('id')
+      .eq('auth_user_id', userId)
+      .maybeSingle();
+    
+    if (employeeData) {
+      return 'employee';
+    }
+    
+    // Check if user is an operator using metadata
     const { data: userData, error: userError } = await supabase.auth.getUser();
     if (userError || !userData.user) {
       return null;
     }
-    return (userData.user.app_metadata as any)?.role ?? (userData.user.user_metadata as any)?.role ?? null;
-  } catch (fallbackError) {
-    console.error('Fallback error getting user role:', fallbackError);
+    
+    const metadataRole = (userData.user.app_metadata as any)?.role ?? (userData.user.user_metadata as any)?.role;
+    if (metadataRole === 'operator') {
+      return 'operator';
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error getting actual user role:', error);
     return null;
   }
 };

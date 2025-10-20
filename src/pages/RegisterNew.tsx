@@ -271,117 +271,123 @@ const Register = () => {
         console.warn('Failed to validate domain MX; proceeding with signup fallback.', e);
       }
 
-      // Create auth user first
-      // Normalize inputs
+      // Upload RIF image to storage (public bucket) first
+      let rifImageUrl: string | null = null;
+      if (companyRifImage) {
+        const fileExt = companyRifImage.name.split('.').pop()?.toLowerCase() || 'jpg';
+        const objectKey = `rif/temp/${Date.now()}.${fileExt}`;
+        const { error: uploadErr } = await supabase.storage
+          .from('company-docs')
+          .upload(objectKey, companyRifImage, { upsert: true, contentType: companyRifImage.type });
+        if (uploadErr) {
+          console.error('RIF upload error:', uploadErr);
+        } else {
+          const { data: pubUrl } = supabase.storage.from('company-docs').getPublicUrl(objectKey);
+          rifImageUrl = pubUrl.publicUrl;
+        }
+      }
 
-      // Create auth user first without metadata to avoid trigger issues
-      const { data, error } = await supabase.auth.signUp({
-        email: cleanEmail,
-        password: cleanPassword,
-        options: {
-          emailRedirectTo: `${window.location.origin}/login`
+      // Use edge function to create user and company record atomically
+      const { data: registerResult, error: registerError } = await supabase.functions.invoke('register-user', {
+        body: {
+          email: cleanEmail,
+          password: cleanPassword,
+          userType: 'company',
+          language: language,
+          companyData: {
+            name: companyName,
+            rif: companyRif,
+            address: companyAddress,
+            phone: companyPhone,
+            rif_image_url: rifImageUrl
+          }
         }
       });
-      
-      if (error) throw error;
-      
-      // If email confirmation is required, there will be no active session yet
-      if (!data.session) {
+
+      console.log('Register result:', registerResult);
+      console.log('Register error:', registerError);
+
+      if (registerError) {
+        console.error('Registration error:', registerError);
+        console.error('Error details:', registerError.details);
+        console.error('Error message:', registerError.message);
+        console.error('Error structure:', JSON.stringify(registerError, null, 2));
+        
+        // Extract error message from Supabase function error
+        let errorMessage = 'Failed to create company account';
+        
+        // Check all possible error fields for our specific messages
+        const errorText = JSON.stringify(registerError).toLowerCase();
+        
+        if (errorText.includes('email already registered')) {
+          errorMessage = t('register.emailAlreadyRegistered');
+        } else if (errorText.includes('rif already exists')) {
+          errorMessage = t('register.rifAlreadyExists');
+        } else if (registerError.details) {
+          try {
+            const errorDetails = JSON.parse(registerError.details);
+            errorMessage = errorDetails.error || errorMessage;
+          } catch (e) {
+            // Check if details contains our error message
+            if (registerError.details.includes('Email already registered')) {
+              errorMessage = t('register.emailAlreadyRegistered');
+            } else if (registerError.details.includes('RIF already exists')) {
+              errorMessage = t('register.rifAlreadyExists');
+            } else {
+              errorMessage = registerError.message || errorMessage;
+            }
+          }
+        } else if (registerError.message) {
+          // Check if message contains our error message
+          if (registerError.message.includes('Email already registered')) {
+            errorMessage = t('register.emailAlreadyRegistered');
+          } else if (registerError.message.includes('RIF already exists')) {
+            errorMessage = t('register.rifAlreadyExists');
+          } else {
+            errorMessage = registerError.message;
+          }
+        }
+        
         toast({
-          title: t('register.emailNotVerifiedTitle') ?? 'Email not verified',
-          description: t('register.emailNotVerifiedDesc') ?? 'Please verify your email to complete company registration. Check your inbox for the confirmation link.',
+          title: t('register.errorTitle'),
+          description: errorMessage,
           variant: 'destructive'
         });
-        return; // Do not proceed until email is verified
+        return;
       }
 
-      if (data.user) {
-        // Set metadata after account creation
-        await supabase.auth.updateUser({
-          data: {
-            role: 'company',
-            company_name: companyName,
-            company_rif: companyRif,
-            company_address: companyAddress,
-            company_phone: companyPhone
-          }
+      if (!registerResult.success) {
+        console.error('Registration failed:', registerResult);
+        toast({
+          title: t('register.errorTitle'),
+          description: registerResult.error || 'Registration failed',
+          variant: 'destructive'
         });
-        // Upload RIF image to storage (public bucket)
-        let rifImageUrl: string | null = null;
-        if (companyRifImage) {
-          const fileExt = companyRifImage.name.split('.').pop()?.toLowerCase() || 'jpg';
-          const objectKey = `rif/${data.user.id}/${Date.now()}.${fileExt}`;
-          const { error: uploadErr } = await supabase.storage
-            .from('company-docs')
-            .upload(objectKey, companyRifImage, { upsert: true, contentType: companyRifImage.type });
-          if (uploadErr) {
-            console.error('RIF upload error:', uploadErr);
-          } else {
-            const { data: pubUrl } = supabase.storage.from('company-docs').getPublicUrl(objectKey);
-            rifImageUrl = pubUrl.publicUrl;
-          }
-        }
-
-        // Create company record with rif_image_url
-        
-        const { data: companyData, error: companyError } = await ensureCompanyRecord(data.user.id, {
-          name: companyName,
-          rif: companyRif,
-          address: companyAddress,
-          phone: companyPhone,
-          email: companyEmail,
-          rif_image_url: rifImageUrl || undefined,
-        });
-        
-        if (companyError) {
-          console.error('Company record creation error:', companyError);
-          
-          // Handle specific error types
-          if (companyError.code === '23505' && companyError.message.includes('companies_rif_key')) {
-            // This shouldn't happen anymore since we check for existing RIF first
-            console.error('Unexpected duplicate RIF error:', companyError);
-            toast({
-              title: 'Unexpected Error',
-              description: 'A company with this RIF number already exists. The system will update the existing record.',
-              variant: 'destructive'
-            });
-          } else {
-            toast({
-              title: 'Warning',
-              description: 'Company account created but company profile setup failed. Please contact support.',
-              variant: 'destructive'
-            });
-          }
-        } else {
-          
-        }
+        return;
       }
+
+      // Sign in the user after successful registration
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+        email: cleanEmail,
+        password: cleanPassword
+      });
+
+      if (signInError) {
+        console.error('Sign in error after registration:', signInError);
+        toast({
+          title: 'Account Created',
+          description: 'Company account created successfully. Please sign in manually.',
+          variant: 'default'
+        });
+        navigate('/login');
+        return;
+      }
+
       toast({ title: t('register.successTitle') });
       
-      // Redirect based on role instead of going to login
-      if (data.user) {
-        // Wait a moment for the company record to be fully created
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        // Check if company is approved to determine redirect
-        const { data: companyData } = await supabase
-          .from('companies')
-          .select('is_approved')
-          .eq('auth_user_id', data.user.id)
-          .maybeSingle();
-        
-        console.log('Company data after registration:', companyData);
-        
-        if (companyData && !companyData.is_approved) {
-          console.log('Redirecting to pending approval');
-          navigate('/pending-approval', { replace: true });
-        } else {
-          console.log('Redirecting to company dashboard');
-          navigate('/company', { replace: true });
-        }
-      } else {
-        navigate('/login');
-      }
+      // Redirect based on the result from edge function
+      console.log('Registration successful, redirecting to:', registerResult.redirectPath);
+      navigate(registerResult.redirectPath, { replace: true });
     } catch (err: any) {
       toast({
         title: t('register.errorTitle'),
@@ -455,89 +461,120 @@ const Register = () => {
         console.warn('Failed to validate domain MX; proceeding with fallback.', e);
       }
 
-      // Create Supabase auth user
-      const { data, error } = await supabase.auth.signUp({
-        email: cleanEmail,
-        password: employeePassword,
-        options: {
-          emailRedirectTo: import.meta.env.PROD 
-          ? 'https://presallary.vercel.app/reset-password'  // Replace with your actual Vercel URL
-            : `${window.location.origin}/login`,
-          data: {
-            role: 'employee',
+      // Use edge function to create user and employee record atomically
+      const { data: registerResult, error: registerError } = await supabase.functions.invoke('register-user', {
+        body: {
+          email: cleanEmail,
+          password: employeePassword,
+          userType: 'employee',
+          language: language,
+          employeeData: {
+            company_id: selectedCompanyId,
             first_name: employeeFirstName,
             last_name: employeeLastName,
-            company_id: selectedCompanyId
-            // Self-registered employees do NOT need to change password on first login
+            phone: employeePhone || null,
+            // Required fields with placeholder values that satisfy check constraints
+            year_of_employment: new Date().getFullYear(),
+            position: 'Pending',
+            employment_start_date: new Date().toISOString().split('T')[0],
+            employment_type: 'full-time', // Must be one of: 'full-time', 'part-time', 'contract'
+            weekly_hours: 40, // Must be > 0 and <= 80
+            monthly_salary: 1, // Must be > 0
+            living_expenses: 0, // Must be >= 0
+            dependents: 0, // Must be >= 0
+            emergency_contact: 'Pending',
+            emergency_phone: 'Pending',
+            address: 'Pending',
+            city: 'Pending',
+            state: 'Pending',
+            bank_name: 'Pending',
+            account_number: '00000000000000000000',
+            account_type: 'savings', // Must be one of: 'savings', 'checking'
+            // Set is_active to false until company approves
+            is_active: false,
+            // Generate a random activation code (not used in new flow but required by schema)
+            activation_code: Math.floor(100000 + Math.random() * 900000).toString()
           }
         }
       });
-      
-      if (error) throw error;
-      
-      // Require email verification before creating employee row
-      if (!data.session) {
+
+      console.log('Register result:', registerResult);
+      console.log('Register error:', registerError);
+
+      if (registerError) {
+        console.error('Registration error:', registerError);
+        console.error('Error details:', registerError.details);
+        console.error('Error message:', registerError.message);
+        console.error('Error structure:', JSON.stringify(registerError, null, 2));
+        
+        // Extract error message from Supabase function error
+        let errorMessage = 'Failed to create employee account';
+        
+        // Check all possible error fields for our specific messages
+        const errorText = JSON.stringify(registerError).toLowerCase();
+        
+        if (errorText.includes('email already registered')) {
+          errorMessage = t('register.emailAlreadyRegistered');
+        } else if (errorText.includes('rif already exists')) {
+          errorMessage = t('register.rifAlreadyExists');
+        } else if (registerError.details) {
+          try {
+            const errorDetails = JSON.parse(registerError.details);
+            errorMessage = errorDetails.error || errorMessage;
+          } catch (e) {
+            // Check if details contains our error message
+            if (registerError.details.includes('Email already registered')) {
+              errorMessage = t('register.emailAlreadyRegistered');
+            } else if (registerError.details.includes('RIF already exists')) {
+              errorMessage = t('register.rifAlreadyExists');
+            } else {
+              errorMessage = registerError.message || errorMessage;
+            }
+          }
+        } else if (registerError.message) {
+          // Check if message contains our error message
+          if (registerError.message.includes('Email already registered')) {
+            errorMessage = t('register.emailAlreadyRegistered');
+          } else if (registerError.message.includes('RIF already exists')) {
+            errorMessage = t('register.rifAlreadyExists');
+          } else {
+            errorMessage = registerError.message;
+          }
+        }
+        
         toast({
-          title: t('register.emailNotVerifiedTitle'),
-          description: t('register.emailNotVerifiedDesc'),
+          title: t('register.errorTitle'),
+          description: errorMessage,
           variant: 'destructive'
         });
         return;
       }
-      
-      // Create a placeholder employee record with minimal information
-      // The company will need to complete the rest of the information
-      const { data: newEmployee, error: insertError } = await supabase
-        .from("employees")
-        .insert({
-          company_id: selectedCompanyId,
-          first_name: employeeFirstName,
-          last_name: employeeLastName,
-          phone: employeePhone || null,
-          // Required fields with placeholder values that satisfy check constraints
-          year_of_employment: new Date().getFullYear(),
-          position: 'Pending',
-          employment_start_date: new Date().toISOString().split('T')[0],
-          employment_type: 'full-time', // Must be one of: 'full-time', 'part-time', 'contract'
-          weekly_hours: 40, // Must be > 0 and <= 80
-          monthly_salary: 1, // Must be > 0
-          living_expenses: 0, // Must be >= 0
-          dependents: 0, // Must be >= 0
-          emergency_contact: 'Pending',
-          emergency_phone: 'Pending',
-          address: 'Pending',
-          city: 'Pending',
-          state: 'Pending',
-          bank_name: 'Pending',
-          account_number: '00000000000000000000',
-          account_type: 'savings', // Must be one of: 'savings', 'checking'
-          // Set is_active to false until company approves
-          is_active: false,
-          // Generate a random activation code (not used in new flow but required by schema)
-          activation_code: Math.floor(100000 + Math.random() * 900000).toString(),
-          auth_user_id: data.user?.id
-        })
-        .select()
-        .single();
-      
-      if (insertError) {
-        console.error("Error creating employee record:", insertError);
-        
-        // Check for specific constraint violations
-        if (insertError.message.includes('check constraint')) {
-          if (insertError.message.includes('monthly_salary')) {
-            throw new Error(t('register.monthlySalaryError'));
-          } else if (insertError.message.includes('weekly_hours')) {
-            throw new Error(t('register.weeklyHoursError'));
-          } else if (insertError.message.includes('employment_type')) {
-            throw new Error(t('register.employmentTypeError'));
-          } else if (insertError.message.includes('account_type')) {
-            throw new Error(t('register.accountTypeError'));
-          }
-        }
-        
-        // Generic error if no specific constraint is identified
-        throw new Error(`${t('register.employeeCreationError')}: ${insertError.message}`);
+
+      if (!registerResult.success) {
+        console.error('Registration failed:', registerResult);
+        toast({
+          title: t('register.errorTitle'),
+          description: registerResult.error || 'Registration failed',
+          variant: 'destructive'
+        });
+        return;
+      }
+
+      // Sign in the user after successful registration
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+        email: cleanEmail,
+        password: employeePassword
+      });
+
+      if (signInError) {
+        console.error('Sign in error after registration:', signInError);
+        toast({
+          title: 'Account Created',
+          description: 'Employee account created successfully. Please sign in manually.',
+          variant: 'default'
+        });
+        navigate('/login');
+        return;
       }
       
       toast({ 
@@ -545,8 +582,9 @@ const Register = () => {
         description: t('register.pendingApproval')
       });
       
-      // Redirect directly to employee page instead of login
-      navigate('/employee', { replace: true });
+      // Redirect based on the result from edge function
+      console.log('Employee registration successful, redirecting to:', registerResult.redirectPath);
+      navigate(registerResult.redirectPath, { replace: true });
     } catch (err: any) {
       toast({
         title: t('register.errorTitle'),
