@@ -48,6 +48,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Link } from "react-router-dom";
 import { useLanguage } from "@/contexts/LanguageContext";
+import * as XLSX from 'xlsx';
 import { useAuth } from "@/contexts/AuthContext";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useState, useEffect, useMemo } from "react";
@@ -351,7 +352,7 @@ const CompanyDashboard = () => {
     // Sample data with valid formats
     const sampleData = [
       [
-        'juan.perez@empresa.com',
+        'juan.perez@nominero.com.br',
         'Juan',
         'Pérez',
         '+584121234567',
@@ -359,7 +360,7 @@ const CompanyDashboard = () => {
         '40',
         '2023',
         'Banco de Venezuela',
-        'V-12345678',
+        '12345678901234567890',
         'checking',
         'V-12345678',
         'Av. Principal 123',
@@ -372,7 +373,7 @@ const CompanyDashboard = () => {
         'Gerente'
       ],
       [
-        'maria.rodriguez@empresa.com',
+        'maria.rodriguez@nominero.com.br',
         'Maria',
         'Rodríguez',
         '+584242345678',
@@ -380,7 +381,7 @@ const CompanyDashboard = () => {
         '40',
         '2022',
         'Banco Mercantil',
-        'E-87654321',
+        '98765432109876543210',
         'savings',
         'E-87654321',
         'Calle Secundaria 456',
@@ -1968,7 +1969,7 @@ const CompanyDashboard = () => {
           company_id: companyData.id,
           first_name: employeeData.firstName,
           last_name: employeeData.lastName,
-          // email removed from employees table; keep only in auth
+          email: employeeEmail, // Save email in employee record since no auth user is created
           phone: null,
           cedula: null,
           birth_date: null,
@@ -1988,12 +1989,13 @@ const CompanyDashboard = () => {
           state: 'To be provided',
           postal_code: '',
           bank_name: 'To be provided',
-          account_number: 'To be provided',
+          account_number: '00000000000000000000',
           account_type: 'checking',
           notes: '',
           activation_code: activationCode,
           is_active: false,
           is_verified: false,
+          must_change_password: true, // Employee must change password on first login
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         }])
@@ -2009,72 +2011,7 @@ const CompanyDashboard = () => {
 
       const employee = newEmployeeData[0]; // Get the first (and only) employee from the array
 
-      // Create auth user for the employee
-      try {
-
-        // Store current user session to restore later
-        const { data: { session: currentSession } } = await supabase.auth.getSession();
-
-        const { data: authData, error: authError } = await supabase.auth.signUp({
-          email: employeeEmail,
-          password: 'pre123456', // Default password
-          options: {
-            emailRedirectTo: `${window.location.origin}/login`,
-            data: {
-              role: 'employee',
-              employee_id: employee.id,
-              company_id: companyData.id
-            }
-          }
-        });
-
-
-        if (authError) {
-          console.error(`Auth user creation failed for ${employeeEmail}:`, authError);
-          throw new Error(`Failed to create auth user: ${authError.message}`);
-        } else if (!authData.user) {
-          console.error(`Auth user creation returned no user for ${employeeEmail}`);
-          throw new Error(`Auth user creation returned no user`);
-        } else {
-          // Update user metadata to ensure role is properly set
-          const { error: metadataError } = await supabase.auth.updateUser({
-            data: {
-              role: 'employee',
-              employee_id: employee.id,
-              company_id: companyData.id
-            }
-          });
-
-          if (metadataError) {
-            console.warn(`Failed to update user metadata for ${employeeEmail}:`, metadataError);
-            // Don't throw error, continue with employee update
-          }
-
-          // Update employee with auth_user_id and mark as active
-          const updateResult = await supabase
-            .from('employees')
-            .update({
-              auth_user_id: authData.user.id,
-              is_active: true,
-              is_verified: true
-            })
-            .eq('id', employee.id);
-
-          if (updateResult.error) {
-            console.error(`Failed to update employee with auth_user_id:`, updateResult.error);
-            throw new Error(`Failed to link auth user to employee: ${updateResult.error.message}`);
-          }
-        }
-
-        // Restore the original user session to prevent automatic sign-in
-        if (currentSession) {
-          await supabase.auth.setSession(currentSession);
-        }
-
-      } catch (authError) {
-        console.error(`Auth user creation failed for ${employeeEmail}:`, authError);
-        // Still continue since employee was created
-      }
+      // Note: Auth user will be created automatically when employee tries to login for the first time
 
       // Create employee fee record ($1 monthly registration fee)
       const currentDate = new Date();
@@ -2520,6 +2457,28 @@ const CompanyDashboard = () => {
       // Only process selected rows
       const selectedRows = csvData.filter((_, index) => selectedCsvRows.has(index));
       
+      // Check for duplicate emails within the CSV batch
+      const emailCounts = new Map<string, number[]>();
+      selectedRows.forEach((row, index) => {
+        const email = row.correo_electronico || row.email || row.email_address || row['email address'] || '';
+        if (email) {
+          if (!emailCounts.has(email)) {
+            emailCounts.set(email, []);
+          }
+          emailCounts.get(email)!.push(index);
+        }
+      });
+
+      // Add errors for duplicate emails within CSV
+      emailCounts.forEach((indices, email) => {
+        if (indices.length > 1) {
+          indices.forEach(index => {
+            errors.push(`Row ${selectedRows[index].rowNumber}: Email ${email} appears multiple times in the CSV file`);
+            errorCount++;
+          });
+        }
+      });
+      
       for (const row of selectedRows) {
         try {
           // Get email for auth user creation (not stored in employees table)
@@ -2529,6 +2488,7 @@ const CompanyDashboard = () => {
           const employeeData = {
             first_name: row.nombre || row.firstname || row.first_name || row['first name'] || '',
             last_name: row.apellido || row.lastname || row.last_name || row['last name'] || '',
+            email: employeeEmail, // Save email in employee record
             phone: row.telefono || row.phone || row.phone_number || row['phone number'] || '',
             monthly_salary: parseFloat(row.salario_mensual || row.salary || row.monthly_salary || row['monthly salary'] || '0') || 0,
             weekly_hours: parseFloat(row.horas_trabajo || row.hours || row.weekly_hours || row['weekly hours'] || '0') || 0,
@@ -2551,7 +2511,8 @@ const CompanyDashboard = () => {
             company_id: companyData.id,
             activation_code: generateActivationCode(),
             is_active: true,
-            is_verified: false
+            is_verified: false,
+            must_change_password: true // Employee must change password on first login
           };
 
           // Validate required fields
@@ -2559,6 +2520,46 @@ const CompanyDashboard = () => {
             errors.push(`Row ${row.rowNumber}: Missing required fields (first name, last name, email)`);
             errorCount++;
             continue;
+          }
+
+          // Check for duplicate email in employees table
+          const { data: existingEmployee, error: duplicateError } = await supabase
+            .from('employees')
+            .select('id, first_name, last_name')
+            .eq('company_id', companyData.id)
+            .eq('email', employeeEmail)
+            .maybeSingle();
+
+          if (duplicateError) {
+            console.error('Error checking for duplicate email in employees table:', duplicateError);
+            errors.push(`Row ${row.rowNumber}: Error checking for duplicate email`);
+            errorCount++;
+            continue;
+          }
+
+          if (existingEmployee) {
+            errors.push(`Row ${row.rowNumber} (${existingEmployee.first_name} ${existingEmployee.last_name}): Email ${employeeEmail} already exists for employee`);
+            errorCount++;
+            continue;
+          }
+
+          // Check for duplicate email in auth.users using Supabase function
+          try {
+            const { data: authCheckResult, error: authError } = await supabase.functions.invoke('check-auth-email', {
+              body: { email: employeeEmail.toLowerCase() }
+            });
+
+            if (authError) {
+              console.warn('Error checking auth users:', authError);
+              // Continue with validation if we can't check auth users
+            } else if (authCheckResult?.exists) {
+              errors.push(`Row ${row.rowNumber}: Email ${employeeEmail} already registered in the system`);
+              errorCount++;
+              continue;
+            }
+          } catch (authCheckError) {
+            console.warn('Error checking auth users for CSV import:', authCheckError);
+            // Continue with validation if we can't check auth users
           }
 
           // Validate cedula format
@@ -2583,135 +2584,34 @@ const CompanyDashboard = () => {
             errorCount++;
           } else {
             const employee = newEmployee[0]; // Get the first (and only) employee from the array
-            // Create auth user for the employee
-            let authUserCreated = false;
+            
+            // Create employee fee record ($1 monthly registration fee)
             try {
+              const currentDate = new Date();
+              const dueDate = new Date(currentDate.getTime() + (30 * 24 * 60 * 60 * 1000)); // 30 days from now
+              
+              const { error: feeError } = await supabase
+                .from("employee_fees")
+                .insert([{
+                  company_id: companyData.id,
+                  employee_id: employee.id,
+                  fee_amount: 1.00,
+                  fee_type: 'employee_monthly_fee',
+                  status: 'pending',
+                  due_date: dueDate.toISOString().split('T')[0],
+                  notes: `Monthly registration fee for ${employeeData.first_name} ${employeeData.last_name}`
+                }]);
 
-              // Store current user session to restore later
-              const { data: { session: currentSession } } = await supabase.auth.getSession();
-
-              // Validate email domain has MX records before attempting signup
-              try {
-                const { data: domainResp, error: domainErr } = await supabase.functions.invoke('validate-email-domain', {
-                  body: { email: employeeEmail }
-                });
-                if (domainErr) {
-                  console.error('Domain validation error:', domainErr);
-                }
-                if (!domainResp?.hasMx) {
-                  throw new Error(t('register.emailDomainInvalidDesc'));
-                }
-              } catch (e) {
-                console.warn('Failed to validate domain MX; proceeding with fallback.', e);
-              }
-
-              const { data: authData, error: authError } = await supabase.auth.signUp({
-                email: employeeEmail,
-                password: 'pre123456', // Default password
-                options: {
-                  emailRedirectTo: `${window.location.origin}/login`,
-                  data: {
-                    role: 'employee',
-                    employee_id: employee.id,
-                    company_id: companyData.id,
-                    must_change_password: true
-                  }
-                }
-              });
-
-
-              if (authError) {
-                console.error(`Auth user creation failed for ${user.email}:`, authError);
-                errors.push(`Row ${row.rowNumber}: Failed to create user account - ${authError.message}`);
-                errorCount++;
-                // Don't count as success if auth user creation failed
-                continue;
-              } else if (!authData.user) {
-                console.error(`Auth user creation returned no user for ${user.email}`);
-                errors.push(`Row ${row.rowNumber}: User account creation failed`);
-                errorCount++;
-                continue;
-              } else {
-                if (!authData.session) {
-                  throw new Error(t('register.emailNotVerifiedDesc'));
-                }
-                // Update user metadata to ensure role is properly set
-                const { error: metadataError } = await supabase.auth.updateUser({
-                  data: {
-                    role: 'employee',
-                    employee_id: employee.id,
-                    company_id: companyData.id
-                  }
-                });
-
-                if (metadataError) {
-                  console.warn(`Failed to update user metadata for ${user.email}:`, metadataError);
-                  // Don't throw error, continue with employee update
-                }
-
-                // Update employee with auth_user_id and mark as active
-                const updateResult = await supabase
-                  .from('employees')
-                  .update({
-                    auth_user_id: authData.user.id,
-                    is_active: true,
-                    is_verified: true
-                  })
-                  .eq('id', employee.id);
-
-
-                if (updateResult.error) {
-                  console.error(`Failed to update employee with auth_user_id:`, updateResult.error);
-                  errors.push(`Row ${row.rowNumber}: Failed to link user account to employee record`);
-                  errorCount++;
-                  continue;
-                }
-
-                authUserCreated = true;
-              }
-
-              // Restore the original user session to prevent automatic sign-in
-              if (currentSession) {
-                await supabase.auth.setSession(currentSession);
-              }
-
-            } catch (authError) {
-              console.error(`Auth user creation failed for ${user.email}:`, authError);
-              errors.push(`Row ${row.rowNumber}: Auth user creation error - ${authError}`);
-              errorCount++;
-              continue;
-            }
-
-            // Only count as success if both employee and auth user were created
-            if (authUserCreated) {
-              // Create employee fee record ($1 monthly registration fee)
-              try {
-                const currentDate = new Date();
-                const dueDate = new Date(currentDate.getTime() + (30 * 24 * 60 * 60 * 1000)); // 30 days from now
-                
-                const { error: feeError } = await supabase
-                  .from("employee_fees")
-                  .insert([{
-                    company_id: companyData.id,
-                    employee_id: employee.id,
-                    fee_amount: 1.00,
-                    fee_type: 'employee_monthly_fee',
-                    status: 'pending',
-                    due_date: dueDate.toISOString().split('T')[0],
-                    notes: `Monthly registration fee for ${employeeData.first_name} ${employeeData.last_name}`
-                  }]);
-
-                if (feeError) {
-                  console.error('Error creating employee fee for CSV import:', feeError);
-                  // Don't fail the import, just log the error
-                }
-              } catch (feeError) {
+              if (feeError) {
                 console.error('Error creating employee fee for CSV import:', feeError);
                 // Don't fail the import, just log the error
               }
-            
-            successCount++;
+            } catch (feeError) {
+              console.error('Error creating employee fee for CSV import:', feeError);
+              // Don't fail the import, just log the error
             }
+          
+            successCount++;
           }
         } catch (rowError: any) {
           errors.push(getFriendlyErrorMessage(rowError, row.rowNumber));
@@ -6746,14 +6646,30 @@ const CompanyDashboard = () => {
                 <Upload className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                 <h3 className="text-lg font-medium mb-2">{t('company.csvUpload.selectFile')}</h3>
                 <p className="text-muted-foreground mb-4">{t('company.csvUpload.dragDrop')}</p>
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
-                  <p className="text-sm text-blue-800">
-                    <strong>Tip:</strong> The template includes 2 sample employees and 5 empty rows. Fill in the empty rows with your employee data and upload directly - no modifications needed!
-                  </p>
-                  <p className="text-sm text-blue-700 mt-2">
-                    <strong>Format Guidelines:</strong> Use "checking", "savings", or "current" for account type. Phone format: +584121234567. Cedula format: V-12345678 or E-87654321.
-                  </p>
-                </div>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                <p className="text-sm text-blue-800">
+                  {language === 'es' ? (
+                    <>
+                      <strong>Consejo:</strong> La plantilla incluye 2 empleados de ejemplo y 5 filas vacías. Completa las filas vacías con los datos de tus empleados y súbela directamente; ¡no se necesitan modificaciones!
+                    </>
+                  ) : (
+                    <>
+                      <strong>Tip:</strong> The template includes 2 sample employees and 5 empty rows. Fill in the empty rows with your employee data and upload directly — no modifications needed!
+                    </>
+                  )}
+                </p>
+                <p className="text-sm text-blue-700 mt-2">
+                  {language === 'es' ? (
+                    <>
+                      <strong>Guía de Formato:</strong> Usa "checking", "savings" o "current" para el tipo de cuenta. Formato de teléfono: +584121234567. Formato de cédula: V-12345678 o E-87654321.
+                    </>
+                  ) : (
+                    <>
+                      <strong>Format Guidelines:</strong> Use "checking", "savings", or "current" for account type. Phone format: +584121234567. Cedula format: V-12345678 or E-87654321.
+                    </>
+                  )}
+                </p>
+              </div>
                 <input
                   type="file"
                   accept=".csv"
@@ -6851,13 +6767,13 @@ const CompanyDashboard = () => {
                             }}
                           />
                         </th>
-                        <th className="p-2 text-left">Row</th>
-                        <th className="p-2 text-left">First Name</th>
-                        <th className="p-2 text-left">Last Name</th>
-                        <th className="p-2 text-left">Email</th>
-                        <th className="p-2 text-left">Phone</th>
-                        <th className="p-2 text-left">Cedula</th>
-                        <th className="p-2 text-left">Salary</th>
+                        <th className="p-2 text-left">{language === 'es' ? 'Fila' : 'Row'}</th>
+                        <th className="p-2 text-left">{language === 'es' ? 'Nombre' : 'First Name'}</th>
+                        <th className="p-2 text-left">{language === 'es' ? 'Apellido' : 'Last Name'}</th>
+                        <th className="p-2 text-left">{language === 'es' ? 'Email' : 'Email'}</th>
+                        <th className="p-2 text-left">{language === 'es' ? 'Teléfono' : 'Phone'}</th>
+                        <th className="p-2 text-left">{language === 'es' ? 'Cédula' : 'Cedula'}</th>
+                        <th className="p-2 text-left">{language === 'es' ? 'Salario' : 'Salary'}</th>
                       </tr>
                     </thead>
                     <tbody>

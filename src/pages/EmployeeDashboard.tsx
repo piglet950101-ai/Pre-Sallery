@@ -18,12 +18,12 @@ import {
   RefreshCw,
   X,
   ChevronLeft,
+  Eye,
+  EyeOff,
   ChevronRight,
   User,
   Edit,
   Save,
-  Eye,
-  EyeOff,
   Filter,
   Search
 } from "lucide-react";
@@ -104,6 +104,9 @@ const EmployeeDashboard = () => {
   const [isCompanyApproved, setIsCompanyApproved] = useState<boolean>(false);
   const [isUpdatingPassword, setIsUpdatingPassword] = useState<boolean>(false);
   const [passwordData, setPasswordData] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [advanceToCancel, setAdvanceToCancel] = useState<AdvanceRequest | null>(null);
   const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
@@ -313,13 +316,6 @@ const EmployeeDashboard = () => {
           throw new Error(t('employee.error.unauthenticated'));
         }
 
-        // Read auth user metadata for gating flags
-        const meta: any = (user as any)?.user_metadata || {};
-        // Show password change screen ONLY if explicitly set by company registration flow
-        setMustChangePassword(meta.must_change_password === true);
-        // Require KYC upload for all employees unless already done
-        setMustUploadCedula(meta.kyc_cedula_uploaded === true ? false : true);
-
         // Get employee data
         const { data: employeeData, error: employeeError } = await supabase
           .from("employees")
@@ -352,6 +348,23 @@ const EmployeeDashboard = () => {
         }
 
         setEmployee(employeeData);
+        
+        // Debug: Log the must_change_password flag
+        console.log('EmployeeDashboard - must_change_password flag:', employeeData.must_change_password);
+        console.log('EmployeeDashboard - Setting mustChangePassword to:', employeeData.must_change_password === true);
+        
+        // Show password change screen ONLY if database flag is true (one-time only)
+        setMustChangePassword(employeeData.must_change_password === true);
+        
+        // Check if cedula images are uploaded
+        const hasCedulaImages = employeeData.cedula_front_url && employeeData.cedula_back_url;
+        console.log('EmployeeDashboard - Cedula check:', {
+          cedula_front_url: employeeData.cedula_front_url,
+          cedula_back_url: employeeData.cedula_back_url,
+          hasCedulaImages,
+          mustUploadCedula: !hasCedulaImages
+        });
+        setMustUploadCedula(!hasCedulaImages);
         
         // Populate payment info data
         setPaymentInfoData({
@@ -1019,39 +1032,106 @@ const EmployeeDashboard = () => {
   const handlePasswordChange = async () => {
     try {
       setIsUpdatingPassword(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user?.email) {
-        throw new Error('User not found');
-      }
 
-      if (!passwordData.currentPassword) {
-        toast({ title: t('common.error'), description: t('employee.profile.passwordRequired'), variant: "destructive" });
+      // Validate passwords
+      if (!passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword) {
+        toast({
+          title: t('changePassword.fillAllFields') ?? 'Complete todos los campos',
+          description: t('changePassword.fillAllFieldsDesc') ?? 'Por favor, complete todos los campos requeridos.',
+          variant: "destructive"
+        });
         return;
       }
+
       if (passwordData.newPassword !== passwordData.confirmPassword) {
-        toast({ title: t('common.error'), description: t('employee.profile.passwordMismatch'), variant: "destructive" });
-        return;
-      }
-      if ((passwordData.newPassword || '').length < 6) {
-        toast({ title: t('common.error'), description: t('employee.profile.passwordTooShort'), variant: "destructive" });
-        return;
-      }
-
-      const { error: signInError } = await supabase.auth.signInWithPassword({ email: user.email, password: passwordData.currentPassword });
-      if (signInError) {
-        toast({ title: t('common.error'), description: t('employee.profile.passwordIncorrect'), variant: "destructive" });
+        toast({
+          title: t('changePassword.passwordsNotMatch') ?? 'Las contraseñas no coinciden',
+          description: t('changePassword.passwordsNotMatchDesc') ?? 'La nueva contraseña y la confirmación no coinciden.',
+          variant: "destructive"
+        });
         return;
       }
 
-      const { error: updateError } = await supabase.auth.updateUser({ password: passwordData.newPassword, data: { must_change_password: false } as any });
-      if (updateError) throw updateError;
+      if (passwordData.newPassword.length < 6) {
+        toast({
+          title: t('changePassword.passwordTooShort') ?? 'Contraseña muy corta',
+          description: t('changePassword.passwordTooShortDesc') ?? 'La contraseña debe tener al menos 6 caracteres.',
+          variant: "destructive"
+        });
+        return;
+      }
 
+      // Update password
+      const { error } = await supabase.auth.updateUser({
+        password: passwordData.newPassword
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      // Update employee record to mark password as changed
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        console.log('Updating employee record for user:', user.id);
+        
+        const { error: updateError } = await supabase
+          .from('employees')
+          .update({ must_change_password: false })
+          .eq('auth_user_id', user.id);
+        
+        if (updateError) {
+          console.error('Error updating employee record:', updateError);
+          throw new Error(`Failed to update employee record: ${updateError.message}`);
+        }
+        
+        console.log('Employee record updated successfully');
+        
+        // Also update auth user metadata to clear the flag
+        const { error: metadataError } = await supabase.auth.updateUser({
+          data: { 
+            must_change_password: false,
+            kyc_cedula_uploaded: false // Reset this too since we're checking database now
+          }
+        });
+        
+        if (metadataError) {
+          console.error('Error updating auth metadata:', metadataError);
+          // Don't throw error, continue since database was updated
+        } else {
+          console.log('Auth metadata updated successfully');
+        }
+      }
+
+      toast({
+        title: t('changePassword.success') ?? 'Contraseña cambiada exitosamente',
+        description: t('changePassword.successDesc') ?? 'Su contraseña ha sido actualizada correctamente.',
+      });
+
+      // Update local state to hide password change form and show cedula upload
       setMustChangePassword(false);
       setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "" });
-      toast({ title: t('common.success'), description: t('employee.profile.passwordUpdated') });
-    } catch (error: any) {
-      console.error('Error changing password:', error);
-      toast({ title: t('common.error'), description: error?.message ?? 'Failed to change password', variant: "destructive" });
+      
+      // Refresh employee data to get updated flags
+      await refreshData();
+      
+    } catch (err: any) {
+      console.error("Change password error:", err);
+      
+      let errorTitle = t('changePassword.error') ?? 'Error al cambiar contraseña';
+      let errorDescription = err?.message ?? t('changePassword.errorDesc') ?? 'Ocurrió un error al cambiar la contraseña.';
+
+      if (err?.message?.includes('Invalid login credentials') || 
+          err?.message?.includes('Wrong password')) {
+        errorTitle = t('changePassword.wrongCurrentPassword') ?? 'Contraseña actual incorrecta';
+        errorDescription = t('changePassword.wrongCurrentPasswordDesc') ?? 'La contraseña actual que ingresó es incorrecta.';
+      }
+
+      toast({
+        title: errorTitle,
+        description: errorDescription,
+        variant: "destructive"
+      });
     } finally {
       setIsUpdatingPassword(false);
     }
@@ -1117,15 +1197,63 @@ const EmployeeDashboard = () => {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label>{t('employee.profile.oldPassword')}</Label>
-                <Input type="password" value={passwordData.currentPassword} onChange={(e) => setPasswordData(p => ({ ...p, currentPassword: e.target.value }))} />
+                <div className="relative">
+                  <Input 
+                    type={showCurrentPassword ? "text" : "password"} 
+                    value={passwordData.currentPassword} 
+                    onChange={(e) => setPasswordData(p => ({ ...p, currentPassword: e.target.value }))}
+                    className="pr-10"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                    onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                  >
+                    {showCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
+                </div>
               </div>
               <div className="space-y-2">
                 <Label>{t('employee.profile.newPassword')}</Label>
-                <Input type="password" value={passwordData.newPassword} onChange={(e) => setPasswordData(p => ({ ...p, newPassword: e.target.value }))} />
+                <div className="relative">
+                  <Input 
+                    type={showNewPassword ? "text" : "password"} 
+                    value={passwordData.newPassword} 
+                    onChange={(e) => setPasswordData(p => ({ ...p, newPassword: e.target.value }))}
+                    className="pr-10"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                    onClick={() => setShowNewPassword(!showNewPassword)}
+                  >
+                    {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
+                </div>
               </div>
               <div className="space-y-2">
                 <Label>{t('employee.profile.confirmPassword')}</Label>
-                <Input type="password" value={passwordData.confirmPassword} onChange={(e) => setPasswordData(p => ({ ...p, confirmPassword: e.target.value }))} />
+                <div className="relative">
+                  <Input 
+                    type={showConfirmPassword ? "text" : "password"} 
+                    value={passwordData.confirmPassword} 
+                    onChange={(e) => setPasswordData(p => ({ ...p, confirmPassword: e.target.value }))}
+                    className="pr-10"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  >
+                    {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
+                </div>
               </div>
               <div className="pt-2">
                 <Button onClick={handlePasswordChange} disabled={isUpdatingPassword}>
@@ -1159,7 +1287,8 @@ const EmployeeDashboard = () => {
                 userType='employee' 
                 employeeId={employee.id} 
                 onCompleted={() => {
-                  setMustUploadCedula(false);
+                  // Refresh employee data to check cedula upload status
+                  refreshData();
                   setJustSubmittedKyc(true);
                 }}
               />

@@ -780,40 +780,6 @@ const CompanyManagement: React.FC = () => {
                             <Eye className="h-4 w-4 mr-2" />
                             {t('operator.viewFullSize')}
                           </Button>
-                          <Button 
-                            variant="secondary" 
-                            size="sm"
-                            onClick={async () => {
-                              try {
-                                const { data, error } = await supabase.functions.invoke('extract-rif-data', {
-                                  body: {
-                                    company_id: selectedCompany.id,
-                                    document_url: selectedCompany.rif_image_url
-                                  }
-                                });
-                                
-                                if (error) throw error;
-                                
-                                toast({
-                                  title: t('operator.dataExtracted'),
-                                  description: t('operator.dataExtractedDesc'),
-                                });
-                                
-                                // Refresh company data to show extracted information
-                                fetchCompanies();
-                              } catch (error: any) {
-                                console.error('Error extracting RIF data:', error);
-                                toast({
-                                  title: t('common.error'),
-                                  description: error?.message || 'Failed to extract RIF data',
-                                  variant: 'destructive'
-                                });
-                              }
-                            }}
-                          >
-                            <Search className="h-4 w-4 mr-2" />
-                            {t('operator.extractData')}
-                          </Button>
                         </div>
                       </div>
                     )}

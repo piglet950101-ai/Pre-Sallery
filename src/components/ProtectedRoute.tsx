@@ -37,7 +37,7 @@ const ProtectedRoute = ({ children, role }: { children: ReactNode; role?: string
               .from('employees')
               .select('is_active')
               .eq('auth_user_id', user.id)
-              .single();
+              .maybeSingle();
               
             if (error) {
               console.error("Error checking employee status:", error);

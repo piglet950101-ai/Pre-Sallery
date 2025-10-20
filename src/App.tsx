@@ -25,7 +25,6 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
-import EmployeeVerification from "./pages/EmployeeVerification";
 
 const queryClient = new QueryClient();
 
@@ -45,7 +44,6 @@ const App = () => (
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/pending-approval" element={<PendingApproval />} />
               <Route path="/employee" element={<ProtectedRoute role="employee"><EmployeeDashboard /></ProtectedRoute>} />
-              <Route path="/employee/verification" element={<ProtectedRoute role="employee"><EmployeeVerification /></ProtectedRoute>} />
               <Route path="/profile" element={<ProtectedRoute role="employee"><Profile /></ProtectedRoute>} />
         <Route path="/admin/change-requests" element={<ProtectedRoute role="company"><AdminChangeRequests /></ProtectedRoute>} />
               <Route path="/company" element={<ProtectedRoute role="company"><CompanyDashboard /></ProtectedRoute>} />

@@ -107,6 +107,37 @@ const OperatorDashboard = () => {
   const [previewFile, setPreviewFile] = useState<any>(null);
   const [showBatchConfirm, setShowBatchConfirm] = useState(false);
 
+  // Pending companies badge
+  const [pendingCompaniesCount, setPendingCompaniesCount] = useState<number>(0);
+
+  const fetchPendingCompaniesCount = async () => {
+    try {
+      const { count, error } = await supabase
+        .from('companies')
+        .select('id', { count: 'exact', head: true })
+        .eq('is_approved', false)
+        .is('rejection_reason', null);
+      if (error) throw error;
+      setPendingCompaniesCount(count || 0);
+    } catch (e) {
+      // Silently ignore badge errors
+    }
+  };
+
+  useEffect(() => {
+    fetchPendingCompaniesCount();
+    // Realtime updates to keep badge in sync
+    const channel = supabase
+      .channel('companies-badge')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'companies' }, () => {
+        fetchPendingCompaniesCount();
+      })
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
 
   // Calculate totals from real data
   const totalPendingAmount = pendingAdvances.reduce((sum, advance) => sum + (advance.requested_amount || 0), 0);
@@ -1338,7 +1369,14 @@ const OperatorDashboard = () => {
 
         <Tabs defaultValue="companies" className="space-y-6">
           <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="companies" className="w-full justify-center">{t('operator.companyManagement')}</TabsTrigger>
+            <TabsTrigger value="companies" className="relative w-full justify-center">
+              {t('operator.companyManagement')}
+              {pendingCompaniesCount > 0 && (
+                <Badge variant="destructive" className="ml-2 h-5 w-5 flex items-center justify-center p-0 text-xs">
+                  {pendingCompaniesCount}
+                </Badge>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="pending" className="relative w-full justify-center">
               {t('operator.pendingAdvances')}
               {pendingAdvances.length > 0 && (

@@ -61,8 +61,92 @@ const Login = () => {
     try {
       setIsLoading(true);
       
+      // First, try normal login
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
+      
+      // If login fails with "Invalid login credentials", check if employee exists in database
+      if (error && error.message.includes('Invalid login credentials')) {
+        // Check if this email exists in employees table
+        const { data: employeeData, error: employeeError } = await supabase
+          .from('employees')
+          .select('id, first_name, last_name, company_id, auth_user_id')
+          .eq('email', email)
+          .maybeSingle();
+
+        if (employeeError) {
+          console.error('Error checking employee:', employeeError);
+          throw error; // Throw original auth error
+        }
+
+        // If employee exists but has no auth_user_id, create auth account
+        if (employeeData && !employeeData.auth_user_id) {
+          try {
+            // Get the full employee data including must_change_password flag
+            const { data: fullEmployeeData, error: fullEmployeeError } = await supabase
+              .from('employees')
+              .select('must_change_password')
+              .eq('id', employeeData.id)
+              .single();
+
+            if (fullEmployeeError) {
+              console.error('Error fetching employee data:', fullEmployeeError);
+              throw error; // Throw original auth error
+            }
+
+            // Create auth user for the employee
+            const { data: authData, error: authError } = await supabase.auth.signUp({
+              email: email,
+              password: password,
+              options: {
+                data: {
+                  role: 'employee',
+                  employee_id: employeeData.id,
+                  company_id: employeeData.company_id,
+                  must_change_password: fullEmployeeData.must_change_password || false
+                }
+              }
+            });
+
+            if (authError) {
+              console.error('Error creating auth user for employee:', authError);
+              throw error; // Throw original auth error
+            }
+
+            if (authData.user) {
+              // Update employee record with auth_user_id (don't change must_change_password)
+              const { error: updateError } = await supabase
+                .from('employees')
+                .update({
+                  auth_user_id: authData.user.id,
+                  is_active: true,
+                  is_verified: true
+                })
+                .eq('id', employeeData.id);
+
+              if (updateError) {
+                console.error('Error updating employee with auth_user_id:', updateError);
+                throw error; // Throw original auth error
+              }
+
+              // Now try to sign in with the newly created account
+              const { data: newData, error: newError } = await supabase.auth.signInWithPassword({ email, password });
+              if (newError) throw newError;
+              
+              // Use the new data for the rest of the login process
+              const data = newData;
+            } else {
+              throw error; // Throw original auth error
+            }
+          } catch (createError) {
+            console.error('Error in employee auth creation process:', createError);
+            throw error; // Throw original auth error
+          }
+        } else {
+          throw error; // Throw original auth error
+        }
+      } else if (error) {
+        throw error;
+      }
 
       if (!data.session) {
         toast({
@@ -87,12 +171,26 @@ const Login = () => {
         actualRole = 'company';
         console.log('User is a company, is_approved:', companyData.is_approved);
       } else {
-        // Check if user is an employee
-        const { data: employeeData } = await supabase
-          .from('employees')
-          .select('id, is_active')
-          .eq('auth_user_id', userId)
-          .maybeSingle();
+        // Check if user is an employee - with retry for newly created accounts
+        let employeeData = null;
+        let retryCount = 0;
+        const maxRetries = 3;
+        
+        while (!employeeData && retryCount < maxRetries) {
+          const { data: empData } = await supabase
+            .from('employees')
+            .select('id, is_active')
+            .eq('auth_user_id', userId)
+            .maybeSingle();
+          
+          if (empData) {
+            employeeData = empData;
+          } else {
+            // If not found, wait a bit and retry (for newly created accounts)
+            await new Promise(resolve => setTimeout(resolve, 500));
+            retryCount++;
+          }
+        }
         
         if (employeeData) {
           actualRole = 'employee';
@@ -116,13 +214,35 @@ const Login = () => {
           actualRole = 'operator';
           console.log('Found operator role in metadata');
         } else {
-          await supabase.auth.signOut();
-          toast({
-            title: t('login.noRoleFound') ?? 'Account Not Found',
-            description: t('login.noRoleFoundDesc') ?? 'No account found for this email. Please register first.',
-            variant: 'destructive'
-          });
-          return;
+          // Final fallback: check if employee exists by email (in case auth_user_id wasn't set)
+          const { data: employeeByEmail } = await supabase
+            .from('employees')
+            .select('id, first_name, last_name, company_id')
+            .eq('email', email)
+            .maybeSingle();
+          
+          if (employeeByEmail) {
+            // Employee exists but auth_user_id wasn't set - update it now
+            const { error: updateError } = await supabase
+              .from('employees')
+              .update({ auth_user_id: userId })
+              .eq('id', employeeByEmail.id);
+            
+            if (!updateError) {
+              actualRole = 'employee';
+              console.log('Found employee by email and updated auth_user_id');
+            }
+          }
+          
+          if (!actualRole) {
+            await supabase.auth.signOut();
+            toast({
+              title: t('login.noRoleFound') ?? 'Account Not Found',
+              description: t('login.noRoleFoundDesc') ?? 'No account found for this email. Please register first.',
+              variant: 'destructive'
+            });
+            return;
+          }
         }
       }
 
@@ -176,7 +296,7 @@ const Login = () => {
       if (actualRole === 'employee') {
         const { data: employeeData, error: employeeError } = await supabase
           .from('employees')
-          .select('is_active, is_approved, rejection_reason, rejected_at, first_name, last_name')
+          .select('is_active, is_approved, rejection_reason, rejected_at, first_name, last_name, must_change_password')
           .eq('auth_user_id', data.session.user.id)
           .maybeSingle();
           
@@ -198,6 +318,27 @@ const Login = () => {
             await supabase.auth.signOut();
             return;
           }
+          
+          // Only check the database flag - this ensures change password is shown only once
+          const mustChangePassword = employeeData.must_change_password === true;
+          
+          console.log('Employee login check:', {
+            must_change_password: employeeData.must_change_password,
+            mustChangePassword,
+            created_at: data.session.user.created_at,
+            updated_at: data.session.user.updated_at
+          });
+          
+          if (mustChangePassword) {
+            // Redirect to employee page where change password form will be displayed
+            navigate('/employee');
+            toast({
+              title: t('login.firstTimeLogin') ?? 'Primera vez iniciando sesión',
+              description: t('login.changePasswordRequired') ?? 'Debe cambiar su contraseña antes de continuar.',
+            });
+            return;
+          }
+          
           // If pending or not approved, allow login but inform user to complete onboarding
           if (employeeData && (!employeeData.is_active || !employeeData.is_approved)) {
             toast({

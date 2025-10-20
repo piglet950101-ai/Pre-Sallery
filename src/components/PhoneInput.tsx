@@ -14,7 +14,7 @@ interface Country {
 }
 
 const countries: Country[] = [
-  // South American Countries
+  // South American Countries Only
   { 
     code: 'AR', 
     name: 'Argentina', 
@@ -126,109 +126,7 @@ const countries: Country[] = [
     dialCode: '+58',
     format: 'XXX XXX XXXX',
     placeholder: '212 123 4567'
-  },
-  
-  // North American Countries
-  { 
-    code: 'US', 
-    name: 'United States', 
-    flag: '🇺🇸', 
-    dialCode: '+1',
-    format: '(XXX) XXX-XXXX',
-    placeholder: '(555) 123-4567'
-  },
-  { 
-    code: 'CA', 
-    name: 'Canada', 
-    flag: '🇨🇦', 
-    dialCode: '+1',
-    format: '(XXX) XXX-XXXX',
-    placeholder: '(555) 123-4567'
-  },
-  { 
-    code: 'MX', 
-    name: 'Mexico', 
-    flag: '🇲🇽', 
-    dialCode: '+52',
-    format: 'XXX XXX XXXX',
-    placeholder: '55 1234 5678'
-  },
-  
-  // European Countries
-  { 
-    code: 'ES', 
-    name: 'Spain', 
-    flag: '🇪🇸', 
-    dialCode: '+34',
-    format: 'XXX XX XX XX',
-    placeholder: '612 34 56 78'
-  },
-  { 
-    code: 'FR', 
-    name: 'France', 
-    flag: '🇫🇷', 
-    dialCode: '+33',
-    format: 'X XX XX XX XX',
-    placeholder: '1 23 45 67 89'
-  },
-  { 
-    code: 'DE', 
-    name: 'Germany', 
-    flag: '🇩🇪', 
-    dialCode: '+49',
-    format: 'XXX XXXXXXX',
-    placeholder: '30 12345678'
-  },
-  { 
-    code: 'IT', 
-    name: 'Italy', 
-    flag: '🇮🇹', 
-    dialCode: '+39',
-    format: 'XXX XXX XXXX',
-    placeholder: '320 123 4567'
-  },
-  { 
-    code: 'GB', 
-    name: 'United Kingdom', 
-    flag: '🇬🇧', 
-    dialCode: '+44',
-    format: 'XXXX XXXXXX',
-    placeholder: '7700 123456'
-  },
-  
-  // Other Countries
-  { 
-    code: 'AU', 
-    name: 'Australia', 
-    flag: '🇦🇺', 
-    dialCode: '+61',
-    format: 'XXX XXX XXX',
-    placeholder: '412 123 456'
-  },
-  { 
-    code: 'JP', 
-    name: 'Japan', 
-    flag: '🇯🇵', 
-    dialCode: '+81',
-    format: 'XX-XXXX-XXXX',
-    placeholder: '90-1234-5678'
-  },
-  { 
-    code: 'CN', 
-    name: 'China', 
-    flag: '🇨🇳', 
-    dialCode: '+86',
-    format: 'XXX XXXX XXXX',
-    placeholder: '138 1234 5678'
-  },
-  { 
-    code: 'IN', 
-    name: 'India', 
-    flag: '🇮🇳', 
-    dialCode: '+91',
-    format: 'XXXXX XXXXX',
-    placeholder: '98765 43210'
-  },
+  }
 ];
 
 interface PhoneInputProps {
@@ -274,10 +172,14 @@ export const PhoneInput: React.FC<PhoneInputProps> = ({
   className,
   disabled = false
 }) => {
-  const [selectedCountry, setSelectedCountry] = useState<Country>(countries[0]);
+  const [selectedCountry, setSelectedCountry] = useState<Country>(() => {
+    const ve = countries.find(c => c.code === 'VE');
+    return ve ?? countries[0];
+  });
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedIndex, setSelectedIndex] = useState(0);
   const dropdownListRef = React.useRef<HTMLDivElement | null>(null);
   const typeAheadTimerRef = React.useRef<number | undefined>(undefined);
 
@@ -307,13 +209,55 @@ export const PhoneInput: React.FC<PhoneInputProps> = ({
     }
   }, [value]);
 
-  // Enable type-ahead search (no visible input). When dropdown is open and user types,
+  // Enable type-ahead search and arrow key navigation. When dropdown is open and user types,
   // accumulate keys briefly and find the first matching country, then scroll it into view.
   React.useEffect(() => {
     if (!isDropdownOpen) return;
     const onKeyDown = (e: KeyboardEvent) => {
-      // Allow navigation keys to work normally
-      if (['ArrowUp', 'ArrowDown', 'Enter', 'Escape', 'Tab'].includes(e.key)) return;
+      const currentCountries = filteredCountries.length > 0 ? filteredCountries : countries;
+      
+      // Handle Enter key to select the currently highlighted country
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        e.stopPropagation(); // Prevent form submission
+        e.stopImmediatePropagation(); // Stop all other event handlers
+        if (currentCountries.length > 0 && selectedIndex >= 0 && selectedIndex < currentCountries.length) {
+          handleCountrySelect(currentCountries[selectedIndex]);
+        }
+        return;
+      }
+      
+      // Handle Escape key to close dropdown
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setIsDropdownOpen(false);
+        setSearchTerm('');
+        return;
+      }
+      
+      // Handle Arrow Down key
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedIndex(prev => {
+          const next = prev + 1;
+          return next >= currentCountries.length ? 0 : next;
+        });
+        return;
+      }
+      
+      // Handle Arrow Up key
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedIndex(prev => {
+          const next = prev - 1;
+          return next < 0 ? currentCountries.length - 1 : next;
+        });
+        return;
+      }
+      
+      // Allow Tab key to work normally
+      if (e.key === 'Tab') return;
+      
       const key = e.key;
       if (key.length === 1 || key === 'Backspace') {
         e.preventDefault();
@@ -325,6 +269,8 @@ export const PhoneInput: React.FC<PhoneInputProps> = ({
         }
         const lowered = next.toLowerCase();
         setSearchTerm(lowered);
+        // Reset selected index when searching
+        setSelectedIndex(0);
         // Find first match across name, dial code or ISO code
         const match = countries.find(c =>
           c.name.toLowerCase().startsWith(lowered) ||
@@ -344,15 +290,75 @@ export const PhoneInput: React.FC<PhoneInputProps> = ({
       document.removeEventListener('keydown', onKeyDown);
       if (typeAheadTimerRef.current) window.clearTimeout(typeAheadTimerRef.current);
     };
-  }, [isDropdownOpen, searchTerm]);
+  }, [isDropdownOpen, searchTerm, selectedIndex, filteredCountries]);
+
+  // Close dropdown when other form elements are focused
+  React.useEffect(() => {
+    if (!isDropdownOpen) return;
+    
+    const handleFocusOut = (e: FocusEvent) => {
+      const target = e.target as HTMLElement;
+      const dropdownContainer = dropdownListRef.current?.parentElement;
+      
+      // Check if the focus is moving to an element outside the dropdown
+      if (dropdownContainer && !dropdownContainer.contains(target)) {
+        setIsDropdownOpen(false);
+        setSearchTerm('');
+      }
+    };
+
+    // Listen for focus events on the document
+    document.addEventListener('focusin', handleFocusOut);
+    
+    return () => {
+      document.removeEventListener('focusin', handleFocusOut);
+    };
+  }, [isDropdownOpen]);
+
+  // Reset selectedIndex when dropdown opens and focus the dropdown
+  React.useEffect(() => {
+    if (isDropdownOpen) {
+      setSelectedIndex(0);
+      // Focus the dropdown container to ensure keyboard events work
+      setTimeout(() => {
+        const dropdown = dropdownListRef.current?.parentElement;
+        if (dropdown) {
+          dropdown.focus();
+        }
+      }, 0);
+    }
+  }, [isDropdownOpen]);
+
+  // Scroll selected country into view when selectedIndex changes
+  React.useEffect(() => {
+    if (!isDropdownOpen || !dropdownListRef.current) return;
+    
+    const currentCountries = filteredCountries.length > 0 ? filteredCountries : countries;
+    const selectedCountry = currentCountries[selectedIndex];
+    
+    if (selectedCountry) {
+      const element = dropdownListRef.current.querySelector(`#country-${selectedCountry.code}`) as HTMLElement | null;
+      if (element) {
+        element.scrollIntoView({ block: 'nearest' });
+      }
+    }
+  }, [selectedIndex, isDropdownOpen, filteredCountries]);
 
   const handleCountrySelect = (country: Country) => {
     setSelectedCountry(country);
     setIsDropdownOpen(false);
     setSearchTerm(''); // Clear search when country is selected
+    setSelectedIndex(0); // Reset selected index
     // Clear the phone number when country changes
     setPhoneNumber('');
     onChange('');
+  };
+
+  const handleDropdownToggle = () => {
+    setIsDropdownOpen(!isDropdownOpen);
+    if (!isDropdownOpen) {
+      setSelectedIndex(0); // Reset to first item when opening
+    }
   };
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -377,11 +383,18 @@ export const PhoneInput: React.FC<PhoneInputProps> = ({
         <div className="relative">
           <button
             type="button"
-            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+            onClick={handleDropdownToggle}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                e.stopPropagation();
+                handleDropdownToggle();
+              }
+            }}
             disabled={disabled}
             className={cn(
               "flex items-center justify-between w-36 h-12 px-4 bg-white border border-gray-300 rounded-lg text-gray-900 font-medium",
-              "hover:bg-gray-50 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500",
+              "hover:bg-gray-50 hover:border-gray-400 focus:outline-none focus:ring-0 focus:border-gray-400",
               "disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200",
               error && "border-red-500 focus:ring-red-500"
             )}
@@ -394,24 +407,54 @@ export const PhoneInput: React.FC<PhoneInputProps> = ({
           </button>
           
           {isDropdownOpen && (
-            <div className="absolute top-full left-0 z-50 w-80 mt-1 bg-white border border-gray-300 rounded-lg shadow-xl max-h-80 overflow-hidden">
+            <div 
+              className="absolute top-full left-0 z-50 w-80 mt-1 bg-white border border-gray-300 rounded-lg shadow-xl max-h-80 overflow-hidden"
+              tabIndex={-1}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const currentCountries = filteredCountries.length > 0 ? filteredCountries : countries;
+                  if (currentCountries.length > 0 && selectedIndex >= 0 && selectedIndex < currentCountries.length) {
+                    handleCountrySelect(currentCountries[selectedIndex]);
+                  }
+                }
+              }}
+            >
               {/* Countries List with type-ahead (no visible input). Start typing to jump. */}
               <div ref={dropdownListRef} className="max-h-80 overflow-y-auto">
-                {(filteredCountries.length > 0 ? filteredCountries : countries).map((country) => (
-                  <button
-                    id={`country-${country.code}`}
-                    key={country.code}
-                    type="button"
-                    onClick={() => handleCountrySelect(country)}
-                    className="w-full flex items-center space-x-3 px-4 py-3 text-left text-gray-900 hover:bg-blue-50 focus:outline-none focus:bg-blue-50 transition-colors duration-150"
-                  >
-                    <span className="text-xl">{country.flag}</span>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-base font-medium text-gray-900">{country.name}</div>
-                      <div className="text-sm text-gray-500 truncate">({country.dialCode}) {country.placeholder}</div>
-                    </div>
-                  </button>
-                ))}
+                {(filteredCountries.length > 0 ? filteredCountries : countries).map((country, index) => {
+                  const currentCountries = filteredCountries.length > 0 ? filteredCountries : countries;
+                  const isSelected = index === selectedIndex;
+                  
+                  return (
+                    <button
+                      id={`country-${country.code}`}
+                      key={country.code}
+                      type="button"
+                      onClick={() => handleCountrySelect(country)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleCountrySelect(country);
+                        }
+                      }}
+                      className={cn(
+                        "w-full flex items-center space-x-3 px-4 py-3 text-left text-gray-900 transition-colors duration-150",
+                        isSelected 
+                          ? "bg-blue-100 border-l-4 border-blue-500" 
+                          : "hover:bg-blue-50 focus:outline-none focus:bg-blue-50"
+                      )}
+                    >
+                      <span className="text-xl">{country.flag}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-base font-medium text-gray-900">{country.name}</div>
+                        <div className="text-sm text-gray-500 truncate">({country.dialCode}) {country.placeholder}</div>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -428,7 +471,7 @@ export const PhoneInput: React.FC<PhoneInputProps> = ({
             maxLength={20}
             className={cn(
               "h-12 text-base border-gray-300 rounded-lg",
-              "focus:ring-2 focus:ring-blue-500 focus:border-blue-500",
+              "focus:ring-0 focus:border-gray-400",
               "hover:border-gray-400 transition-all duration-200",
               "disabled:opacity-50 disabled:cursor-not-allowed",
               error && "border-red-500 focus:ring-red-500"

@@ -206,6 +206,40 @@ export const EmployeeBulkUpload: React.FC<EmployeeBulkUploadProps> = ({ onUpload
             continue;
           }
 
+          // Check for duplicate email in employees table
+          const employeeEmail = row.email || `${row.cedula.toLowerCase()}@company.com`;
+          const { data: existingByEmail } = await supabase
+            .from("employees")
+            .select("id, first_name, last_name")
+            .eq("company_id", companyData.id)
+            .eq("email", employeeEmail)
+            .limit(1);
+
+          if (existingByEmail && existingByEmail.length > 0) {
+            errors.push(`Row ${row.rowNumber}: Email ${employeeEmail} already exists for employee ${existingByEmail[0].first_name} ${existingByEmail[0].last_name}`);
+            errorCount++;
+            continue;
+          }
+
+          // Check for duplicate email in auth.users using Supabase function
+          try {
+            const { data: authCheckResult, error: authError } = await supabase.functions.invoke('check-auth-email', {
+              body: { email: employeeEmail.toLowerCase() }
+            });
+
+            if (authError) {
+              console.warn('Error checking auth users:', authError);
+              // Continue with validation if we can't check auth users
+            } else if (authCheckResult?.exists) {
+              errors.push(`Row ${row.rowNumber}: Email ${employeeEmail} already registered in the system`);
+              errorCount++;
+              continue;
+            }
+          } catch (authCheckError) {
+            console.warn('Error checking auth users for CSV import:', authCheckError);
+            // Continue with validation if we can't check auth users
+          }
+
           // Generate activation code
           const generateActivationCode = () => {
             return Math.random().toString(36).substring(2, 8).toUpperCase();

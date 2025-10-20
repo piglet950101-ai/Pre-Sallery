@@ -103,9 +103,6 @@ const Profile = () => {
   const [isEditingPassword, setIsEditingPassword] = useState(false);
   const [isEditingEmail, setIsEditingEmail] = useState(false);
   const [isEditingFullName, setIsEditingFullName] = useState(false);
-  const [isEditingBankName, setIsEditingBankName] = useState(false);
-  const [isEditingAccountNumber, setIsEditingAccountNumber] = useState(false);
-  const [isEditingAccountType, setIsEditingAccountType] = useState(false);
   const [changeRequests, setChangeRequests] = useState<ChangeRequest[]>([]);
   const [showPassword, setShowPassword] = useState(false);
   const [showChangeRequestModal, setShowChangeRequestModal] = useState(false);
@@ -140,23 +137,6 @@ const Profile = () => {
     reason: ''
   });
 
-  // Bank name editing data
-  const [bankNameData, setBankNameData] = useState({
-    bankName: '',
-    reason: ''
-  });
-
-  // Account number editing data
-  const [accountNumberData, setAccountNumberData] = useState({
-    accountNumber: '',
-    reason: ''
-  });
-
-  // Account type editing data
-  const [accountTypeData, setAccountTypeData] = useState({
-    accountType: '',
-    reason: ''
-  });
   
   // Verification data
   const [verificationData, setVerificationData] = useState<VerificationData>({
@@ -207,35 +187,6 @@ const Profile = () => {
     }
   };
 
-  // Initialize bank name data
-  const initializeBankNameData = () => {
-    if (employee) {
-      setBankNameData({
-        bankName: employee.bank_name || '',
-        reason: ''
-      });
-    }
-  };
-
-  // Initialize account number data
-  const initializeAccountNumberData = () => {
-    if (employee) {
-      setAccountNumberData({
-        accountNumber: employee.account_number || '',
-        reason: ''
-      });
-    }
-  };
-
-  // Initialize account type data
-  const initializeAccountTypeData = () => {
-    if (employee) {
-      setAccountTypeData({
-        accountType: employee.account_type || '',
-        reason: ''
-      });
-    }
-  };
 
   // Fetch employee data
   useEffect(() => {
@@ -642,191 +593,6 @@ const Profile = () => {
     initializeFullNameData();
   };
 
-  // Bank name editing handlers
-  const handleEditBankName = () => {
-    setIsEditingBankName(true);
-    initializeBankNameData();
-  };
-
-  const handleSaveBankName = async () => {
-    try {
-
-      if (!employee) return;
-
-      // Check if bank name has changed
-      if (bankNameData.bankName.trim() === employee.bank_name?.trim()) {
-        toast({
-          title: t('employee.profile.noBankNameChange'),
-          variant: "destructive"
-        });
-        return;
-      }
-
-      // Validate reason
-      if (!bankNameData.reason.trim()) {
-        toast({
-          title: t('employee.profile.reasonRequired'),
-          variant: "destructive"
-        });
-        return;
-      }
-
-      // Create change request
-      await changeRequestService.createChangeRequest({
-        employee_id: employee.id,
-        field_name: 'bank_name',
-        current_value: employee.bank_name || '',
-        requested_value: bankNameData.bankName.trim(),
-        reason: bankNameData.reason.trim(),
-        details: 'Bank Name Change Request',
-        category: 'financial'
-      });
-
-      toast({
-        title: t('employee.profile.bankNameChangeRequested'),
-        variant: "default"
-      });
-
-      setIsEditingBankName(false);
-      fetchChangeRequests(); // Refresh change requests
-    } catch (error) {
-      console.error('Error creating bank name change request:', error);
-      toast({
-        title: t('common.error'),
-        description: t('common.errorOccurred'),
-        variant: "destructive"
-      });
-    }
-  };
-
-  const handleCancelBankNameEdit = () => {
-    setIsEditingBankName(false);
-    initializeBankNameData();
-  };
-
-  // Account number editing handlers
-  const handleEditAccountNumber = () => {
-    setIsEditingAccountNumber(true);
-    initializeAccountNumberData();
-  };
-
-  const handleSaveAccountNumber = async () => {
-    try {
-
-      if (!employee) return;
-
-      // Check if account number has changed
-      if (accountNumberData.accountNumber.trim() === employee.account_number?.trim()) {
-        toast({
-          title: t('employee.profile.noAccountNumberChange'),
-          variant: "destructive"
-        });
-        return;
-      }
-
-      // Validate reason
-      if (!accountNumberData.reason.trim()) {
-        toast({
-          title: t('employee.profile.reasonRequired'),
-          variant: "destructive"
-        });
-        return;
-      }
-
-      // Create change request
-      await changeRequestService.createChangeRequest({
-        employee_id: employee.id,
-        field_name: 'account_number',
-        current_value: employee.account_number || '',
-        requested_value: accountNumberData.accountNumber.trim(),
-        reason: accountNumberData.reason.trim(),
-        details: 'Account Number Change Request',
-        category: 'financial'
-      });
-
-      toast({
-        title: t('employee.profile.accountNumberChangeRequested'),
-        variant: "default"
-      });
-
-      setIsEditingAccountNumber(false);
-      fetchChangeRequests(); // Refresh change requests
-    } catch (error) {
-      console.error('Error creating account number change request:', error);
-      toast({
-        title: t('common.error'),
-        description: t('common.errorOccurred'),
-        variant: "destructive"
-      });
-    }
-  };
-
-  const handleCancelAccountNumberEdit = () => {
-    setIsEditingAccountNumber(false);
-    initializeAccountNumberData();
-  };
-
-  // Account type editing handlers
-  const handleEditAccountType = () => {
-    setIsEditingAccountType(true);
-    initializeAccountTypeData();
-  };
-
-  const handleSaveAccountType = async () => {
-    try {
-
-      if (!employee) return;
-
-      // Check if account type has changed
-      if (accountTypeData.accountType.trim() === employee.account_type?.trim()) {
-        toast({
-          title: t('employee.profile.noAccountTypeChange'),
-          variant: "destructive"
-        });
-        return;
-      }
-
-      // Validate reason
-      if (!accountTypeData.reason.trim()) {
-        toast({
-          title: t('employee.profile.reasonRequired'),
-          variant: "destructive"
-        });
-        return;
-      }
-
-      // Create change request
-      await changeRequestService.createChangeRequest({
-        employee_id: employee.id,
-        field_name: 'account_type',
-        current_value: employee.account_type || '',
-        requested_value: accountTypeData.accountType.trim(),
-        reason: accountTypeData.reason.trim(),
-        details: 'Account Type Change Request',
-        category: 'financial'
-      });
-
-      toast({
-        title: t('employee.profile.accountTypeChangeRequested'),
-        variant: "default"
-      });
-
-      setIsEditingAccountType(false);
-      fetchChangeRequests(); // Refresh change requests
-    } catch (error) {
-      console.error('Error creating account type change request:', error);
-      toast({
-        title: t('common.error'),
-        description: t('common.errorOccurred'),
-        variant: "destructive"
-      });
-    }
-  };
-
-  const handleCancelAccountTypeEdit = () => {
-    setIsEditingAccountType(false);
-    initializeAccountTypeData();
-  };
 
   // Verification functions
   const handleVerifyCode = async () => {
@@ -1032,13 +798,11 @@ const Profile = () => {
     }
   };
 
-  const getFieldCategory = (field: string): 'profile' | 'financial' | 'personal' | 'work' | 'contact' => {
-    const financialFields = ['bank_name', 'account_number', 'account_type'];
+  const getFieldCategory = (field: string): 'profile' | 'personal' | 'work' | 'contact' => {
     const personalFields = ['first_name', 'last_name', 'cedula', 'date_of_birth', 'email'];
     const workFields = ['monthly_salary', 'weekly_hours', 'position', 'department', 'employee_id', 'employment_start_date'];
     const contactFields = ['phone', 'password'];
 
-    if (financialFields.includes(field)) return 'financial';
     if (personalFields.includes(field)) return 'personal';
     if (workFields.includes(field)) return 'work';
     if (contactFields.includes(field)) return 'contact';
@@ -1055,12 +819,6 @@ const Profile = () => {
         return employee.last_name;
       case 'cedula':
         return employee.cedula || '';
-      case 'bank_name':
-        return employee.bank_name;
-      case 'account_number':
-        return employee.account_number;
-      case 'account_type':
-        return employee.account_type;
       case 'monthly_salary':
         return employee.monthly_salary.toString();
       default:
@@ -1135,7 +893,7 @@ const Profile = () => {
         </Card>
 
         {/* Profile Content */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           {/* Editable Fields - Contact Information */}
           <Card className="border-green-200">
             <CardHeader>
@@ -1277,21 +1035,21 @@ const Profile = () => {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                  {/* Email Field - Read Only */}
-                 <div>
-                   <Label className="text-sm font-medium text-muted-foreground">{t('employee.email')}</Label>
-                   <div className="text-lg font-semibold py-2 px-3 bg-muted/50 rounded-md">
+                 <div className="space-y-2">
+                   <Label className="block text-sm font-medium text-muted-foreground">{t('employee.email')}</Label>
+                   <div className="text-lg font-semibold py-2 px-3 bg-muted/50 rounded-md truncate">
                      {user?.email || 'Not provided'}
                    </div>
                  </div>
 
                  {/* Full Name Field */}
-                 <div>
-                   <Label className="text-sm font-medium text-muted-foreground">{t('employee.profile.fullName')}</Label>
+                 <div className="space-y-2">
+                   <Label className="block text-sm font-medium text-muted-foreground">{t('employee.profile.fullName')}</Label>
                    {!isEditingFullName ? (
                      <div className="space-y-2">
-                       <div className="text-lg font-semibold py-2 px-3 bg-muted/50 rounded-md">
+                       <div className="text-lg font-semibold py-2 px-3 bg-muted/50 rounded-md truncate">
                          {employee?.first_name} {employee?.last_name}
                        </div>
                        <div className="flex items-center space-x-2">
@@ -1314,7 +1072,7 @@ const Profile = () => {
                      </div>
                    ) : (
                      <div className="space-y-3">
-                       <div className="grid grid-cols-2 gap-2">
+                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                          <div>
                            <Label className="text-sm font-medium text-muted-foreground">
                              {t('employee.profile.firstName')}
@@ -1379,276 +1137,6 @@ const Profile = () => {
             </CardContent>
           </Card>
 
-          {/* Restricted Fields - Financial Information */}
-          <Card className="border-red-200">
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2 text-red-700">
-                <CreditCard className="h-5 w-5" />
-                <span>{t('employee.profile.financialInfo')}</span>
-                <Badge variant="outline" className="bg-red-100 text-red-700 border-red-300">
-                  <Lock className="h-3 w-3 mr-1" />
-                  {t('employee.profile.restrictedFields')}
-                </Badge>
-              </CardTitle>
-              <CardDescription>
-                {t('employee.profile.restrictedFieldsDesc')}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-6">
-                {/* Bank Name Field */}
-                <div>
-                  <Label className="text-sm font-medium text-muted-foreground">{t('employee.bankName')}</Label>
-                  {!isEditingBankName ? (
-                    <div className="space-y-2">
-                      <div className="text-lg font-semibold py-2 px-3 bg-muted/50 rounded-md">
-                        {employee?.bank_name || 'Not provided'}
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={handleEditBankName}
-                          className="text-xs"
-                        >
-                          <Edit className="h-3 w-3 mr-1" />
-                          {t('common.edit')}
-                        </Button>
-                        {getChangeRequestStatus('bank_name') && (
-                          <Badge variant="outline" className="text-xs">
-                            <Clock className="h-3 w-3 mr-1" />
-                            {t('employee.profile.requestPending')}
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      <div>
-                        <Label className="text-sm font-medium text-muted-foreground">
-                          {t('employee.profile.newBankName')}
-                        </Label>
-                        <Select 
-                          value={bankNameData.bankName} 
-                          onValueChange={(value) => setBankNameData(prev => ({ ...prev, bankName: value }))}
-                        >
-                          <SelectTrigger className="mt-1">
-                            <SelectValue placeholder={t('employee.profile.bankNamePlaceholder')} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Banco de Venezuela">{language === 'en' ? 'Bank of Venezuela' : 'Banco de Venezuela'}</SelectItem>
-                            <SelectItem value="Banesco Banco Universal">{language === 'en' ? 'Banesco Banco Universal' : 'Banesco Banco Universal'}</SelectItem>
-                            <SelectItem value="Banco Mercantil">{language === 'en' ? 'Banco Mercantil' : 'Banco Mercantil'}</SelectItem>
-                            <SelectItem value="Banco Provincial (BBVA)">{language === 'en' ? 'Banco Provincial (BBVA)' : 'Banco Provincial (BBVA)'}</SelectItem>
-                            <SelectItem value="Banco Nacional de Crédito (BNC)">{language === 'en' ? 'Banco Nacional de Crédito (BNC)' : 'Banco Nacional de Crédito (BNC)'}</SelectItem>
-                            <SelectItem value="Banco Exterior">{language === 'en' ? 'Banco Exterior' : 'Banco Exterior'}</SelectItem>
-                            <SelectItem value="Banco Bicentenario">{language === 'en' ? 'Banco Bicentenario' : 'Banco Bicentenario'}</SelectItem>
-                            <SelectItem value="100% Banco">{language === 'en' ? '100% Banco' : '100% Banco'}</SelectItem>
-                            <SelectItem value="Banco Plaza">{language === 'en' ? 'Banco Plaza' : 'Banco Plaza'}</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div>
-                        <Label className="text-sm font-medium text-muted-foreground">
-                          {t('employee.profile.reasonForChange')} <span className="text-red-500">*</span>
-                        </Label>
-                        <Textarea
-                          value={bankNameData.reason}
-                          onChange={(e) => setBankNameData(prev => ({ ...prev, reason: e.target.value }))}
-                          placeholder={t('employee.profile.reasonPlaceholder')}
-                          className="mt-1"
-                          rows={3}
-                        />
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {t('employee.profile.changeRequestNote')}
-                      </div>
-                      <div className="flex space-x-1">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={handleCancelBankNameEdit}
-                          className="text-xs"
-                        >
-                          <X className="h-3 w-3 mr-1" />
-                          {t('common.cancel')}
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={handleSaveBankName}
-                          className="text-xs"
-                        >
-                          <Send className="h-3 w-3 mr-1" />
-                          {t('employee.profile.submitRequest')}
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Account Number Field */}
-                <div>
-                  <Label className="text-sm font-medium text-muted-foreground">{t('employee.accountNumber')}</Label>
-                  {!isEditingAccountNumber ? (
-                    <div className="space-y-2">
-                      <div className="text-lg font-semibold py-2 px-3 bg-muted/50 rounded-md">
-                        {employee?.account_number ? `****-****-${employee.account_number.slice(-4)}` : 'Not provided'}
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={handleEditAccountNumber}
-                          className="text-xs"
-                        >
-                          <Edit className="h-3 w-3 mr-1" />
-                          {t('common.edit')}
-                        </Button>
-                        {getChangeRequestStatus('account_number') && (
-                          <Badge variant="outline" className="text-xs">
-                            <Clock className="h-3 w-3 mr-1" />
-                            {t('employee.profile.requestPending')}
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      <div>
-                        <Label className="text-sm font-medium text-muted-foreground">
-                          {t('employee.profile.newAccountNumber')}
-                        </Label>
-                        <Input
-                          type="text"
-                          value={accountNumberData.accountNumber}
-                          onChange={(e) => setAccountNumberData(prev => ({ ...prev, accountNumber: e.target.value }))}
-                          placeholder={t('employee.profile.accountNumberPlaceholder')}
-                          className="mt-1"
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-sm font-medium text-muted-foreground">
-                          {t('employee.profile.reasonForChange')} <span className="text-red-500">*</span>
-                        </Label>
-                        <Textarea
-                          value={accountNumberData.reason}
-                          onChange={(e) => setAccountNumberData(prev => ({ ...prev, reason: e.target.value }))}
-                          placeholder={t('employee.profile.reasonPlaceholder')}
-                          className="mt-1"
-                          rows={3}
-                        />
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {t('employee.profile.changeRequestNote')}
-                      </div>
-                      <div className="flex space-x-1">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={handleCancelAccountNumberEdit}
-                          className="text-xs"
-                        >
-                          <X className="h-3 w-3 mr-1" />
-                          {t('common.cancel')}
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={handleSaveAccountNumber}
-                          className="text-xs"
-                        >
-                          <Send className="h-3 w-3 mr-1" />
-                          {t('employee.profile.submitRequest')}
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Account Type Field */}
-                <div>
-                  <Label className="text-sm font-medium text-muted-foreground">{t('employee.accountType')}</Label>
-                  {!isEditingAccountType ? (
-                    <div className="space-y-2">
-                      <div className="text-lg font-semibold py-2 px-3 bg-muted/50 rounded-md">
-                        {employee?.account_type ? (employee.account_type === 'savings' ? t('employeeForm.savings') : t('employeeForm.checking')) : 'Not provided'}
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={handleEditAccountType}
-                          className="text-xs"
-                        >
-                          <Edit className="h-3 w-3 mr-1" />
-                          {t('common.edit')}
-                        </Button>
-                        {getChangeRequestStatus('account_type') && (
-                          <Badge variant="outline" className="text-xs">
-                            <Clock className="h-3 w-3 mr-1" />
-                            {t('employee.profile.requestPending')}
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      <div>
-                        <Label className="text-sm font-medium text-muted-foreground">
-                          {t('employee.profile.newAccountType')}
-                        </Label>
-                        <Select 
-                          value={accountTypeData.accountType} 
-                          onValueChange={(value) => setAccountTypeData(prev => ({ ...prev, accountType: value }))}
-                        >
-                          <SelectTrigger className="mt-1">
-                            <SelectValue placeholder={t('employee.profile.accountTypePlaceholder')} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="savings">{t('employeeForm.savings')}</SelectItem>
-                            <SelectItem value="checking">{t('employeeForm.checking')}</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div>
-                        <Label className="text-sm font-medium text-muted-foreground">
-                          {t('employee.profile.reasonForChange')} <span className="text-red-500">*</span>
-                        </Label>
-                        <Textarea
-                          value={accountTypeData.reason}
-                          onChange={(e) => setAccountTypeData(prev => ({ ...prev, reason: e.target.value }))}
-                          placeholder={t('employee.profile.reasonPlaceholder')}
-                          className="mt-1"
-                          rows={3}
-                        />
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {t('employee.profile.changeRequestNote')}
-                      </div>
-                      <div className="flex space-x-1">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={handleCancelAccountTypeEdit}
-                          className="text-xs"
-                        >
-                          <X className="h-3 w-3 mr-1" />
-                          {t('common.cancel')}
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={handleSaveAccountType}
-                          className="text-xs"
-                        >
-                          <Send className="h-3 w-3 mr-1" />
-                          {t('employee.profile.submitRequest')}
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
 
           {/* Restricted Fields - Work Information */}
           <Card className="border-red-200">
@@ -1669,15 +1157,15 @@ const Profile = () => {
               <div className="space-y-4">
                 {/* First Line: Position and Department */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-sm font-medium text-muted-foreground">{t('employee.profile.position')}</Label>
-                    <div className="text-lg font-semibold py-2 px-3 bg-muted/50 rounded-md">
+                  <div className="space-y-2">
+                    <Label className="block text-sm font-medium text-muted-foreground">{t('employee.profile.position')}</Label>
+                    <div className="text-lg font-semibold py-2 px-3 bg-muted/50 rounded-md truncate">
                       {employee?.position || 'Not specified'}
                     </div>
                   </div>
-                  <div>
-                    <Label className="text-sm font-medium text-muted-foreground">{t('employee.profile.department')}</Label>
-                    <div className="text-lg font-semibold py-2 px-3 bg-muted/50 rounded-md">
+                  <div className="space-y-2">
+                    <Label className="block text-sm font-medium text-muted-foreground">{t('employee.profile.department')}</Label>
+                    <div className="text-lg font-semibold py-2 px-3 bg-muted/50 rounded-md truncate">
                       {employee?.department || 'Not specified'}
                     </div>
                   </div>
@@ -1685,14 +1173,14 @@ const Profile = () => {
                 
                 {/* Second Line: Salary and Weekly Hours */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-sm font-medium text-muted-foreground">{t('employee.monthlySalary')}</Label>
+                  <div className="space-y-2">
+                    <Label className="block text-sm font-medium text-muted-foreground">{t('employee.monthlySalary')}</Label>
                     <div className="text-lg font-semibold py-2 px-3 bg-muted/50 rounded-md">
                       ${employee?.monthly_salary.toFixed(2)}
                     </div>
                   </div>
-                  <div>
-                    <Label className="text-sm font-medium text-muted-foreground">{t('employee.weeklyHours')}</Label>
+                  <div className="space-y-2">
+                    <Label className="block text-sm font-medium text-muted-foreground">{t('employee.weeklyHours')}</Label>
                     <div className="text-lg font-semibold py-2 px-3 bg-muted/50 rounded-md">
                       {employee?.weekly_hours}h
                     </div>
@@ -1701,9 +1189,9 @@ const Profile = () => {
                 
                 {/* Third Line: Employment Start Date */}
                 <div className="grid grid-cols-1 gap-4">
-                  <div>
-                    <Label className="text-sm font-medium text-muted-foreground">{t('employee.profile.hireDate')}</Label>
-                    <div className="text-lg font-semibold py-2 px-3 bg-muted/50 rounded-md">
+                  <div className="space-y-2">
+                    <Label className="block text-sm font-medium text-muted-foreground">{t('employee.profile.hireDate')}</Label>
+                    <div className="text-lg font-semibold py-2 px-3 bg-muted/50 rounded-md truncate">
                       {employee?.employment_start_date ? new Date(employee.employment_start_date).toLocaleDateString() : 'Not specified'}
                     </div>
                   </div>
