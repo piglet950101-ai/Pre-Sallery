@@ -271,7 +271,7 @@ const Register = () => {
         <div className="text-center space-y-2">
           <Link to="/" className="flex items-center justify-center space-x-2">
             <DollarSign className="h-8 w-8 text-white" />
-            <span className="text-2xl font-bold text-white">AvancePay</span>
+            <span className="text-2xl font-bold text-white">nominero.com</span>
           </Link>
           <h1 className="text-3xl font-bold text-white">{t('register.title')}</h1>
           <p className="text-white/80">{t('register.subtitle')}</p>

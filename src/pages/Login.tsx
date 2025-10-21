@@ -409,7 +409,7 @@ const Login = () => {
             <div className="h-16 w-16 bg-blue-500 rounded-2xl flex items-center justify-center shadow-lg">
               <DollarSign className="h-8 w-8 text-white" />
             </div>
-            <span className="text-3xl font-bold text-gray-800">AvancePay</span>
+            <span className="text-3xl font-bold text-gray-800">nominero.com</span>
           </Link>
           <p className="text-gray-600 text-lg">{t('login.subtitle')}</p>
         </div>

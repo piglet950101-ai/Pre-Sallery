@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { EmployeeInfoForm } from "@/components/EmployeeInfoForm";
 import { SimpleEmployeeForm } from "@/components/SimpleEmployeeForm";
 import Header from "@/components/Header";
+import Footer from "@/components/Footer";
 import ScrollToTopButton from "@/components/ScrollToTopButton";
 import { 
   Users, 
@@ -2522,11 +2523,10 @@ const CompanyDashboard = () => {
             continue;
           }
 
-          // Check for duplicate email in employees table
+          // Check for duplicate email in employees table (across all companies)
           const { data: existingEmployee, error: duplicateError } = await supabase
             .from('employees')
-            .select('id, first_name, last_name')
-            .eq('company_id', companyData.id)
+            .select('id, first_name, last_name, company_id')
             .eq('email', employeeEmail)
             .maybeSingle();
 
@@ -2538,7 +2538,7 @@ const CompanyDashboard = () => {
           }
 
           if (existingEmployee) {
-            errors.push(`Row ${row.rowNumber} (${existingEmployee.first_name} ${existingEmployee.last_name}): Email ${employeeEmail} already exists for employee`);
+            errors.push(`Row ${row.rowNumber}: Email ${employeeEmail} already exists for employee ${existingEmployee.first_name} ${existingEmployee.last_name}`);
             errorCount++;
             continue;
           }
@@ -4376,11 +4376,11 @@ const CompanyDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
       <Header />
 
-      <div className="container mx-auto px-4 py-8 space-y-8">
+      <div className="container mx-auto px-4 py-8 space-y-8 flex-1">
         {/* No company record message */}
         {hasCompanyRecord === false && (
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
@@ -5144,16 +5144,16 @@ const CompanyDashboard = () => {
                         <div className="flex items-center space-x-2">
                           {employee.is_verified ? (
                             <Badge className="bg-green-100 text-green-800">{language === 'en' ? 'KYC verified' : 'KYC verificado'}</Badge>
-                          ) : employee.cedula_front_url && employee.cedula_back_url ? (
+                          ) : employee.cedula_front_url ? (
                             <Badge className="bg-blue-100 text-blue-800">{language === 'en' ? 'KYC submitted' : 'KYC enviado'}</Badge>
                           ) : (
                             <Badge variant="secondary">{language === 'en' ? 'KYC missing' : 'KYC faltante'}</Badge>
                           )}
-                          {(employee.cedula_front_url || employee.cedula_back_url) && (
+                          {employee.cedula_front_url && (
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => openCedulaGallery(employee.cedula_front_url, employee.cedula_back_url)}
+                              onClick={() => openCedulaGallery(employee.cedula_front_url, null)}
                               title={language === 'en' ? 'View ID' : 'Ver Cédula'}
                             >
                               <Eye className="h-4 w-4" />
@@ -7306,6 +7306,7 @@ const CompanyDashboard = () => {
 
       {/* Scroll to Top Button */}
       <ScrollToTopButton />
+      <Footer />
     </div>
   );
 };

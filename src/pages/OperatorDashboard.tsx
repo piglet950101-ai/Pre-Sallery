@@ -41,6 +41,7 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
 import * as XLSX from 'xlsx';
 import Header from "@/components/Header";
+import Footer from "@/components/Footer";
 import { useLanguage } from "@/contexts/LanguageContext";
 import BillingDashboard from "@/components/operator/BillingDashboard";
 import CompanyManagement from "@/components/operator/CompanyManagement";
@@ -1272,12 +1273,12 @@ const OperatorDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
 
       {/* Header */}
       <Header />
 
-      <div className="container mx-auto px-4 py-8 space-y-8">
+      <div className="container mx-auto px-4 py-8 space-y-8 flex-1">
         {/* Page Header with Refresh Button */}
         <div className="flex items-center justify-between">
           <div>
@@ -2438,6 +2439,7 @@ const OperatorDashboard = () => {
         </Dialog>
 
       </div>
+      <Footer />
     </div>
   );
 };

@@ -206,12 +206,11 @@ export const EmployeeBulkUpload: React.FC<EmployeeBulkUploadProps> = ({ onUpload
             continue;
           }
 
-          // Check for duplicate email in employees table
+          // Check for duplicate email in employees table (across all companies)
           const employeeEmail = row.email || `${row.cedula.toLowerCase()}@company.com`;
           const { data: existingByEmail } = await supabase
             .from("employees")
-            .select("id, first_name, last_name")
-            .eq("company_id", companyData.id)
+            .select("id, first_name, last_name, company_id")
             .eq("email", employeeEmail)
             .limit(1);
 

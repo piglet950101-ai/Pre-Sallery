@@ -180,7 +180,7 @@ const Terms = () => {
               <div className="h-8 w-8 bg-gradient-primary rounded-lg flex items-center justify-center">
                 <DollarSign className="h-5 w-5 text-white" />
               </div>
-              <span className="text-xl font-bold text-foreground">AvancePay</span>
+              <span className="text-xl font-bold text-foreground">nominero.com</span>
             </Link>
             <div className="flex items-center space-x-3">
               <LanguageSwitcher />
@@ -300,7 +300,7 @@ const Terms = () => {
         {/* Footer Links */}
         <div className="mt-16 text-center">
           <div className="flex flex-wrap justify-center gap-4 text-sm text-muted-foreground">
-            <Link to="/about" className="hover:text-foreground transition-colors">Sobre AvancePay</Link>
+            <Link to="/about" className="hover:text-foreground transition-colors">Sobre nominero.com</Link>
             <span>•</span>
             <Link to="/privacy" className="hover:text-foreground transition-colors">Privacidad</Link>
             <span>•</span>

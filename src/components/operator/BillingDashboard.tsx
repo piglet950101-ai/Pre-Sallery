@@ -321,7 +321,7 @@ const BillingDashboard: React.FC = () => {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search invoices..."
+                placeholder={t('operator.billing.searchInvoices')}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
@@ -331,24 +331,24 @@ const BillingDashboard: React.FC = () => {
             {/* Status Filter */}
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger>
-                <SelectValue placeholder="Filter by status" />
+                <SelectValue placeholder={t('operator.billing.filterByStatus')} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="draft">Draft</SelectItem>
-                <SelectItem value="sent">Sent</SelectItem>
-                <SelectItem value="paid">Paid</SelectItem>
-                <SelectItem value="overdue">Overdue</SelectItem>
+                <SelectItem value="all">{t('operator.billing.allStatuses')}</SelectItem>
+                <SelectItem value="draft">{t('operator.billing.draft')}</SelectItem>
+                <SelectItem value="sent">{t('operator.billing.sent')}</SelectItem>
+                <SelectItem value="paid">{t('operator.billing.paid')}</SelectItem>
+                <SelectItem value="overdue">{t('operator.billing.overdue')}</SelectItem>
               </SelectContent>
             </Select>
 
             {/* Company Filter */}
             <Select value={companyFilter} onValueChange={setCompanyFilter}>
               <SelectTrigger>
-                <SelectValue placeholder="Filter by company" />
+                <SelectValue placeholder={t('operator.billing.filterByCompany')} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Companies</SelectItem>
+                <SelectItem value="all">{t('operator.billing.allCompanies')}</SelectItem>
                 {uniqueCompanies.map(company => (
                   <SelectItem key={company} value={company}>{company}</SelectItem>
                 ))}
@@ -364,7 +364,7 @@ const BillingDashboard: React.FC = () => {
                 setCompanyFilter('all');
               }}
             >
-              Clear Filters
+              {t('operator.billing.clearFilters')}
             </Button>
           </div>
         </CardContent>
@@ -375,10 +375,10 @@ const BillingDashboard: React.FC = () => {
         <CardHeader>
           <div className="flex justify-between items-center">
             <CardTitle>
-              Invoices ({totalItems} total)
+              {t('operator.billing.invoices')} ({totalItems} {t('operator.billing.total')})
             </CardTitle>
             <div className="text-sm text-muted-foreground">
-              Showing {startIndex + 1}-{endIndex} of {totalItems}
+              {t('operator.billing.showing')} {startIndex + 1}-{endIndex} {t('operator.billing.of')} {totalItems}
             </div>
           </div>
         </CardHeader>
@@ -386,7 +386,7 @@ const BillingDashboard: React.FC = () => {
           {filteredInvoices.length === 0 ? (
             <div className="text-center py-8">
               <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <p className="text-muted-foreground">No invoices found</p>
+              <p className="text-muted-foreground">{t('operator.billing.noInvoicesFound')}</p>
             </div>
           ) : (
             <div className="space-y-4">

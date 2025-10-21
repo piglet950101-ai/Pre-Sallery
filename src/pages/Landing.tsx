@@ -622,7 +622,7 @@ const Landing = () => {
                 <div className="h-8 w-8 bg-gradient-primary rounded-lg flex items-center justify-center">
                   <DollarSign className="h-5 w-5 text-white" />
                 </div>
-                <span className="text-xl font-bold">AvancePay</span>
+                <span className="text-xl font-bold">nominero.com</span>
                 <Badge variant="secondary">Venezuela</Badge>
               </div>
               <p className="text-muted-foreground max-w-md">
@@ -671,7 +671,7 @@ const Landing = () => {
 
           <div className="border-t mt-12 pt-8 flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
             <div className="text-muted-foreground text-sm">
-              &copy; 2024 AvancePay Venezuela. {t('footer.copyright')} | RIF: J123456789
+              &copy; 2024 nominero.com Venezuela. {t('footer.copyright')} | RIF: J123456789
             </div>
             <div className="flex items-center space-x-4 text-sm text-muted-foreground">
               <span>{t('footer.madeInVe')}</span>

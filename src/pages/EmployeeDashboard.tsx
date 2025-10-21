@@ -41,6 +41,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Link } from "react-router-dom";
 import { useLanguage } from "@/contexts/LanguageContext";
 import Header from "@/components/Header";
+import Footer from "@/components/Footer";
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import * as XLSX from 'xlsx';
@@ -56,6 +57,7 @@ interface Employee {
   monthly_salary: number;
   weekly_hours: number;
   year_of_employment: number;
+  employment_start_date?: string;
   bank_name: string;
   account_number: string;
   account_type: string;
@@ -65,6 +67,7 @@ interface Employee {
   is_active: boolean;
   is_verified: boolean;
   is_approved: boolean;
+  created_at?: string;
 }
 
 interface AdvanceRequest {
@@ -353,9 +356,9 @@ const EmployeeDashboard = () => {
         // Show password change screen ONLY if database flag is true (one-time only)
         setMustChangePassword(employeeData.must_change_password === true);
         
-        // Check if cedula images are uploaded
-        const hasCedulaImages = employeeData.cedula_front_url && employeeData.cedula_back_url;
-        setMustUploadCedula(!hasCedulaImages);
+        // Check if front cedula image is uploaded
+        const hasCedulaFront = employeeData.cedula_front_url;
+        setMustUploadCedula(!hasCedulaFront);
         
         // Populate payment info data
         setPaymentInfoData({
@@ -1145,9 +1148,9 @@ const EmployeeDashboard = () => {
   // Gate the dashboard until password is changed, then until cedula image is uploaded
   if (mustChangePassword) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-background flex flex-col">
         <Header />
-        <div className="container mx-auto px-4 py-8 max-w-xl">
+        <div className="container mx-auto px-4 py-8 max-w-xl flex-1">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
@@ -1227,15 +1230,16 @@ const EmployeeDashboard = () => {
             </CardContent>
           </Card>
         </div>
+        <Footer />
       </div>
     );
   }
 
   if (mustUploadCedula) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-background flex flex-col">
         <Header />
-        <div className="container mx-auto px-4 py-8 max-w-3xl space-y-6">
+        <div className="container mx-auto px-4 py-8 max-w-3xl space-y-6 flex-1">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
@@ -1243,7 +1247,7 @@ const EmployeeDashboard = () => {
                 <span>{language === 'en' ? 'Upload your ID (Cédula)' : 'Sube tu Cédula de Identidad'}</span>
               </CardTitle>
               <CardDescription>
-                {language === 'en' ? 'Please upload front and back of your ID to continue.' : 'Por favor sube el frente y reverso de tu cédula para continuar.'}
+                {language === 'en' ? 'Please upload the front of your ID to continue.' : 'Por favor sube el frente de tu cédula para continuar.'}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -1259,6 +1263,7 @@ const EmployeeDashboard = () => {
             </CardContent>
           </Card>
         </div>
+        <Footer />
       </div>
     );
   }
@@ -1270,9 +1275,9 @@ const EmployeeDashboard = () => {
   // This ensures employees cannot access advance requests until both company and employee are approved
   if (justSubmittedKyc || !isCompanyApproved || !isEmployeeApproved) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-background flex flex-col">
         <Header />
-        <div className="container mx-auto px-4 py-8 max-w-xl">
+        <div className="container mx-auto px-4 py-8 max-w-xl flex-1">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
@@ -1319,16 +1324,17 @@ const EmployeeDashboard = () => {
             </CardContent>
           </Card>
         </div>
+        <Footer />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
       <Header />
 
-      <div className="container mx-auto px-4 py-8 space-y-8">
+      <div className="container mx-auto px-4 py-8 space-y-8 flex-1">
         {/* Employee Header */}
         <div className="flex items-center justify-between">
 
@@ -2327,6 +2333,7 @@ const EmployeeDashboard = () => {
         </DialogContent>
       </Dialog>
 
+      <Footer />
     </div>
   );
 };

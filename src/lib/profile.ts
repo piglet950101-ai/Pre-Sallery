@@ -16,6 +16,8 @@ export type EmployeeProfile = {
 };
 
 export async function ensureCompanyRecord(authUserId: string, data: CompanyProfile = {}) {
+  // The companies table no longer stores an email column. Ignore any provided email
+  const { email: _ignoredEmail, ...companyData } = data;
   const { data: existing, error: selErr } = await supabase
     .from("companies")
     .select("id")
@@ -27,12 +29,11 @@ export async function ensureCompanyRecord(authUserId: string, data: CompanyProfi
   if (existing) {
     // Update existing record with any new data (especially rif_image_url)
     const updateData: any = {};
-    if (data.rif_image_url !== undefined) updateData.rif_image_url = data.rif_image_url;
-    if (data.address !== undefined) updateData.address = data.address;
-    if (data.phone !== undefined) updateData.phone = data.phone;
-    if (data.email !== undefined) updateData.email = data.email;
-    if (data.name !== undefined) updateData.name = data.name;
-    if (data.rif !== undefined) updateData.rif = data.rif;
+    if (companyData.rif_image_url !== undefined) updateData.rif_image_url = companyData.rif_image_url;
+    if (companyData.address !== undefined) updateData.address = companyData.address;
+    if (companyData.phone !== undefined) updateData.phone = companyData.phone;
+    if (companyData.name !== undefined) updateData.name = companyData.name;
+    if (companyData.rif !== undefined) updateData.rif = companyData.rif;
     
     // Only update if there's data to update
     if (Object.keys(updateData).length > 0) {
@@ -49,7 +50,7 @@ export async function ensureCompanyRecord(authUserId: string, data: CompanyProfi
   // Create new record
   const { data: ins, error: insErr } = await supabase
     .from("companies")
-    .insert([{ auth_user_id: authUserId, ...data }])
+    .insert([{ auth_user_id: authUserId, ...companyData }])
     .select("id")
     .maybeSingle();
   if (insErr) return { error: insErr };

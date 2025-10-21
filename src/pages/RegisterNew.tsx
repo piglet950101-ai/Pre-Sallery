@@ -41,6 +41,7 @@ const Register = () => {
   const [companyRifImage, setCompanyRifImage] = useState<File | null>(null);
   const [fileInputKey, setFileInputKey] = useState(0);
   const [activeTab, setActiveTab] = useState("company");
+  const [isValidatingRif, setIsValidatingRif] = useState(false);
 
 
   // Helpers
@@ -292,12 +293,10 @@ const Register = () => {
       return;
     }
     
-    // Validate RIF expiration date using Tesseract.js
+    // Validate RIF expiration date
     try {
-      toast({
-        title: t('common.loading'),
-        description: t('registration.validatingRIF'),
-      });
+      setIsValidatingRif(true);
+      toast({ title: t('common.loading'), description: t('registration.validatingRIF') });
       
       // Convert file to base64 for validation
       const reader = new FileReader();
@@ -331,6 +330,7 @@ const Register = () => {
               description: t('registration.rifExpiredDesc'),
               variant: "destructive"
             });
+            setIsValidatingRif(false);
             return;
           }
           
@@ -342,6 +342,7 @@ const Register = () => {
           
           // Only set the file if validation passes
           setCompanyRifImage(file);
+          setIsValidatingRif(false);
           
         } catch (error: any) {
           console.error('RIF validation error:', error);
@@ -350,6 +351,7 @@ const Register = () => {
             description: t('registration.rifExpirationErrorDesc'),
             variant: "destructive"
           });
+          setIsValidatingRif(false);
         }
       };
       
@@ -362,6 +364,7 @@ const Register = () => {
         description: t('registration.rifExpirationErrorDesc'),
         variant: "destructive"
       });
+      setIsValidatingRif(false);
     }
   };
 
@@ -803,7 +806,7 @@ const Register = () => {
         {/* <div className="text-center space-y-2">
           <Link to="/" className="flex items-center justify-center space-x-2">
             <DollarSign className="h-8 w-8 text-white" />
-            <span className="text-2xl font-bold text-white">AvancePay</span>
+            <span className="text-2xl font-bold text-white">nominero.com</span>
           </Link>
           <h1 className="text-3xl font-bold text-white">{t('register.title')}</h1>
           <p className="text-white/80">{t('register.subtitle')}</p>
@@ -815,7 +818,7 @@ const Register = () => {
             <div className="h-16 w-16 bg-blue-500 rounded-2xl flex items-center justify-center shadow-lg">
               <DollarSign className="h-8 w-8 text-white" />
             </div>
-            <span className="text-3xl font-bold text-gray-800">AvancePay</span>
+            <span className="text-3xl font-bold text-gray-800">nominero.com</span>
           </Link>
           <p className="text-gray-600 text-lg">{t('register.subtitle')}</p>
         </div>
@@ -948,7 +951,13 @@ const Register = () => {
                         className="hidden" 
                         onChange={handleCompanyRifImageUpload} 
                       />
-                      {!companyRifImage ? (
+                      {isValidatingRif && (
+                        <div className="text-center py-6">
+                          <h4 className="font-semibold">{t('common.loading')}</h4>
+                          <p className="text-sm text-muted-foreground">{t('registration.validatingRIF')}</p>
+                        </div>
+                      )}
+                      {!isValidatingRif && !companyRifImage && (
                         <div className="text-center space-y-2">
                           <Button variant="outline" onClick={() => document.getElementById('company-rif-image')?.click()}>
                             {t('registration.rifImageSelect')}
@@ -959,7 +968,8 @@ const Register = () => {
                             <p>• {t('registration.rifImageFormats')}</p>
                           </div>
                         </div>
-                      ) : (
+                      )}
+                      {!isValidatingRif && companyRifImage && (
                         <div className="text-sm">
                           <p className="font-medium">{companyRifImage.name}</p>
                           <p className="text-xs text-muted-foreground">{(companyRifImage.size/1024/1024).toFixed(2)} MB</p>

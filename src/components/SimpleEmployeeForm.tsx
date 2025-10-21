@@ -57,10 +57,10 @@ export const SimpleEmployeeForm = ({ onSave, onCancel, isLoading = false }: Simp
         return false;
       }
 
-      // Check for duplicate email in employees table
+      // Check for duplicate email in employees table (across all companies)
       const { data: existingEmployee, error: employeeError } = await supabase
         .from('employees')
-        .select('id, first_name, last_name')
+        .select('id, first_name, last_name, company_id')
         .eq('email', email.toLowerCase())
         .maybeSingle();
 

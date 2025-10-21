@@ -99,7 +99,7 @@ const Privacy = () => {
               <div className="h-8 w-8 bg-gradient-primary rounded-lg flex items-center justify-center">
                 <DollarSign className="h-5 w-5 text-white" />
               </div>
-              <span className="text-xl font-bold text-foreground">AvancePay</span>
+              <span className="text-xl font-bold text-foreground">nominero.com</span>
             </Link>
             <div className="flex items-center space-x-3">
               <LanguageSwitcher />
