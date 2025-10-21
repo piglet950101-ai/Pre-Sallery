@@ -54,6 +54,7 @@ interface Employee {
   last_name: string;
   email: string;
   phone?: string;
+  cedula?: string; // Cedula number from KYC upload
   monthly_salary: number;
   weekly_hours: number;
   year_of_employment: number;
@@ -62,7 +63,7 @@ interface Employee {
   account_number: string;
   account_type: string;
   pagomovil_phone?: string;
-  pagomovil_cedula?: string;
+  pagomovil_cedula?: string; // Cedula for PagoMóvil (must match KYC cedula)
   pagomovil_bank_name?: string;
   is_active: boolean;
   is_verified: boolean;
@@ -129,14 +130,12 @@ const EmployeeDashboard = () => {
     account_number: '',
     account_type: '',
     pagomovil_phone: '',
-    pagomovil_cedula: '',
     pagomovil_bank_name: ''
   });
   const [validationErrors, setValidationErrors] = useState({
     bank_name: '',
     account_number: '',
     pagomovil_phone: '',
-    pagomovil_cedula: '',
     pagomovil_bank_name: ''
   });
 
@@ -173,24 +172,14 @@ const EmployeeDashboard = () => {
   };
 
   const validatePagomovilCedula = (cedula: string) => {
-    if (!cedula || cedula.trim() === '') {
-      return language === 'en' ? 'Cédula is required' : 'La cédula es requerida';
+    // Since cedula is now automatically taken from KYC, we only need to check if KYC cedula exists
+    if (!employee?.cedula) {
+      return language === 'en' 
+        ? 'Please upload your ID document first to enable PagoMóvil' 
+        : 'Por favor sube tu documento de identidad primero para habilitar PagoMóvil';
     }
-    // Venezuelan cédula format: V followed by 7-8 digits, or E followed by 6-8 digits
-    if (!/^[EV][0-9]{6,8}$/.test(cedula)) {
-      const digitCount = cedula.replace(/^[EV]/, '').length;
-      if (digitCount > 8) {
-        return language === 'en' 
-          ? `Cédula has too many digits (${digitCount}). Must be 6-8 digits after E or V` 
-          : `La cédula tiene demasiados dígitos (${digitCount}). Debe tener 6-8 dígitos después de E o V`;
-      } else if (digitCount < 6) {
-        return language === 'en' 
-          ? `Cédula has too few digits (${digitCount}). Must be 6-8 digits after E or V` 
-          : `La cédula tiene muy pocos dígitos (${digitCount}). Debe tener 6-8 dígitos después de E o V`;
-      } else {
-        return language === 'en' ? 'Cédula must start with E or V, followed by 6-8 digits' : 'La cédula debe comenzar con E o V, seguido de 6-8 dígitos';
-      }
-    }
+    
+    // KYC cedula is automatically used, no manual validation needed
     return '';
   };
 
@@ -215,7 +204,7 @@ const EmployeeDashboard = () => {
   const validatePagomovil = () => {
     const errors = {
       pagomovil_phone: validatePagomovilPhone(paymentInfoData.pagomovil_phone),
-      pagomovil_cedula: validatePagomovilCedula(paymentInfoData.pagomovil_cedula),
+      pagomovil_cedula: validatePagomovilCedula(employee?.cedula || ''), // Use KYC cedula instead of manual input
       pagomovil_bank_name: validatePagomovilBankName(paymentInfoData.pagomovil_bank_name)
     };
     setValidationErrors(prev => ({ ...prev, ...errors }));
@@ -366,7 +355,6 @@ const EmployeeDashboard = () => {
           account_number: employeeData.account_number || '',
           account_type: employeeData.account_type || '',
           pagomovil_phone: employeeData.pagomovil_phone || '',
-          pagomovil_cedula: employeeData.pagomovil_cedula || '',
           pagomovil_bank_name: employeeData.pagomovil_bank_name || ''
         });
         
@@ -539,7 +527,6 @@ const EmployeeDashboard = () => {
           account_number: employeeData.account_number || '',
           account_type: employeeData.account_type || '',
           pagomovil_phone: employeeData.pagomovil_phone || '',
-          pagomovil_cedula: employeeData.pagomovil_cedula || '',
           pagomovil_bank_name: employeeData.pagomovil_bank_name || ''
         });
       }
@@ -576,8 +563,8 @@ const EmployeeDashboard = () => {
       // Validate Bank Transfer section
       const isBankTransferValid = validateBankTransfer();
       
-      // Validate PagoMóvil section if any field is filled
-      const hasPagomovilData = paymentInfoData.pagomovil_phone || paymentInfoData.pagomovil_cedula || paymentInfoData.pagomovil_bank_name;
+      // Validate PagoMóvil section if any field is filled (cedula is automatically from KYC)
+      const hasPagomovilData = paymentInfoData.pagomovil_phone || employee?.cedula || paymentInfoData.pagomovil_bank_name;
       const isPagomovilValid = hasPagomovilData ? validatePagomovil() : true;
       
       if (!isBankTransferValid || !isPagomovilValid) {
@@ -597,7 +584,7 @@ const EmployeeDashboard = () => {
           account_number: paymentInfoData.account_number || null,
           account_type: paymentInfoData.account_type || null,
           pagomovil_phone: paymentInfoData.pagomovil_phone || null,
-          pagomovil_cedula: paymentInfoData.pagomovil_cedula || null,
+          pagomovil_cedula: employee?.cedula || null, // Use KYC cedula automatically
           pagomovil_bank_name: paymentInfoData.pagomovil_bank_name || null,
           updated_at: new Date().toISOString()
         })
@@ -614,7 +601,7 @@ const EmployeeDashboard = () => {
         account_number: paymentInfoData.account_number,
         account_type: paymentInfoData.account_type,
         pagomovil_phone: paymentInfoData.pagomovil_phone,
-        pagomovil_cedula: paymentInfoData.pagomovil_cedula,
+        pagomovil_cedula: employee?.cedula || null, // Use KYC cedula automatically
         pagomovil_bank_name: paymentInfoData.pagomovil_bank_name
       } : null);
 
@@ -716,8 +703,8 @@ const EmployeeDashboard = () => {
         throw new Error(t('employee.error.noEmployee'));
       }
 
-      // Validate PagoMóvil section if any field is filled
-      const hasAny = !!(paymentInfoData.pagomovil_phone || paymentInfoData.pagomovil_cedula || paymentInfoData.pagomovil_bank_name);
+      // Validate PagoMóvil section if any field is filled (cedula is automatically from KYC)
+      const hasAny = !!(paymentInfoData.pagomovil_phone || employee?.cedula || paymentInfoData.pagomovil_bank_name);
       if (hasAny) {
         // Run full validation
         const isPagomovilValid = validatePagomovil();
@@ -734,7 +721,7 @@ const EmployeeDashboard = () => {
       // Build payload; we will drop missing columns if PostgREST reports them
       let payload: Record<string, any> = {
         pagomovil_phone: paymentInfoData.pagomovil_phone || null,
-        pagomovil_cedula: paymentInfoData.pagomovil_cedula || null,
+        pagomovil_cedula: employee?.cedula || null, // Use KYC cedula automatically
         updated_at: new Date().toISOString(),
       };
       if (paymentInfoData.pagomovil_bank_name) payload.pagomovil_bank_name = paymentInfoData.pagomovil_bank_name;
@@ -777,7 +764,7 @@ const EmployeeDashboard = () => {
       setEmployee(prev => (prev ? {
         ...prev,
         pagomovil_phone: paymentInfoData.pagomovil_phone,
-        pagomovil_cedula: paymentInfoData.pagomovil_cedula,
+        pagomovil_cedula: employee?.cedula || null, // Use KYC cedula automatically
         pagomovil_bank_name: paymentInfoData.pagomovil_bank_name,
       } : null));
 
@@ -822,7 +809,6 @@ const EmployeeDashboard = () => {
       setPaymentInfoData(prev => ({
         ...prev,
         pagomovil_phone: employee.pagomovil_phone || '',
-        pagomovil_cedula: employee.pagomovil_cedula || '',
         pagomovil_bank_name: employee.pagomovil_bank_name || ''
       }));
     }
@@ -830,7 +816,6 @@ const EmployeeDashboard = () => {
     setValidationErrors(prev => ({
       ...prev,
       pagomovil_phone: '',
-      pagomovil_cedula: '',
       pagomovil_bank_name: ''
     }));
     setIsEditingPagomovil(false);
@@ -2084,8 +2069,8 @@ const EmployeeDashboard = () => {
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold">{language === 'en' ? 'Pago Móvil' : 'Pago Móvil'}</h3>
                 <div className="flex items-center space-x-3">
-                  <Badge variant={employee?.pagomovil_phone && employee?.pagomovil_cedula && employee?.pagomovil_bank_name ? "default" : "secondary"}>
-                    {employee?.pagomovil_phone && employee?.pagomovil_cedula && employee?.pagomovil_bank_name ? 
+                  <Badge variant={employee?.pagomovil_phone && employee?.cedula && employee?.pagomovil_bank_name ? "default" : "secondary"}>
+                    {employee?.pagomovil_phone && employee?.cedula && employee?.pagomovil_bank_name ? 
                       (language === 'en' ? 'Configured' : 'Configurado') : 
                       (language === 'en' ? 'Not Set' : 'No Configurado')
                     }
@@ -2114,9 +2099,18 @@ const EmployeeDashboard = () => {
                     </div>
                   </div>
                   <div>
-                    <Label className="text-sm font-medium">{language === 'en' ? 'Cédula' : 'Cédula'}</Label>
-                    <div className="mt-1 p-3 border rounded-lg bg-muted/50">
-                      {employee?.pagomovil_cedula || (language === 'en' ? 'Not provided' : 'No proporcionado')}
+                    <Label className="text-sm font-medium">{language === 'en' ? 'Cédula (from ID document)' : 'Cédula (del documento de identidad)'}</Label>
+                    <div className="mt-1 p-3 border rounded-lg bg-green-50 border-green-200">
+                      <div className="flex items-center space-x-2">
+                        <span className="text-green-700 font-medium">
+                          {employee?.cedula || (language === 'en' ? 'No ID document uploaded' : 'No se ha subido documento de identidad')}
+                        </span>
+                        {employee?.cedula && (
+                          <span className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded">
+                            ✓ {language === 'en' ? 'Verified' : 'Verificado'}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <div>
@@ -2163,44 +2157,24 @@ const EmployeeDashboard = () => {
                       )}
                     </div>
                     <div>
-                      <Label className="text-sm font-medium">{language === 'en' ? 'Cédula' : 'Cédula'}</Label>
-                      <Input
-                        value={paymentInfoData.pagomovil_cedula}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          // Only allow E, V, and numeric characters (max 9 characters total: 1 letter + 8 digits)
-                          let filteredValue = value;
-                          if (value.length === 0) {
-                            filteredValue = '';
-                          } else if (value.length === 1) {
-                            // First character must be E or V
-                            filteredValue = (value.toUpperCase() === 'E' || value.toUpperCase() === 'V') ? value.toUpperCase() : '';
-                          } else {
-                            // First character E or V, rest only digits (max 8 digits)
-                            const firstChar = value[0].toUpperCase();
-                            if (firstChar === 'E' || firstChar === 'V') {
-                              const digits = value.slice(1).replace(/[^0-9]/g, '').slice(0, 8);
-                              filteredValue = firstChar + digits;
-                            } else {
-                              filteredValue = '';
-                            }
-                          }
-                          setPaymentInfoData(prev => ({ ...prev, pagomovil_cedula: filteredValue }));
-                          
-                          // Real-time validation
-                          const error = validatePagomovilCedula(filteredValue);
-                          setValidationErrors(prev => ({ ...prev, pagomovil_cedula: error }));
-                        }}
-                        placeholder={language === 'en' ? 'E12345678' : 'E12345678'}
-                        className={`mt-1 ${validationErrors.pagomovil_cedula ? 'border-red-500' : ''}`}
-                      />
-                      {validationErrors.pagomovil_cedula ? (
-                        <p className="text-xs text-red-500 mt-1">{validationErrors.pagomovil_cedula}</p>
-                      ) : (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {language === 'en' ? 'Start with E or V, 6-8 digits' : 'Comienza con E o V, 6-8 dígitos'}
-                        </p>
-                      )}
+                      <Label className="text-sm font-medium">{language === 'en' ? 'Cédula (from ID document)' : 'Cédula (del documento de identidad)'}</Label>
+                      <div className="mt-1 p-3 border rounded-lg bg-green-50 border-green-200">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-green-700 font-medium">
+                            {employee?.cedula || (language === 'en' ? 'No ID document uploaded' : 'No se ha subido documento de identidad')}
+                          </span>
+                          {employee?.cedula && (
+                            <span className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded">
+                              ✓ {language === 'en' ? 'Verified' : 'Verificado'}
+                            </span>
+                          )}
+                        </div>
+                        {!employee?.cedula && (
+                          <p className="text-xs text-amber-600 mt-1">
+                            {language === 'en' ? 'Upload your ID document first to enable PagoMóvil' : 'Sube tu documento de identidad primero para habilitar PagoMóvil'}
+                          </p>
+                        )}
+                      </div>
                     </div>
                     <div>
                       <Label className="text-sm font-medium">{language === 'en' ? 'Bank Name' : 'Nombre del Banco'}</Label>
