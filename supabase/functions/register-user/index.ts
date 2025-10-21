@@ -198,6 +198,7 @@ serve(async (req) => {
           auth_user_id: authUser.user.id,
           name: companyData?.name || '',
           rif: companyData?.rif || '',
+          email: email.toLowerCase(), // Store the email in companies table
           address: companyData?.address || '',
           phone: companyData?.phone || '',
           rif_image_url: companyData?.rif_image_url || null,

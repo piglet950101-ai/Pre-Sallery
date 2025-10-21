@@ -34,16 +34,27 @@ const Login = () => {
       const { data: companyData } = await supabase
         .from('companies')
         .select('id')
-        .eq('email', email)
+        .eq('email', email.toLowerCase())
         .maybeSingle();
       
       if (companyData) return true;
+      
+      // If no company found with email in companies table, check companies_with_auth view
+      if (!companyData) {
+        const { data: companyWithAuthData } = await supabase
+          .from('companies_with_auth')
+          .select('id')
+          .eq('auth_email', email.toLowerCase())
+          .maybeSingle();
+        
+        if (companyWithAuthData) return true;
+      }
       
       // Check in employees table
       const { data: employeeData } = await supabase
         .from('employees')
         .select('id')
-        .eq('email', email)
+        .eq('email', email.toLowerCase())
         .maybeSingle();
       
       if (employeeData) return true;
@@ -63,43 +74,52 @@ const Login = () => {
       // First, try normal login
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       
-      // If login fails with "Invalid login credentials", check if employee exists in database
+      // If login fails with "Invalid login credentials", check if user exists in database
       if (error && error.message.includes('Invalid login credentials')) {
-        // Check if this email exists in employees table
-        const { data: employeeData, error: employeeError } = await supabase
-          .from('employees')
-          .select('id, first_name, last_name, company_id, auth_user_id')
-          .eq('email', email)
+        // First check if this email exists in companies table
+        const { data: companyData, error: companyError } = await supabase
+          .from('companies')
+          .select('id, auth_user_id, email')
+          .eq('email', email.toLowerCase())
           .maybeSingle();
 
-        if (employeeError) {
+        if (companyError) {
           throw error; // Throw original auth error
         }
 
-        // If employee exists but has no auth_user_id, create auth account
-        if (employeeData && !employeeData.auth_user_id) {
+        // If no company found with email in companies table, check companies_with_auth view
+        let finalCompanyData = companyData;
+        if (!companyData) {
+          const { data: companyWithAuthData, error: companyWithAuthError } = await supabase
+            .from('companies_with_auth')
+            .select('id, auth_user_id, auth_email')
+            .eq('auth_email', email.toLowerCase())
+            .maybeSingle();
+          
+          if (companyWithAuthError) {
+            throw error; // Throw original auth error
+          }
+          
+          if (companyWithAuthData) {
+            finalCompanyData = {
+              id: companyWithAuthData.id,
+              auth_user_id: companyWithAuthData.auth_user_id,
+              email: companyWithAuthData.auth_email
+            };
+          }
+        }
+
+        // If company exists but has no auth_user_id, create auth account
+        if (finalCompanyData && !finalCompanyData.auth_user_id) {
           try {
-            // Get the full employee data including must_change_password flag
-            const { data: fullEmployeeData, error: fullEmployeeError } = await supabase
-              .from('employees')
-              .select('must_change_password')
-              .eq('id', employeeData.id)
-              .single();
-
-            if (fullEmployeeError) {
-              throw error; // Throw original auth error
-            }
-
-            // Create auth user for the employee
+            // Create auth user for the company
             const { data: authData, error: authError } = await supabase.auth.signUp({
               email: email,
               password: password,
               options: {
                 data: {
-                  role: 'employee',
-                  employee_id: employeeData.id,
-                  company_id: employeeData.company_id,
-                  must_change_password: fullEmployeeData.must_change_password || false
+                  role: 'company',
+                  company_id: companyData.id
                 }
               }
             });
@@ -109,15 +129,13 @@ const Login = () => {
             }
 
             if (authData.user) {
-              // Update employee record with auth_user_id (don't change must_change_password)
+              // Update company record with auth_user_id
               const { error: updateError } = await supabase
-                .from('employees')
+                .from('companies')
                 .update({
-                  auth_user_id: authData.user.id,
-                  is_active: true,
-                  is_verified: true
+                  auth_user_id: authData.user.id
                 })
-                .eq('id', employeeData.id);
+                .eq('id', companyData.id);
 
               if (updateError) {
                 throw error; // Throw original auth error
@@ -135,8 +153,87 @@ const Login = () => {
           } catch (createError) {
             throw error; // Throw original auth error
           }
+        } else if (finalCompanyData && finalCompanyData.auth_user_id) {
+          // Company exists with auth account, but password is wrong - show proper error
+          throw error; // This will show "Invalid login credentials" which is correct
         } else {
-          throw error; // Throw original auth error
+          // No company found, check employees table
+          const { data: employeeData, error: employeeError } = await supabase
+            .from('employees')
+            .select('id, first_name, last_name, company_id, auth_user_id')
+            .eq('email', email.toLowerCase())
+            .maybeSingle();
+
+          if (employeeError) {
+            throw error; // Throw original auth error
+          }
+
+          // If employee exists but has no auth_user_id, create auth account
+          if (employeeData && !employeeData.auth_user_id) {
+            try {
+              // Get the full employee data including must_change_password flag
+              const { data: fullEmployeeData, error: fullEmployeeError } = await supabase
+                .from('employees')
+                .select('must_change_password')
+                .eq('id', employeeData.id)
+                .single();
+
+              if (fullEmployeeError) {
+                throw error; // Throw original auth error
+              }
+
+              // Create auth user for the employee
+              const { data: authData, error: authError } = await supabase.auth.signUp({
+                email: email,
+                password: password,
+                options: {
+                  data: {
+                    role: 'employee',
+                    employee_id: employeeData.id,
+                    company_id: employeeData.company_id,
+                    must_change_password: fullEmployeeData.must_change_password || false
+                  }
+                }
+              });
+
+              if (authError) {
+                throw error; // Throw original auth error
+              }
+
+              if (authData.user) {
+                // Update employee record with auth_user_id (don't change must_change_password)
+                const { error: updateError } = await supabase
+                  .from('employees')
+                  .update({
+                    auth_user_id: authData.user.id,
+                    is_active: true,
+                    is_verified: true
+                  })
+                  .eq('id', employeeData.id);
+
+                if (updateError) {
+                  throw error; // Throw original auth error
+                }
+
+                // Now try to sign in with the newly created account
+                const { data: newData, error: newError } = await supabase.auth.signInWithPassword({ email, password });
+                if (newError) throw newError;
+                
+                // Use the new data for the rest of the login process
+                const data = newData;
+              } else {
+                throw error; // Throw original auth error
+              }
+            } catch (createError) {
+              throw error; // Throw original auth error
+            }
+          } else if (employeeData && employeeData.auth_user_id) {
+            // Employee exists with auth account, but password is wrong - show proper error
+            throw error; // This will show "Invalid login credentials" which is correct
+          } else {
+            // No employee found either - show "Email Not Found" error
+            throw error; // This will show "Invalid login credentials" which is correct
+          }
         }
       } else if (error) {
         throw error;
