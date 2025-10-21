@@ -202,8 +202,9 @@ const EmployeeDashboard = () => {
 
   // Validate PagoMóvil section
   const validatePagomovil = () => {
+    const phoneToValidate = paymentInfoData.pagomovil_phone || employee?.phone || '';
     const errors = {
-      pagomovil_phone: validatePagomovilPhone(paymentInfoData.pagomovil_phone),
+      pagomovil_phone: validatePagomovilPhone(phoneToValidate),
       pagomovil_cedula: validatePagomovilCedula(employee?.cedula || ''), // Use KYC cedula instead of manual input
       pagomovil_bank_name: validatePagomovilBankName(paymentInfoData.pagomovil_bank_name)
     };
@@ -354,7 +355,7 @@ const EmployeeDashboard = () => {
           bank_name: employeeData.bank_name || '',
           account_number: employeeData.account_number || '',
           account_type: employeeData.account_type || '',
-          pagomovil_phone: employeeData.pagomovil_phone || '',
+          pagomovil_phone: employeeData.pagomovil_phone || employeeData.phone || '', // Use employee phone as default
           pagomovil_bank_name: employeeData.pagomovil_bank_name || ''
         });
         
@@ -526,7 +527,7 @@ const EmployeeDashboard = () => {
           bank_name: employeeData.bank_name || '',
           account_number: employeeData.account_number || '',
           account_type: employeeData.account_type || '',
-          pagomovil_phone: employeeData.pagomovil_phone || '',
+          pagomovil_phone: employeeData.pagomovil_phone || employeeData.phone || '', // Use employee phone as default
           pagomovil_bank_name: employeeData.pagomovil_bank_name || ''
         });
       }
@@ -563,8 +564,8 @@ const EmployeeDashboard = () => {
       // Validate Bank Transfer section
       const isBankTransferValid = validateBankTransfer();
       
-      // Validate PagoMóvil section if any field is filled (cedula is automatically from KYC)
-      const hasPagomovilData = paymentInfoData.pagomovil_phone || employee?.cedula || paymentInfoData.pagomovil_bank_name;
+      // Validate PagoMóvil section if any field is filled (cedula is automatically from KYC, phone can be employee phone)
+      const hasPagomovilData = (paymentInfoData.pagomovil_phone || employee?.phone) || employee?.cedula || paymentInfoData.pagomovil_bank_name;
       const isPagomovilValid = hasPagomovilData ? validatePagomovil() : true;
       
       if (!isBankTransferValid || !isPagomovilValid) {
@@ -583,7 +584,7 @@ const EmployeeDashboard = () => {
           bank_name: paymentInfoData.bank_name || null,
           account_number: paymentInfoData.account_number || null,
           account_type: paymentInfoData.account_type || null,
-          pagomovil_phone: paymentInfoData.pagomovil_phone || null,
+          pagomovil_phone: paymentInfoData.pagomovil_phone || employee?.phone || null, // Use employee phone as default
           pagomovil_cedula: employee?.cedula || null, // Use KYC cedula automatically
           pagomovil_bank_name: paymentInfoData.pagomovil_bank_name || null,
           updated_at: new Date().toISOString()
@@ -600,7 +601,7 @@ const EmployeeDashboard = () => {
         bank_name: paymentInfoData.bank_name,
         account_number: paymentInfoData.account_number,
         account_type: paymentInfoData.account_type,
-        pagomovil_phone: paymentInfoData.pagomovil_phone,
+        pagomovil_phone: paymentInfoData.pagomovil_phone || employee?.phone || null, // Use employee phone as default
         pagomovil_cedula: employee?.cedula || null, // Use KYC cedula automatically
         pagomovil_bank_name: paymentInfoData.pagomovil_bank_name
       } : null);
@@ -703,8 +704,8 @@ const EmployeeDashboard = () => {
         throw new Error(t('employee.error.noEmployee'));
       }
 
-      // Validate PagoMóvil section if any field is filled (cedula is automatically from KYC)
-      const hasAny = !!(paymentInfoData.pagomovil_phone || employee?.cedula || paymentInfoData.pagomovil_bank_name);
+      // Validate PagoMóvil section if any field is filled (cedula is automatically from KYC, phone can be employee phone)
+      const hasAny = !!((paymentInfoData.pagomovil_phone || employee?.phone) || employee?.cedula || paymentInfoData.pagomovil_bank_name);
       if (hasAny) {
         // Run full validation
         const isPagomovilValid = validatePagomovil();
@@ -720,7 +721,7 @@ const EmployeeDashboard = () => {
 
       // Build payload; we will drop missing columns if PostgREST reports them
       let payload: Record<string, any> = {
-        pagomovil_phone: paymentInfoData.pagomovil_phone || null,
+        pagomovil_phone: paymentInfoData.pagomovil_phone || employee?.phone || null, // Use employee phone as default
         pagomovil_cedula: employee?.cedula || null, // Use KYC cedula automatically
         updated_at: new Date().toISOString(),
       };
@@ -763,7 +764,7 @@ const EmployeeDashboard = () => {
 
       setEmployee(prev => (prev ? {
         ...prev,
-        pagomovil_phone: paymentInfoData.pagomovil_phone,
+        pagomovil_phone: paymentInfoData.pagomovil_phone || employee?.phone || null, // Use employee phone as default
         pagomovil_cedula: employee?.cedula || null, // Use KYC cedula automatically
         pagomovil_bank_name: paymentInfoData.pagomovil_bank_name,
       } : null));
@@ -808,7 +809,7 @@ const EmployeeDashboard = () => {
     if (employee) {
       setPaymentInfoData(prev => ({
         ...prev,
-        pagomovil_phone: employee.pagomovil_phone || '',
+        pagomovil_phone: employee.pagomovil_phone || employee.phone || '', // Use employee phone as default
         pagomovil_bank_name: employee.pagomovil_bank_name || ''
       }));
     }
@@ -2069,8 +2070,8 @@ const EmployeeDashboard = () => {
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold">{language === 'en' ? 'Pago Móvil' : 'Pago Móvil'}</h3>
                 <div className="flex items-center space-x-3">
-                  <Badge variant={employee?.pagomovil_phone && employee?.cedula && employee?.pagomovil_bank_name ? "default" : "secondary"}>
-                    {employee?.pagomovil_phone && employee?.cedula && employee?.pagomovil_bank_name ? 
+                  <Badge variant={(employee?.pagomovil_phone || employee?.phone) && employee?.cedula && employee?.pagomovil_bank_name ? "default" : "secondary"}>
+                    {(employee?.pagomovil_phone || employee?.phone) && employee?.cedula && employee?.pagomovil_bank_name ? 
                       (language === 'en' ? 'Configured' : 'Configurado') : 
                       (language === 'en' ? 'Not Set' : 'No Configurado')
                     }
@@ -2095,7 +2096,7 @@ const EmployeeDashboard = () => {
                   <div>
                     <Label className="text-sm font-medium">{language === 'en' ? 'Phone Number' : 'Número de Teléfono'}</Label>
                     <div className="mt-1 p-3 border rounded-lg bg-muted/50">
-                      {employee?.pagomovil_phone || (language === 'en' ? 'Not provided' : 'No proporcionado')}
+                      {employee?.pagomovil_phone || employee?.phone || (language === 'en' ? 'Not provided' : 'No proporcionado')}
                     </div>
                   </div>
                   <div>
