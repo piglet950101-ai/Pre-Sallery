@@ -1,6 +1,7 @@
 import { ReactNode, useEffect, useState } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth, getUserRole, getActualUserRole } from "@/contexts/AuthContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import InlinePermissionError from "./InlinePermissionError";
 import { supabase } from "@/lib/supabase";
 
@@ -13,6 +14,7 @@ interface CompanyStatus {
 
 const ProtectedRoute = ({ children, role }: { children: ReactNode; role?: string }) => {
   const { user, isLoading } = useAuth();
+  const { t } = useLanguage();
   const location = useLocation();
   const [actualUserRole, setActualUserRole] = useState<string | null>(null);
   const [isCheckingRole, setIsCheckingRole] = useState(false);
@@ -90,7 +92,7 @@ const ProtectedRoute = ({ children, role }: { children: ReactNode; role?: string
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading...</p>
+          <p className="text-muted-foreground">{t('common.loading')}</p>
         </div>
       </div>
     );

@@ -2012,7 +2012,45 @@ const CompanyDashboard = () => {
 
       const employee = newEmployeeData[0]; // Get the first (and only) employee from the array
 
-      // Note: Auth user will be created automatically when employee tries to login for the first time
+      // Create auth user for the employee
+      try {
+        // Store current user session to restore later
+        const { data: { session: currentSession } } = await supabase.auth.getSession();
+
+        // Create auth user for the employee using edge function
+        const { data: authResult, error: authError } = await supabase.functions.invoke('create-employee-auth', {
+          body: {
+            email: employeeEmail,
+            password: 'pre123456', // Default password that employee must change
+            employee_id: employee.id,
+            company_id: companyData.id
+          }
+        });
+
+        if (authError) {
+          console.error('Error creating auth user:', authError);
+          // Don't throw error here - employee record was created successfully
+          // The employee can still be activated manually later
+        } else if (authResult?.success && authResult?.user) {
+          // Update employee record with auth_user_id
+          const { error: updateError } = await supabase
+            .from('employees')
+            .update({ auth_user_id: authResult.user.id })
+            .eq('id', employee.id);
+
+          if (updateError) {
+            console.error('Error updating employee with auth_user_id:', updateError);
+          }
+        }
+
+        // Restore original session
+        if (currentSession) {
+          await supabase.auth.setSession(currentSession);
+        }
+      } catch (authError) {
+        console.error('Error in auth user creation process:', authError);
+        // Don't throw error - employee record was created successfully
+      }
 
       // Create employee fee record ($1 monthly registration fee)
       const currentDate = new Date();
@@ -5275,7 +5313,7 @@ const CompanyDashboard = () => {
                   
                   <Card className="border-none shadow-elegant">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">Approved</CardTitle>
+                      <CardTitle className="text-sm font-medium">{t('employee.changeRequests.approved')}</CardTitle>
                       <CheckCircle className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
@@ -5323,7 +5361,7 @@ const CompanyDashboard = () => {
                         <div className="relative">
                           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                           <Input
-                            placeholder="Search change requests..."
+                            placeholder={t('employee.changeRequests.searchPlaceholder')}
                             className="pl-10"
                             value={changeRequestSearch}
                             onChange={(e) => setChangeRequestSearch(e.target.value)}
@@ -5333,26 +5371,26 @@ const CompanyDashboard = () => {
                       
                       <Select value={changeRequestStatus} onValueChange={setChangeRequestStatus}>
                         <SelectTrigger className="w-48">
-                          <SelectValue placeholder="Filter by Status" />
+                          <SelectValue placeholder={t('employee.changeRequests.filterByStatus')} />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="all">All Status</SelectItem>
-                          <SelectItem value="pending">Pending</SelectItem>
-                          <SelectItem value="approved">Approved</SelectItem>
-                          <SelectItem value="rejected">Rejected</SelectItem>
+                          <SelectItem value="all">{t('employee.changeRequests.allStatus')}</SelectItem>
+                          <SelectItem value="pending">{t('employee.changeRequests.pending')}</SelectItem>
+                          <SelectItem value="approved">{t('employee.changeRequests.approved')}</SelectItem>
+                          <SelectItem value="rejected">{t('employee.changeRequests.rejected')}</SelectItem>
                         </SelectContent>
                       </Select>
                       
                       <Select value={changeRequestCategory} onValueChange={setChangeRequestCategory}>
                         <SelectTrigger className="w-48">
-                          <SelectValue placeholder="Filter by Category" />
+                          <SelectValue placeholder={t('employee.changeRequests.filterByCategory')} />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="all">All Categories</SelectItem>
-                          <SelectItem value="profile">Profile</SelectItem>
-                          <SelectItem value="financial">Financial</SelectItem>
-                          <SelectItem value="personal">Personal</SelectItem>
-                          <SelectItem value="contact">Contact</SelectItem>
+                          <SelectItem value="all">{t('employee.changeRequests.allCategories')}</SelectItem>
+                          <SelectItem value="profile">{t('employee.changeRequests.profile')}</SelectItem>
+                          <SelectItem value="financial">{t('employee.changeRequests.financial')}</SelectItem>
+                          <SelectItem value="personal">{t('employee.changeRequests.personal')}</SelectItem>
+                          <SelectItem value="contact">{t('employee.changeRequests.contact')}</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -5363,14 +5401,14 @@ const CompanyDashboard = () => {
                       <div className="flex items-center justify-center py-8">
                         <div className="text-center">
                           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-                          <p className="text-muted-foreground">Loading change requests...</p>
+                          <p className="text-muted-foreground">{t('employee.changeRequests.loadingRequests')}</p>
                         </div>
                       </div>
                     ) : changeRequests.length === 0 ? (
                       <div className="text-center py-8">
                         <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                        <h3 className="text-lg font-semibold mb-2">No change requests found</h3>
-                        <p className="text-muted-foreground">Employees haven't submitted any change requests yet.</p>
+                        <h3 className="text-lg font-semibold mb-2">{t('employee.changeRequests.noRequestsFound')}</h3>
+                        <p className="text-muted-foreground">{t('employee.changeRequests.noRequestsFoundDesc')}</p>
                       </div>
                     ) : (
                       <div className="space-y-4">

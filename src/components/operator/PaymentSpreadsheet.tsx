@@ -265,7 +265,7 @@ const PaymentSpreadsheet: React.FC = () => {
         <CardContent>
           {paymentRequests.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              {isLoading ? 'Loading...' : 'No approved payment requests found'}
+              {isLoading ? t('common.loading') : t('common.noPaymentRequests')}
             </div>
           ) : (
             <div className="print-content">

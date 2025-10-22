@@ -30,25 +30,14 @@ const Login = () => {
   // Helper function to check if email exists in any role table
   const checkEmailExists = async (email: string) => {
     try {
-      // Check in companies table
-      const { data: companyData } = await supabase
-        .from('companies')
+      // Check in companies_with_auth view for company emails
+      const { data: companyWithAuthData } = await supabase
+        .from('companies_with_auth')
         .select('id')
-        .eq('email', email.toLowerCase())
+        .eq('auth_email', email.toLowerCase())
         .maybeSingle();
       
-      if (companyData) return true;
-      
-      // If no company found with email in companies table, check companies_with_auth view
-      if (!companyData) {
-        const { data: companyWithAuthData } = await supabase
-          .from('companies_with_auth')
-          .select('id')
-          .eq('auth_email', email.toLowerCase())
-          .maybeSingle();
-        
-        if (companyWithAuthData) return true;
-      }
+      if (companyWithAuthData) return true;
       
       // Check in employees table
       const { data: employeeData } = await supabase
@@ -76,37 +65,24 @@ const Login = () => {
       
       // If login fails with "Invalid login credentials", check if user exists in database
       if (error && error.message.includes('Invalid login credentials')) {
-        // First check if this email exists in companies table
-        const { data: companyData, error: companyError } = await supabase
-          .from('companies')
-          .select('id, auth_user_id, email')
-          .eq('email', email.toLowerCase())
+        // Check if this email exists in companies_with_auth view
+        const { data: companyWithAuthData, error: companyWithAuthError } = await supabase
+          .from('companies_with_auth')
+          .select('id, auth_user_id, auth_email')
+          .eq('auth_email', email.toLowerCase())
           .maybeSingle();
-
-        if (companyError) {
+        
+        if (companyWithAuthError) {
           throw error; // Throw original auth error
         }
-
-        // If no company found with email in companies table, check companies_with_auth view
-        let finalCompanyData = companyData;
-        if (!companyData) {
-          const { data: companyWithAuthData, error: companyWithAuthError } = await supabase
-            .from('companies_with_auth')
-            .select('id, auth_user_id, auth_email')
-            .eq('auth_email', email.toLowerCase())
-            .maybeSingle();
-          
-          if (companyWithAuthError) {
-            throw error; // Throw original auth error
-          }
-          
-          if (companyWithAuthData) {
-            finalCompanyData = {
-              id: companyWithAuthData.id,
-              auth_user_id: companyWithAuthData.auth_user_id,
-              email: companyWithAuthData.auth_email
-            };
-          }
+        
+        let finalCompanyData = null;
+        if (companyWithAuthData) {
+          finalCompanyData = {
+            id: companyWithAuthData.id,
+            auth_user_id: companyWithAuthData.auth_user_id,
+            email: companyWithAuthData.auth_email
+          };
         }
 
         // If company exists but has no auth_user_id, create auth account
@@ -119,7 +95,7 @@ const Login = () => {
               options: {
                 data: {
                   role: 'company',
-                  company_id: companyData.id
+                  company_id: finalCompanyData.id
                 }
               }
             });
@@ -135,7 +111,7 @@ const Login = () => {
                 .update({
                   auth_user_id: authData.user.id
                 })
-                .eq('id', companyData.id);
+                .eq('id', finalCompanyData.id);
 
               if (updateError) {
                 throw error; // Throw original auth error

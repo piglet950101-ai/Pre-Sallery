@@ -1,6 +1,7 @@
 import { ReactNode, useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/lib/supabase";
 
 interface PublicRouteProps {
@@ -10,6 +11,7 @@ interface PublicRouteProps {
 // Renders children only when NOT authenticated. If authenticated, redirect to the right dashboard
 const PublicRoute = ({ children }: PublicRouteProps) => {
   const { user, isLoading } = useAuth();
+  const { t } = useLanguage();
   const [redirectPath, setRedirectPath] = useState<string | null>(null);
 
   useEffect(() => {
@@ -81,7 +83,7 @@ const PublicRoute = ({ children }: PublicRouteProps) => {
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading...</p>
+          <p className="text-muted-foreground">{t('common.loading')}</p>
         </div>
       </div>
     );
