@@ -192,16 +192,15 @@ export const EmployeeBulkUpload: React.FC<EmployeeBulkUploadProps> = ({ onUpload
             continue;
           }
 
-          // Check for duplicate cedula
+          // Check for duplicate cedula across all companies
           const { data: existingByCedula } = await supabase
             .from("employees")
-            .select("id")
-            .eq("company_id", companyData.id)
+            .select("id, first_name, last_name")
             .eq("cedula", row.cedula)
             .limit(1);
 
           if (existingByCedula && existingByCedula.length > 0) {
-            errors.push(`Row ${row.rowNumber}: Cedula ${row.cedula} already exists`);
+            errors.push(`Row ${row.rowNumber}: Cedula ${row.cedula} already exists for ${existingByCedula[0].first_name} ${existingByCedula[0].last_name}`);
             errorCount++;
             continue;
           }

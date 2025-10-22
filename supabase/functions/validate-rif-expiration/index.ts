@@ -49,6 +49,15 @@ async function extractTextFromFile(fileContent: string, fileType: string) {
     }
     
   } catch (error) {
+    // Handle specific error types
+    if (error.name === 'AbortError') {
+      throw new Error('OCR processing timed out. Please try again with a smaller file or different image.');
+    }
+    
+    if (error.message.includes('rate limit') || error.message.includes('quota')) {
+      throw new Error('OCR service is temporarily unavailable due to high usage. Please try again later.');
+    }
+    
     // For PDFs, provide more specific error message
     if (fileType === 'application/pdf') {
       throw new Error(`PDF OCR processing failed: ${error.message}. The PDF may be scanned as an image or contain unreadable text.`);
@@ -78,10 +87,17 @@ async function performWebOCR(fileContent: string, fileType: string) {
       formData.append('base64Image', `data:${fileType};base64,${fileContent}`);
     }
     
+    // Add timeout to prevent hanging
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+    
     const response = await fetch(apiUrl, {
-    method: 'POST',
-      body: formData
+      method: 'POST',
+      body: formData,
+      signal: controller.signal
     });
+    
+    clearTimeout(timeoutId);
   
   if (!response.ok) {
       const errorText = await response.text();
@@ -489,6 +505,12 @@ serve(async (req) => {
   });
   }
   
+  // Add overall timeout to prevent hanging
+  const overallTimeout = new Promise((_, reject) => {
+    setTimeout(() => reject(new Error('Function timeout - processing took too long')), 60000); // 60 second overall timeout
+  });
+  
+  const processRequest = async () => {
   try {
     let requestBody;
     try {
@@ -708,7 +730,7 @@ serve(async (req) => {
           request_id: requestId,
           processing_timestamp: new Date().toISOString()
         }), {
-          status: 500,
+          status: 200,
           headers: {
             "Content-Type": "application/json",
             ...cors()
@@ -724,7 +746,7 @@ serve(async (req) => {
       request_id: requestId,
       processing_timestamp: new Date().toISOString()
     }), {
-      status: 400,
+      status: 200,
       headers: {
         "Content-Type": "application/json",
         ...cors()
@@ -738,7 +760,26 @@ serve(async (req) => {
       message: "Error interno del servidor. Intenta nuevamente.",
       processing_timestamp: new Date().toISOString()
     }), {
-      status: 500,
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+        ...cors()
+      }
+    });
+  }
+  };
+  
+  // Race between processing and timeout
+  try {
+    return await Promise.race([processRequest(), overallTimeout]);
+  } catch (error) {
+    return new Response(JSON.stringify({
+      success: false,
+      error: "Processing timeout",
+      message: "El procesamiento tardó demasiado. Intenta con una imagen más pequeña o diferente.",
+      processing_timestamp: new Date().toISOString()
+    }), {
+      status: 200,
       headers: {
         "Content-Type": "application/json",
         ...cors()

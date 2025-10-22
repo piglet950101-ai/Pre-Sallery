@@ -1,4 +1,4 @@
-import { Button } from "@/components/ui/button";
+import Logo from "@/components/Logo";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -96,10 +96,7 @@ const Privacy = () => {
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <Link to="/" className="flex items-center space-x-2">
-              <div className="h-8 w-8 bg-gradient-primary rounded-lg flex items-center justify-center">
-                <DollarSign className="h-5 w-5 text-white" />
-              </div>
-              <span className="text-xl font-bold text-foreground">nominero.com</span>
+              <Logo size="lg" variant="dark" />
             </Link>
             <div className="flex items-center space-x-3">
               <LanguageSwitcher />

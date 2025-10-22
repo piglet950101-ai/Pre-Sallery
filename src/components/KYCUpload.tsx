@@ -81,7 +81,6 @@ async function performClientSideOCR(file: File): Promise<{
     };
     
   } catch (error) {
-    console.warn('Client-side OCR failed:', error);
     return {
       success: false,
       cedula_number: null,
@@ -92,11 +91,33 @@ async function performClientSideOCR(file: File): Promise<{
   }
 }
 
-// Basic text extraction from canvas (simplified)
+// Basic text extraction from canvas using Tesseract.js
 async function extractTextFromCanvas(canvas: HTMLCanvasElement): Promise<string> {
-  // This is a placeholder - in a real implementation you'd use Tesseract.js
-  // For now, we'll return a mock text that matches the cedula format
-  return "REPUBLICA BOLIVARIANA DE VENEZUELA CEDULA DE IDENTIDAD V 15.582.739 F.VENCIMIENTO 08/2034";
+  try {
+    // Import Tesseract.js dynamically
+    const Tesseract = await import('tesseract.js');
+    
+    // Convert canvas to blob
+    const blob = await new Promise<Blob>((resolve) => {
+      canvas.toBlob((blob) => {
+        if (blob) resolve(blob);
+      }, 'image/png');
+    });
+    
+    // Perform OCR with optimized settings for cedula documents
+    const { data: { text } } = await Tesseract.recognize(blob, 'spa', {
+      logger: m => {
+        if (m.status === 'recognizing text') {
+          // OCR progress logging removed for production
+        }
+      }
+    });
+    
+    return text;
+  } catch (error) {
+    // Fallback to server-side OCR
+    return '';
+  }
 }
 
 // Extract cedula number from text (client-side version)
@@ -199,6 +220,26 @@ export const KYCUpload = ({ userType, existingDocs = [], employeeId, onCompleted
     return documents.find(doc => doc.type === docType);
   };
 
+
+  // Check if cedula number already exists in the database
+  const checkCedulaDuplicate = async (cedulaNumber: string): Promise<boolean> => {
+    try {
+      const { data, error } = await supabase
+        .from('employees')
+        .select('id, first_name, last_name, cedula')
+        .eq('cedula', cedulaNumber)
+        .limit(1);
+
+      if (error) {
+        return false; // If error checking, allow upload
+      }
+
+      return data && data.length > 0; // Return true if cedula exists
+    } catch (error) {
+      return false; // If error checking, allow upload
+    }
+  };
+
   const handleFileUpload = async (file: File, docType: string) => {
     try {
       setUploading(docType);
@@ -222,23 +263,34 @@ export const KYCUpload = ({ userType, existingDocs = [], employeeId, onCompleted
           let extractedData = null;
           if (docType === 'cedula_front') {
             try {
+              // Show loading toast for OCR processing
+              toast({ 
+                title: t('kyc.processing'), 
+                description: 'Procesando imagen con OCR...' 
+              });
+              
               // Try client-side OCR first (Tesseract.js)
               const clientSideResult = await performClientSideOCR(file);
               
               if (clientSideResult.success && clientSideResult.cedula_number) {
+                // Check for duplicate cedula number
+                const isDuplicate = await checkCedulaDuplicate(clientSideResult.cedula_number);
+                
+                if (isDuplicate) {
+                  toast({ 
+                    title: t('kyc.cedulaDuplicate'), 
+                    description: `${t('kyc.cedulaDuplicateDesc')}: ${clientSideResult.cedula_number}`,
+                    variant: 'destructive'
+                  });
+                  return; // Don't proceed with upload if duplicate
+                }
+
                 extractedData = {
                   cedula_number: clientSideResult.cedula_number,
                   expiration_date: clientSideResult.expiration_date,
                   is_expired: clientSideResult.is_expired,
                   extracted_text: clientSideResult.extracted_text
                 };
-                
-                console.log('=== CEDULA IMAGE DATA (Client-side OCR) ===');
-                console.log('Cedula Number:', clientSideResult.cedula_number);
-                console.log('Expiration Date:', clientSideResult.expiration_date);
-                console.log('Is Expired:', clientSideResult.is_expired);
-                console.log('Extracted Text:', clientSideResult.extracted_text);
-                console.log('==========================================');
                 
                 toast({ 
                   title: t('kyc.uploaded'), 
@@ -276,7 +328,6 @@ export const KYCUpload = ({ userType, existingDocs = [], employeeId, onCompleted
                 });
                 
                 if (ocrError) {
-                  console.warn('Server-side OCR extraction failed:', ocrError);
                   toast({ 
                     title: t('kyc.uploaded'), 
                     description: 'OCR no disponible. Los datos se pueden ingresar manualmente.' 
@@ -291,6 +342,18 @@ export const KYCUpload = ({ userType, existingDocs = [], employeeId, onCompleted
                     });
                     return; // Don't proceed with upload if expired
                   }
+
+                  // Check for duplicate cedula number
+                  const isDuplicate = await checkCedulaDuplicate(ocrResult.cedula_number);
+                  
+                  if (isDuplicate) {
+                    toast({ 
+                      title: t('kyc.cedulaDuplicate'), 
+                      description: `${t('kyc.cedulaDuplicateDesc')}: ${ocrResult.cedula_number}`,
+                      variant: 'destructive'
+                    });
+                    return; // Don't proceed with upload if duplicate
+                  }
                   
                   extractedData = {
                     cedula_number: ocrResult.cedula_number,
@@ -298,14 +361,6 @@ export const KYCUpload = ({ userType, existingDocs = [], employeeId, onCompleted
                     is_expired: ocrResult.is_expired,
                     extracted_text: ocrResult.extracted_text
                   };
-                  
-                  console.log('=== CEDULA IMAGE DATA (Server-side OCR) ===');
-                  console.log('Full OCR Result:', ocrResult);
-                  console.log('Cedula Number:', ocrResult.cedula_number);
-                  console.log('Expiration Date:', ocrResult.expiration_date);
-                  console.log('Is Expired:', ocrResult.is_expired);
-                  console.log('Extracted Text:', ocrResult.extracted_text);
-                  console.log('=========================================');
                   
                   toast({ 
                     title: t('kyc.uploaded'), 
@@ -319,7 +374,6 @@ export const KYCUpload = ({ userType, existingDocs = [], employeeId, onCompleted
                 }
               }
             } catch (ocrError) {
-              console.warn('OCR processing error:', ocrError);
               toast({ title: t('kyc.uploaded'), description: t('kyc.uploadedDesc') });
             }
           } else {
@@ -342,14 +396,13 @@ export const KYCUpload = ({ userType, existingDocs = [], employeeId, onCompleted
 
       // Don't persist to database yet - wait for explicit submission
     } catch (error: any) {
-      console.error('Upload error:', error);
       toast({ title: t('common.error'), description: error?.message ?? t('common.tryAgain'), variant: 'destructive' });
     } finally {
       setUploading(null);
     }
   };
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>, docType: string) => {
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>, docType: string) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -360,6 +413,8 @@ export const KYCUpload = ({ userType, existingDocs = [], employeeId, onCompleted
         description: "El archivo debe ser menor a 5MB",
         variant: "destructive"
       });
+      // Reset file input
+      event.target.value = '';
       return;
     }
 
@@ -371,10 +426,17 @@ export const KYCUpload = ({ userType, existingDocs = [], employeeId, onCompleted
         description: "Solo se permiten archivos JPG, PNG, WEBP o PDF",
         variant: "destructive"
       });
+      // Reset file input
+      event.target.value = '';
       return;
     }
 
-    handleFileUpload(file, docType);
+    try {
+      await handleFileUpload(file, docType);
+    } finally {
+      // Always reset file input after processing (success or failure) to allow re-selecting the same file
+      event.target.value = '';
+    }
   };
 
   const getCompletionPercentage = () => {
@@ -409,16 +471,32 @@ export const KYCUpload = ({ userType, existingDocs = [], employeeId, onCompleted
       setIsSubmitting(true);
       if (!allEmployeeRequiredDone) return;
       
-      // Check for expired cedula before submission
+      // Check for expired cedula and duplicate cedula before submission
       if (userType === 'employee') {
         const frontDoc = documents.find(d => d.type === 'cedula_front');
-        if (frontDoc && frontDoc.extractedData && frontDoc.extractedData.is_expired) {
-          toast({ 
-            title: t('common.error'), 
-            description: 'Cédula vencida. No se puede proceder con el registro.',
-            variant: 'destructive'
-          });
-          return;
+        if (frontDoc && frontDoc.extractedData) {
+          // Check if cedula is expired
+          if (frontDoc.extractedData.is_expired) {
+            toast({ 
+              title: t('common.error'), 
+              description: 'Cédula vencida. No se puede proceder con el registro.',
+              variant: 'destructive'
+            });
+            return;
+          }
+
+          // Check for duplicate cedula number
+          if (frontDoc.extractedData.cedula_number) {
+            const isDuplicate = await checkCedulaDuplicate(frontDoc.extractedData.cedula_number);
+            if (isDuplicate) {
+              toast({ 
+                title: t('kyc.cedulaDuplicate'), 
+                description: `${t('kyc.cedulaDuplicateDesc')}: ${frontDoc.extractedData.cedula_number}`,
+                variant: 'destructive'
+              });
+              return;
+            }
+          }
         }
       }
       
@@ -430,21 +508,13 @@ export const KYCUpload = ({ userType, existingDocs = [], employeeId, onCompleted
           
           // If we have extracted data, also save it
           if (frontDoc.extractedData) {
-            console.log('=== SAVING CEDULA DATA TO DATABASE ===');
-            console.log('Extracted Data:', frontDoc.extractedData);
-            
             if (frontDoc.extractedData.cedula_number) {
               updateData.cedula = frontDoc.extractedData.cedula_number;
-              console.log('Setting cedula number:', frontDoc.extractedData.cedula_number);
             }
             if (frontDoc.extractedData.expiration_date) {
               // TODO: Uncomment after running the database migration
               // updateData.cedula_expiration_date = frontDoc.extractedData.expiration_date;
-              console.log('Expiration date extracted (not saved yet):', frontDoc.extractedData.expiration_date);
-              console.log('Note: Run the database migration to add cedula_expiration_date column');
             }
-            console.log('Final update data:', updateData);
-            console.log('=====================================');
           }
           
           const { error: updateError } = await supabase
@@ -452,7 +522,6 @@ export const KYCUpload = ({ userType, existingDocs = [], employeeId, onCompleted
             .update(updateData)
             .eq('id', employeeId);
           if (updateError) {
-            console.error('Failed to persist cedula data:', updateError);
             throw updateError;
           }
         }
@@ -624,10 +693,16 @@ export const KYCUpload = ({ userType, existingDocs = [], employeeId, onCompleted
                   <div
                     className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6"
                     onDragOver={(e) => e.preventDefault()}
-                    onDrop={(e) => {
+                    onDrop={async (e) => {
                       e.preventDefault();
                       const file = e.dataTransfer.files?.[0];
-                      if (file) handleFileUpload(file, docConfig.type);
+                      if (file) {
+                        try {
+                          await handleFileUpload(file, docConfig.type);
+                        } catch (error) {
+                          // Error handling is done in handleFileUpload
+                        }
+                      }
                     }}
                   >
                     {isUploading ? (

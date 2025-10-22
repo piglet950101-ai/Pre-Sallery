@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { DollarSign } from "lucide-react";
+import Logo from "@/components/Logo";
 import { Link, useNavigate } from "react-router-dom";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
@@ -268,10 +268,10 @@ const Login = () => {
         
         while (!employeeData && retryCount < maxRetries) {
           const { data: empData } = await supabase
-            .from('employees')
-            .select('id, is_active')
-            .eq('auth_user_id', userId)
-            .maybeSingle();
+          .from('employees')
+          .select('id, is_active')
+          .eq('auth_user_id', userId)
+          .maybeSingle();
           
           if (empData) {
             employeeData = empData;
@@ -320,13 +320,13 @@ const Login = () => {
           }
           
           if (!actualRole) {
-            await supabase.auth.signOut();
-            toast({
-              title: t('login.noRoleFound') ?? 'Account Not Found',
-              description: t('login.noRoleFoundDesc') ?? 'No account found for this email. Please register first.',
-              variant: 'destructive'
-            });
-            return;
+          await supabase.auth.signOut();
+          toast({
+            title: t('login.noRoleFound') ?? 'Account Not Found',
+            description: t('login.noRoleFoundDesc') ?? 'No account found for this email. Please register first.',
+            variant: 'destructive'
+          });
+          return;
           }
         }
       }
@@ -502,12 +502,11 @@ const Login = () => {
       <div className="w-full max-w-md space-y-8">
         {/* Logo */}
         <div className="text-center space-y-3">
-          <Link to="/" className="flex items-center justify-center space-x-3">
-            <div className="h-16 w-16 bg-blue-500 rounded-2xl flex items-center justify-center shadow-lg">
-              <DollarSign className="h-8 w-8 text-white" />
-            </div>
-            <span className="text-3xl font-bold text-gray-800">nominero.com</span>
-          </Link>
+          <div className="flex justify-center">
+            <Link to="/">
+              <Logo size="xl" variant="dark" />
+            </Link>
+          </div>
           <p className="text-gray-600 text-lg">{t('login.subtitle')}</p>
         </div>
 

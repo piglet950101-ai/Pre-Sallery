@@ -13,6 +13,7 @@ interface SimpleEmployeeData {
   firstName: string;
   lastName: string;
   email: string;
+  cedula?: string;
 }
 
 interface SimpleEmployeeFormProps {
@@ -28,16 +29,22 @@ export const SimpleEmployeeForm = ({ onSave, onCancel, isLoading = false }: Simp
     firstName: "",
     lastName: "",
     email: "",
+    cedula: "",
   });
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [isValidatingEmail, setIsValidatingEmail] = useState(false);
   const [emailValidationError, setEmailValidationError] = useState<string | null>(null);
+  const [isValidatingCedula, setIsValidatingCedula] = useState(false);
+  const [cedulaValidationError, setCedulaValidationError] = useState<string | null>(null);
 
   const updateField = (field: keyof SimpleEmployeeData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-    // Clear email validation error when user types
+    // Clear validation errors when user types
     if (field === 'email') {
       setEmailValidationError(null);
+    }
+    if (field === 'cedula') {
+      setCedulaValidationError(null);
     }
   };
 
@@ -103,6 +110,36 @@ export const SimpleEmployeeForm = ({ onSave, onCancel, isLoading = false }: Simp
     }
   };
 
+  const validateCedula = async (cedula: string): Promise<boolean> => {
+    if (!cedula.trim()) return true; // Cedula is optional
+
+    try {
+      setIsValidatingCedula(true);
+      setCedulaValidationError(null);
+
+      const { data, error } = await supabase
+        .from('employees')
+        .select('id, first_name, last_name')
+        .eq('cedula', cedula.trim())
+        .maybeSingle();
+
+      if (error) {
+        return true; // If error checking, allow cedula (fail-safe)
+      }
+
+      if (data) {
+        setCedulaValidationError(language === 'en' ? 'Cedula already registered' : 'Cédula ya registrada');
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      return true; // If error checking, allow cedula (fail-safe)
+    } finally {
+      setIsValidatingCedula(false);
+    }
+  };
+
   const handleSubmit = async () => {
     if (!validateForm()) {
       toast({
@@ -113,9 +150,14 @@ export const SimpleEmployeeForm = ({ onSave, onCancel, isLoading = false }: Simp
       return;
     }
 
-    // Validate email before showing confirmation modal
+    // Validate email and cedula before showing confirmation modal
     const isEmailValid = await validateEmail(formData.email);
     if (!isEmailValid) {
+      return; // Error already set in state
+    }
+
+    const isCedulaValid = await validateCedula(formData.cedula || '');
+    if (!isCedulaValid) {
       return; // Error already set in state
     }
 
@@ -180,6 +222,37 @@ export const SimpleEmployeeForm = ({ onSave, onCancel, isLoading = false }: Simp
                 </div>
               )}
             </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="cedula">{language === 'en' ? 'Cedula (Optional)' : 'Cédula (Opcional)'}</Label>
+              <div className="relative">
+                <Input
+                  id="cedula"
+                  type="text"
+                  value={formData.cedula}
+                  onChange={(e) => updateField("cedula", e.target.value)}
+                  placeholder={language === 'en' ? 'V-12345678' : 'V-12345678'}
+                  className={cedulaValidationError ? "border-red-500" : ""}
+                />
+                {isValidatingCedula && (
+                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                  </div>
+                )}
+                {cedulaValidationError && (
+                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                    <AlertCircle className="h-4 w-4 text-red-500" />
+                  </div>
+                )}
+              </div>
+              {cedulaValidationError && (
+                <p className="text-sm text-red-600 flex items-center space-x-1">
+                  <AlertCircle className="h-3 w-3" />
+                  <span>{cedulaValidationError}</span>
+                </p>
+              )}
+            </div>
+            
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="firstName">{t('employeeForm.firstName')} *</Label>
@@ -263,6 +336,12 @@ export const SimpleEmployeeForm = ({ onSave, onCancel, isLoading = false }: Simp
                 <span className="font-medium">{language === 'en' ? 'Email:' : 'Email:'}</span>
                 <span className="text-blue-600">{formData.email}</span>
               </div>
+              {formData.cedula && (
+                <div className="flex justify-between">
+                  <span className="font-medium">{language === 'en' ? 'Cedula:' : 'Cédula:'}</span>
+                  <span className="text-blue-600">{formData.cedula}</span>
+                </div>
+              )}
             </div>
             
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">

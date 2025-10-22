@@ -1,3 +1,4 @@
+import Logo from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -104,9 +105,6 @@ const Landing = () => {
                 <div className="space-y-6">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-3">
-                      <div className="h-10 w-10 bg-gradient-primary rounded-lg flex items-center justify-center">
-                        <DollarSign className="h-6 w-6 text-white" />
-                      </div>
                       <div>
                         <p className="font-semibold">{t('landing.sampleEmployeeName')}</p>
                         <p className="text-sm text-muted-foreground">{t('landing.sampleEmployeeRole')}</p>
@@ -619,11 +617,7 @@ const Landing = () => {
           <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-8">
             <div className="lg:col-span-2 space-y-4">
               <div className="flex items-center space-x-2">
-                <div className="h-8 w-8 bg-gradient-primary rounded-lg flex items-center justify-center">
-                  <DollarSign className="h-5 w-5 text-white" />
-                </div>
-                <span className="text-xl font-bold">nominero.com</span>
-                <Badge variant="secondary">Venezuela</Badge>
+                <Logo size="lg" variant="dark" />
               </div>
               <p className="text-muted-foreground max-w-md">
                 {t('footer.description')}

@@ -38,7 +38,7 @@ async function extractTextFromFile(fileContent: string, fileType: string) {
       }
     }
   } catch (error) {
-    console.warn('Space OCR API failed, trying fallback:', error.message);
+    // Space OCR API failed, trying fallback
   }
   
   // Fallback: Use Google Cloud Vision API if available
@@ -71,11 +71,10 @@ async function extractTextFromFile(fileContent: string, fileType: string) {
       }
     }
   } catch (error) {
-    console.warn('Google Vision API failed:', error.message);
+    // Google Vision API failed
   }
   
   // Final fallback: Return empty string and let the client handle it
-  console.warn('All OCR services failed, returning empty text');
   return '';
 }
 
@@ -248,7 +247,6 @@ serve(async (req) => {
     try {
       extractedText = await extractTextFromFile(file_content, file_type);
     } catch (ocrError) {
-      console.warn('OCR processing failed:', ocrError.message);
       // Return partial success instead of complete failure
       return new Response(JSON.stringify({
         success: true,
@@ -273,7 +271,6 @@ serve(async (req) => {
     
     // If OCR returns empty text, still return success but with null values
     if (!extractedText || extractedText.trim().length === 0) {
-      console.warn('OCR returned empty text, using fallback');
       return new Response(JSON.stringify({
         success: true,
         cedula_number: null,
@@ -301,14 +298,6 @@ serve(async (req) => {
     // Check if cedula is expired
     const isExpired = expirationDate ? expirationDate < new Date() : null;
     
-    // Console log the extraction results
-    console.log('=== CEDULA OCR EXTRACTION ===');
-    console.log('Extracted Text Length:', extractedText.length);
-    console.log('Extracted Text Preview:', extractedText.substring(0, 200) + '...');
-    console.log('Cedula Number Found:', cedulaNumber);
-    console.log('Expiration Date Found:', expirationDate);
-    console.log('Is Expired:', isExpired);
-    console.log('=============================');
     
     return new Response(JSON.stringify({
       success: true,

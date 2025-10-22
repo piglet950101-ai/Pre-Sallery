@@ -78,20 +78,41 @@ const CompanyManagement: React.FC = () => {
     try {
       setIsLoading(true);
       
-       // Get companies with auth email using the companies_with_auth view
-        const { data: companiesData, error: companiesError } = await supabase
-          .from('companies_with_auth')
-          .select('*')
-          .order('created_at', { ascending: false });
+      // Get companies with auth email from companies_with_auth view
+      const { data: companiesWithAuthData, error: companiesWithAuthError } = await supabase
+        .from('companies_with_auth')
+        .select('*')
+        .order('created_at', { ascending: false });
 
+      if (companiesWithAuthError) {
+        throw new Error(`Error fetching companies with auth: ${companiesWithAuthError.message}`);
+      }
 
-        if (companiesError) {
+      // Get companies with RIF image URLs from companies table
+      const { data: companiesData, error: companiesError } = await supabase
+        .from('companies')
+        .select('id, rif_image_url')
+        .order('created_at', { ascending: false });
+
+      if (companiesError) {
         throw new Error(`Error fetching companies: ${companiesError.message}`);
       }
 
+      // Merge the data - use companies_with_auth for email and companies for RIF data
+      const mergedCompaniesData = companiesWithAuthData?.map(companyWithAuth => {
+        const companyData = companiesData?.find(c => c.id === companyWithAuth.id);
+        return {
+          ...companyWithAuth,
+          rif_image_url: companyData?.rif_image_url
+        };
+      }) || [];
+
+
+
+
 
       // Transform data to include calculated fields
-      const transformedCompanies: Company[] = await Promise.all((companiesData || []).map(async (company: any) => {
+      const transformedCompanies: Company[] = await Promise.all((mergedCompaniesData || []).map(async (company: any) => {
         
         // Get employee count for this company
         const { count: employeeCount } = await supabase
@@ -111,11 +132,14 @@ const CompanyManagement: React.FC = () => {
         // Calculate outstanding balance (simplified - in real app, this would be more complex)
         const outstandingBalance = totalTransactions * 0.05; // 5% of total transactions as outstanding
 
-        return {
+        // Get auth email from the companies_with_auth view
+        const authEmail = company.auth_email || null;
+
+        const transformedCompany = {
           id: company.id,
           name: company.name,
           rif: company.rif,
-          email: company.auth_email || null,
+          email: authEmail,
           phone: company.phone,
           address: company.address,
           city: company.city,
@@ -134,15 +158,16 @@ const CompanyManagement: React.FC = () => {
           rif_image_url: company.rif_image_url,
           last_activity: company.updated_at,
           auth_user_id: company.auth_user_id,
-          auth_email: company.auth_email,
-          extracted_rif_data: company.extracted_rif_data,
-          data_extraction_date: company.data_extraction_date
+          auth_email: company.auth_email
         };
+
+
+
+        return transformedCompany;
       }));
 
       setCompanies(transformedCompanies);
     } catch (error: any) {
-      console.error('Error fetching companies:', error);
       toast({
         title: t('common.error'),
         description: error?.message || 'Failed to fetch companies',
@@ -214,7 +239,6 @@ const CompanyManagement: React.FC = () => {
       setShowApprovalModal(false);
       setSelectedCompany(null);
     } catch (error: any) {
-      console.error('Error approving company:', error);
       toast({
         title: t('common.error'),
         description: error?.message || 'Failed to approve company',
@@ -240,7 +264,7 @@ const CompanyManagement: React.FC = () => {
           });
         }
       } catch (fnErr) {
-        console.warn('Email function not available or failed. Falling back to notification.', fnErr);
+        // Email function not available or failed. Falling back to notification.
       }
 
       // Always insert an in-app notification as fallback
@@ -261,12 +285,10 @@ const CompanyManagement: React.FC = () => {
         });
 
       if (error) {
-        console.error('Error creating activation notification:', error);
         // Don't throw error here as the main approval should still succeed
       }
       
     } catch (error) {
-      console.error('Error sending activation email:', error);
       // Don't throw error here as the main approval should still succeed
     }
   };
@@ -292,8 +314,7 @@ const CompanyManagement: React.FC = () => {
           
         }
       } catch (fnErr) {
-        console.warn('❌ Revocation email function failed:', fnErr);
-        console.warn('Revocation email function not available or failed. Falling back to notification.', fnErr);
+        // Revocation email function not available or failed. Falling back to notification.
       }
 
       // Always insert an in-app notification as fallback
@@ -315,12 +336,10 @@ const CompanyManagement: React.FC = () => {
         });
 
       if (error) {
-        console.error('Error creating revocation notification:', error);
         // Don't throw error here as the main revocation should still succeed
       }
       
     } catch (error) {
-      console.error('Error sending revocation email:', error);
       // Don't throw error here as the main revocation should still succeed
     }
   };
@@ -405,7 +424,6 @@ const CompanyManagement: React.FC = () => {
       // Refresh the companies list to ensure data is up to date
       await fetchCompanies();
     } catch (error: any) {
-      console.error(`Error ${actionType === 'revoke' ? 'revoking' : 'rejecting'} company:`, error);
       toast({
         title: t('common.error'),
         description: error?.message || `Failed to ${actionType === 'revoke' ? 'revoke' : 'reject'} company`,
@@ -714,16 +732,16 @@ const CompanyManagement: React.FC = () => {
                       <label className="text-sm font-medium text-muted-foreground">{t('operator.rifDocumentStatus')}</label>
                       <div className="flex items-center gap-2 mt-2">
                         {selectedCompany.rif_image_url ? (
-                          <>
-                            <CheckCircle className="h-5 w-5 text-green-600" />
-                            <span className="text-green-600 font-medium">{t('operator.rifDocumentUploaded')}</span>
-                          </>
-                        ) : (
-                          <>
-                            <XCircle className="h-5 w-5 text-red-600" />
-                            <span className="text-red-600 font-medium">{t('operator.rifDocumentNotUploaded')}</span>
-                          </>
-                        )}
+                            <>
+                              <CheckCircle className="h-5 w-5 text-green-600" />
+                              <span className="text-green-600 font-medium">{t('operator.rifDocumentUploaded')}</span>
+                            </>
+                          ) : (
+                            <>
+                              <XCircle className="h-5 w-5 text-red-600" />
+                              <span className="text-red-600 font-medium">{t('operator.rifDocumentNotUploaded')}</span>
+                            </>
+                          )}
                       </div>
                     </div>
                     {selectedCompany.rif_image_url && (
@@ -751,8 +769,8 @@ const CompanyManagement: React.FC = () => {
                                 <img 
                                   src={selectedCompany.rif_image_url} 
                                   alt={`RIF Document for ${selectedCompany.name}`}
-                                  className="max-w-full h-auto max-h-96 border rounded-lg shadow-sm"
-                                  style={{ maxWidth: '100%', height: 'auto' }}
+                                  className="w-full h-auto border rounded-lg shadow-sm"
+                                  style={{ width: '100%', height: 'auto' }}
                                 />
                               );
                             } else {

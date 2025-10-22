@@ -7,8 +7,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import Logo from "@/components/Logo";
 import { 
-  DollarSign, 
   User, 
   Building, 
   Shield, 
@@ -121,14 +121,10 @@ const Header = ({ showNavigation = true, className = "" }: HeaderProps) => {
     return (
       <>
       <nav className={`border-b bg-background/95 backdrop-blur-md sticky top-0 z-50 shadow-sm ${className}`}>
-        <div className="container mx-auto px-4 py-4">
+        <div className="container mx-auto px-4 py-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
-              <div className="h-8 w-8 bg-gradient-primary rounded-lg flex items-center justify-center">
-                <DollarSign className="h-5 w-5 text-white" />
-              </div>
-              <span className="text-xl font-bold text-foreground">nominero.com</span>
-              <Badge variant="secondary" className="ml-2">Venezuela</Badge>
+              <Logo size="md" variant="dark" />
             </div>
             <div className="flex items-center space-x-3">
               <LanguageSwitcher />
@@ -146,14 +142,10 @@ const Header = ({ showNavigation = true, className = "" }: HeaderProps) => {
     return (
       <>
       <nav className={`border-b bg-background/95 backdrop-blur-md sticky top-0 z-50 shadow-sm ${className}`}>
-        <div className="container mx-auto px-4 py-4">
+        <div className="container mx-auto px-4 py-2">
           <div className="flex items-center justify-between">
             <Link to="/" className="flex items-center space-x-2">
-              <div className="h-8 w-8 bg-gradient-primary rounded-lg flex items-center justify-center">
-                <DollarSign className="h-5 w-5 text-white" />
-              </div>
-              <span className="text-xl font-bold text-foreground">nominero.com</span>
-              <Badge variant="secondary" className="ml-2">Venezuela</Badge>
+              <Logo size="md" variant="dark" />
             </Link>
             
             {/* Desktop Navigation */}
@@ -195,16 +187,10 @@ const Header = ({ showNavigation = true, className = "" }: HeaderProps) => {
   return (
     <>
     <nav className={`border-b bg-background/95 backdrop-blur-md sticky top-0 z-50 shadow-sm ${className}`}>
-      <div className="container mx-auto px-4 py-4">
+      <div className="container mx-auto px-4 py-2">
         <div className="flex items-center justify-between">
           <Link to="/" className="flex items-center space-x-2">
-            <div className="h-8 w-8 bg-gradient-primary rounded-lg flex items-center justify-center">
-              <DollarSign className="h-5 w-5 text-white" />
-            </div>
-            <div>
-              <span className="text-xl font-bold text-foreground">nominero.com</span>
-              <Badge variant="secondary" className="ml-2">Venezuela</Badge>
-            </div>
+            <Logo size="md" variant="dark" />
           </Link>
           
           {/* Desktop Navigation for logged in users */}

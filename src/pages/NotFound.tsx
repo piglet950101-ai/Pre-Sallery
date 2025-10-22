@@ -2,7 +2,7 @@ import { useLocation, Link } from "react-router-dom";
 import { useEffect } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
-import { DollarSign, Home } from "lucide-react";
+import Logo from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 
 const NotFound = () => {
@@ -24,10 +24,7 @@ const NotFound = () => {
       
       <div className="text-center space-y-6">
         <Link to="/" className="flex items-center justify-center space-x-2 mb-8">
-          <div className="h-12 w-12 bg-gradient-primary rounded-lg flex items-center justify-center">
-            <DollarSign className="h-7 w-7 text-white" />
-          </div>
-          <span className="text-2xl font-bold text-foreground">AvancePay</span>
+          <Logo size="xl" variant="dark" />
         </Link>
         
         <div className="space-y-4">
