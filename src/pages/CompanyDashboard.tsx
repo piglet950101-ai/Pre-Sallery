@@ -1989,7 +1989,7 @@ const CompanyDashboard = () => {
           city: t('common.notProvided'),
           state: t('common.notProvided'),
           postal_code: '',
-          bank_name: '',gt
+          bank_name: '',
           account_number: '00000000000000000000',
           account_type: 'checking',
           notes: '',

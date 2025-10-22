@@ -369,6 +369,7 @@ const translations: Translations = {
   'register.activateErrorTitle': { en: 'Error activating account', es: 'Error al activar cuenta' },
   'register.createAccount': { en: 'Create Account', es: 'Crear Cuenta' },
   'register.chooseAccountType': { en: 'Choose Account Type', es: 'Elegir Tipo de Cuenta' },
+  'register.companyRegistrationDesc': { en: 'Register your company to get started', es: 'Registra tu empresa para comenzar' },
 
   // FAQ Page
   'faq.title': { en: 'Frequently Asked Questions', es: 'Preguntas Frecuentes' },

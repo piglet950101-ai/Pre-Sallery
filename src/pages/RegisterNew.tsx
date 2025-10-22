@@ -2,10 +2,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import Logo from "@/components/Logo";
-import { Building, User, CheckCircle } from "lucide-react";
+import { Building, CheckCircle } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
@@ -13,7 +12,6 @@ import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 import { ensureCompanyRecord } from "@/lib/profile";
-import { CompanySelector } from "@/components/CompanySelector";
 import { PhoneInput } from "@/components/PhoneInput";
 
 const Register = () => {
@@ -41,7 +39,6 @@ const Register = () => {
   const [companyConfirmPasswordError, setCompanyConfirmPasswordError] = useState("");
   const [companyRifImage, setCompanyRifImage] = useState<File | null>(null);
   const [fileInputKey, setFileInputKey] = useState(0);
-  const [activeTab, setActiveTab] = useState("company");
   const [isValidatingRif, setIsValidatingRif] = useState(false);
 
 
@@ -241,13 +238,7 @@ const Register = () => {
   const handleKeyPress = (event: React.KeyboardEvent) => {
     if (event.key === 'Enter') {
       event.preventDefault();
-      
-      
-      if (activeTab === 'company') {
         signUpCompany();
-      } else if (activeTab === 'employee') {
-        signUpEmployee();
-      }
     }
   };
 
@@ -392,33 +383,7 @@ const Register = () => {
       && !companyNameError && !companyEmailError && !companyRifError 
       && !companyPasswordError && !companyConfirmPasswordError;
   };
-
-  const isEmployeeFormValid = () => {
-    const phoneValidationError = validatePhoneForSubmission(employeePhone, employeePhoneCountry);
-    return employeeFirstName.trim().length > 0
-      && employeeLastName.trim().length > 0
-      && isValidEmail(employeeEmail)
-      && !phoneValidationError
-      && isValidPassword(employeePassword)
-      && passwordsMatch(employeePassword, employeeConfirmPassword)
-      && selectedCompanyId
-      && !employeePhoneError && !employeePasswordError && !employeeConfirmPasswordError;
-  };
   
-  // Employee signup state
-  const [employeeEmail, setEmployeeEmail] = useState("");
-  const [employeePhone, setEmployeePhone] = useState("");
-  const [employeePhoneCountry, setEmployeePhoneCountry] = useState(null);
-  const [employeePhoneFocused, setEmployeePhoneFocused] = useState(false);
-  const [employeePassword, setEmployeePassword] = useState("");
-  const [employeeConfirmPassword, setEmployeeConfirmPassword] = useState("");
-  const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
-  const [employeeFirstName, setEmployeeFirstName] = useState("");
-  const [employeeLastName, setEmployeeLastName] = useState("");
-  const [isLoadingEmployee, setIsLoadingEmployee] = useState(false);
-  const [employeePasswordError, setEmployeePasswordError] = useState("");
-  const [employeeConfirmPasswordError, setEmployeeConfirmPasswordError] = useState("");
-  const [employeePhoneError, setEmployeePhoneError] = useState("");
 
   const signUpCompany = async () => {
     try {
@@ -573,12 +538,12 @@ const Register = () => {
 
       if (!registerResult.success) {
         console.error('Registration failed:', registerResult);
-            toast({
+          toast({
           title: t('register.errorTitle'),
           description: registerResult.error || 'Registration failed',
-              variant: 'destructive'
-            });
-        return;
+            variant: 'destructive'
+          });
+          return;
       }
 
       // Sign in the user after successful registration
@@ -597,7 +562,7 @@ const Register = () => {
         navigate('/login');
         return;
       }
-
+      
       toast({ title: t('register.successTitle') });
       
       // Redirect based on the result from edge function
@@ -613,199 +578,6 @@ const Register = () => {
   };
 
 
-  const signUpEmployee = async () => {
-    try {
-      setIsLoadingEmployee(true);
-      
-      // Validate inputs
-      if (!selectedCompanyId) {
-        throw new Error(t('register.selectCompanyRequired'));
-      }
-      
-      if (!employeeFirstName || !employeeLastName) {
-        throw new Error(t('register.nameRequired'));
-      }
-
-      // Validate password and phone
-      const passwordOk = isValidPassword(employeePassword);
-      const passwordsMatchOk = passwordsMatch(employeePassword, employeeConfirmPassword);
-      const phoneValidationError = validatePhoneForSubmission(employeePhone, employeePhoneCountry);
-      const phoneOk = !phoneValidationError;
-      
-      setEmployeePasswordError(passwordOk ? "" : t('registration.passwordTooShort'));
-      setEmployeeConfirmPasswordError(passwordsMatchOk ? "" : t('registration.passwordsDoNotMatch'));
-      setEmployeePhoneError(phoneValidationError);
-
-      if (!passwordOk || !passwordsMatchOk || !phoneOk) {
-        throw new Error(t('common.error'));
-      }
-      
-      // Clean and normalize email
-      const cleanEmail = employeeEmail.trim().toLowerCase();
-      
-      // Validate email format
-      if (!cleanEmail.includes('@') || !cleanEmail.includes('.')) {
-        throw new Error(t('register.invalidEmailFormat').replace('{email}', employeeEmail));
-      }
-      
-      // Additional check: make sure there's at least one character before @ and after .
-      const emailParts = cleanEmail.split('@');
-      if (emailParts.length !== 2 || emailParts[0].length === 0 || !emailParts[1].includes('.')) {
-        throw new Error(t('register.invalidEmailFormat').replace('{email}', employeeEmail));
-      }
-      
-      // Skip checking employees table for email (column removed). Auth will enforce uniqueness.
-      
-      // Validate email domain has MX records
-      try {
-        const { data: domainResp, error: domainErr } = await supabase.functions.invoke('validate-email-domain', {
-          body: { email: cleanEmail }
-        });
-        if (domainErr) {
-          console.error('Domain validation error:', domainErr);
-        }
-        if (!domainResp?.hasMx) {
-          toast({
-            title: t('register.emailDomainInvalidTitle'),
-            description: t('register.emailDomainInvalidDesc'),
-            variant: 'destructive'
-          });
-          return;
-        }
-      } catch (e) {
-        console.warn('Failed to validate domain MX; proceeding with fallback.', e);
-      }
-
-      // Use edge function to create user and employee record atomically
-      const { data: registerResult, error: registerError } = await supabase.functions.invoke('register-user', {
-        body: {
-        email: cleanEmail,
-        password: employeePassword,
-          userType: 'employee',
-          language: language,
-          employeeData: {
-          company_id: selectedCompanyId,
-          first_name: employeeFirstName,
-          last_name: employeeLastName,
-          phone: employeePhone || null,
-          // Required fields with placeholder values that satisfy check constraints
-          year_of_employment: new Date().getFullYear(),
-          position: 'Pending',
-          employment_start_date: new Date().toISOString().split('T')[0],
-          employment_type: 'full-time', // Must be one of: 'full-time', 'part-time', 'contract'
-          weekly_hours: 40, // Must be > 0 and <= 80
-          monthly_salary: 1, // Must be > 0
-          living_expenses: 0, // Must be >= 0
-          dependents: 0, // Must be >= 0
-          emergency_contact: 'Pending',
-          emergency_phone: 'Pending',
-          address: 'Pending',
-          city: 'Pending',
-          state: 'Pending',
-          bank_name: 'Pending',
-          account_number: '00000000000000000000',
-          account_type: 'savings', // Must be one of: 'savings', 'checking'
-          // Set is_active to false until company approves
-          is_active: false,
-          // Generate a random activation code (not used in new flow but required by schema)
-            activation_code: Math.floor(100000 + Math.random() * 900000).toString()
-          }
-        }
-      });
-
-
-      if (registerError) {
-        console.error('Registration error:', registerError);
-        console.error('Error details:', registerError.details);
-        console.error('Error message:', registerError.message);
-        console.error('Error structure:', JSON.stringify(registerError, null, 2));
-        
-        // Extract error message from Supabase function error
-        let errorMessage = 'Failed to create employee account';
-        
-        // Check all possible error fields for our specific messages
-        const errorText = JSON.stringify(registerError).toLowerCase();
-        
-        if (errorText.includes('email already registered')) {
-          errorMessage = t('register.emailAlreadyRegistered');
-        } else if (errorText.includes('rif already exists')) {
-          errorMessage = t('register.rifAlreadyExists');
-        } else if (registerError.details) {
-          try {
-            const errorDetails = JSON.parse(registerError.details);
-            errorMessage = errorDetails.error || errorMessage;
-          } catch (e) {
-            // Check if details contains our error message
-            if (registerError.details.includes('Email already registered')) {
-              errorMessage = t('register.emailAlreadyRegistered');
-            } else if (registerError.details.includes('RIF already exists')) {
-              errorMessage = t('register.rifAlreadyExists');
-            } else {
-              errorMessage = registerError.message || errorMessage;
-            }
-          }
-        } else if (registerError.message) {
-          // Check if message contains our error message
-          if (registerError.message.includes('Email already registered')) {
-            errorMessage = t('register.emailAlreadyRegistered');
-          } else if (registerError.message.includes('RIF already exists')) {
-            errorMessage = t('register.rifAlreadyExists');
-          } else {
-            errorMessage = registerError.message;
-          }
-        }
-        
-        toast({
-          title: t('register.errorTitle'),
-          description: errorMessage,
-          variant: 'destructive'
-        });
-        return;
-      }
-
-      if (!registerResult.success) {
-        console.error('Registration failed:', registerResult);
-        toast({
-          title: t('register.errorTitle'),
-          description: registerResult.error || 'Registration failed',
-          variant: 'destructive'
-        });
-        return;
-      }
-
-      // Sign in the user after successful registration
-      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-        email: cleanEmail,
-        password: employeePassword
-      });
-
-      if (signInError) {
-        console.error('Sign in error after registration:', signInError);
-        toast({
-          title: 'Account Created',
-          description: 'Employee account created successfully. Please sign in manually.',
-          variant: 'default'
-        });
-        navigate('/login');
-        return;
-      }
-      
-      toast({ 
-        title: t('register.employeeSuccess'),
-        description: t('register.pendingApproval')
-      });
-      
-      // Redirect based on the result from edge function
-      navigate(registerResult.redirectPath, { replace: true });
-    } catch (err: any) {
-      toast({
-        title: t('register.errorTitle'),
-        description: err?.message ?? t('register.tryAgain'),
-      });
-    } finally {
-      setIsLoadingEmployee(false);
-    }
-  };
 
   return (
     <div className="min-h-screen bg-gradient-hero flex items-center justify-center p-4">
@@ -838,22 +610,10 @@ const Register = () => {
         <Card className="shadow-elegant border-0">
           <CardHeader className="pb-6 items-center ">
             <CardTitle className="text-2xl">{t('register.createAccount')}</CardTitle>
-            <CardDescription>{t('register.chooseAccountType')}</CardDescription>
+            <CardDescription>{t('register.companyRegistrationDesc')}</CardDescription>
           </CardHeader>
           <CardContent onKeyDown={handleKeyPress}>
-            <Tabs defaultValue="company" value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-              <TabsList className="grid grid-cols-2 h-15">
-                <TabsTrigger value="company" className="flex items-center space-x-3 py-3 px-4">
-                  <Building className="h-5 w-5" />
-                  <span className="font-medium">{t('register.companyTab')}</span>
-                </TabsTrigger>
-                <TabsTrigger value="employee" className="flex items-center space-x-3 py-3 px-4">
-                  <User className="h-5 w-5" />
-                  <span className="font-medium">{t('register.employeeTab')}</span>
-                </TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="company" className="space-y-4">
+            <div className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="company-name">{t('register.companyNameLabel')}</Label>
                   <Input
@@ -1019,120 +779,7 @@ const Register = () => {
                 >
                   {t('register.createCompanyButton')}
                 </Button>
-              </TabsContent>
-
-              <TabsContent value="employee" className="space-y-4">
-                <div className="bg-secondary/20 border border-secondary/30 p-5 rounded-lg text-center">
-                  <User className="h-10 w-10 text-secondary mx-auto mb-3" />
-                  <h4 className="font-semibold text-lg text-secondary-foreground">{t('register.employeeTitle')}</h4>
-                  <p className="text-muted-foreground mt-2">
-                    {t('register.employeeDescription')}
-                  </p>
-                </div>
-
-                <div className="space-y-4">
-                  <CompanySelector 
-                    onCompanySelect={setSelectedCompanyId}
-                    selectedCompanyId={selectedCompanyId}
-                  />
-                  
-                  <div className="grid grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <Label htmlFor="employee-first-name" >{t('common.firstName')}</Label>
-                      <Input
-                        id="employee-first-name"
-                        className="h-12 text-base"
-                        value={employeeFirstName}
-                        onChange={(e) => setEmployeeFirstName(e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="employee-last-name" >{t('common.lastName')}</Label>
-                      <Input
-                        id="employee-last-name"
-                        className="h-12 text-base"
-                        value={employeeLastName}
-                        onChange={(e) => setEmployeeLastName(e.target.value)}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="employee-email" >{t('register.employeeEmailLabel')}</Label>
-                      <Input
-                        id="employee-email"
-                        type="email"
-                        placeholder={t('register.employeeEmailPlaceholder')}
-                        className="h-12 text-base"
-                        value={employeeEmail}
-                        onChange={(e) => setEmployeeEmail(e.target.value)}
-                      />
-                    </div>
-
-                  <PhoneInput
-                    label={t('register.employeePhoneLabel')}
-                        placeholder={t('register.employeePhonePlaceholder')}
-                        value={employeePhone}
-                    onChange={(value, country) => {
-                      setEmployeePhone(value);
-                      setEmployeePhoneCountry(country);
-                      // Use the country from the parameter, or fall back to stored country
-                      const countryToUse = country || employeePhoneCountry;
-                      setEmployeePhoneError(getPhoneValidationError(value, countryToUse, employeePhoneFocused));
-                    }}
-                    onFocus={() => setEmployeePhoneFocused(true)}
-                    error={employeePhoneError}
-                  />
-
-                  <div className="grid grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label htmlFor="employee-password" >{t('register.employeePasswordLabel')}</Label>
-                    <Input
-                      id="employee-password"
-                      type="password"
-                        className={`h-12 text-base ${employeePasswordError ? 'border-red-500' : ''}`}
-                      value={employeePassword}
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          setEmployeePassword(v);
-                          setEmployeePasswordError(!v ? t('registration.passwordRequired') : (!isValidPassword(v) ? t('registration.passwordTooShort') : ''));
-                          // Also check confirm password when main password changes
-                          if (employeeConfirmPassword) {
-                            setEmployeeConfirmPasswordError(!passwordsMatch(v, employeeConfirmPassword) ? t('registration.passwordsDoNotMatch') : '');
-                          }
-                        }}
-                      />
-                      {employeePasswordError && (<p className="text-sm text-red-500">{employeePasswordError}</p>)}
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="employee-confirm-password" >{t('register.confirmPasswordLabel')}</Label>
-                      <Input
-                        id="employee-confirm-password"
-                        type="password"
-                        className={`h-12 text-base ${employeeConfirmPasswordError ? 'border-red-500' : ''}`}
-                        value={employeeConfirmPassword}
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          setEmployeeConfirmPassword(v);
-                          setEmployeeConfirmPasswordError(!v ? t('registration.confirmPasswordRequired') : (!passwordsMatch(employeePassword, v) ? t('registration.passwordsDoNotMatch') : ''));
-                        }}
-                      />
-                      {employeeConfirmPasswordError && (<p className="text-sm text-red-500">{employeeConfirmPasswordError}</p>)}
-                    </div>
-                  </div>
-
-                  <Button 
-                    className="w-full h-14 mt-2" 
-                    variant="premium"
-                    disabled={isLoadingEmployee || !isEmployeeFormValid()}
-                    onClick={signUpEmployee}
-                  >
-                    {isLoadingEmployee ? t('common.saving') : t('register.createEmployeeButton')}
-                  </Button>
-                </div>
-              </TabsContent>
-
-            </Tabs>
+            </div>
           </CardContent>
         </Card>
 
