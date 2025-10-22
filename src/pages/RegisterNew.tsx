@@ -829,7 +829,7 @@ const Register = () => {
           <div className="flex justify-center">
             <Link to="/">
               <Logo size="xl" variant="dark" />
-            </Link>
+          </Link>
           </div>
           <p className="text-gray-600 text-lg">{t('register.subtitle')}</p>
         </div>

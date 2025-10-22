@@ -1409,10 +1409,6 @@ const OperatorDashboard = () => {
                     )}
                   </div>
                   <div className="flex space-x-2">
-                    <Button variant="outline" size="sm">
-                      <Filter className="h-4 w-4 mr-2" />
-                      {t('operator.filter')}
-                    </Button>
                     <Button variant="outline" size="sm" onClick={handleExportPendingCSV}>
                       <Download className="h-4 w-4 mr-2" />
                       {t('operator.exportCSV')}
