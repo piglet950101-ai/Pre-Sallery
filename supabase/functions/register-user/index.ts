@@ -258,7 +258,7 @@ serve(async (req) => {
           address: employeeData?.address || 'Pending',
           city: employeeData?.city || 'Pending',
           state: employeeData?.state || 'Pending',
-          bank_name: employeeData?.bank_name || 'Pending',
+          bank_name: employeeData?.bank_name || '',
           account_number: employeeData?.account_number || '00000000000000000000',
           account_type: employeeData?.account_type || 'savings',
           // Set is_active to false until company approves

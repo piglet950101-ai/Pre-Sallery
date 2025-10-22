@@ -242,7 +242,6 @@ export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialD
                   placeholder={language === 'en' ? 'Mary' : 'María'}
                 />
 
-                <div className="text-xs text-gray-500">Debug: {formData.firstName}</div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="lastName">{t('employeeForm.lastName')} *</Label>
@@ -252,7 +251,6 @@ export const EmployeeInfoForm = ({ onSave, onCancel, isLoading = false, initialD
                   onChange={(e) => updateField("lastName", e.target.value)}
                   placeholder={language === 'en' ? 'Smith' : 'González'}
                 />
-                <div className="text-xs text-gray-500">Debug: {formData.lastName}</div>
               </div>
             </div>
 

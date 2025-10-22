@@ -1836,7 +1836,12 @@ const EmployeeDashboard = () => {
               <CardContent className="space-y-4">
                 <div className="flex items-center justify-between p-3 border rounded-lg">
                   <div>
-                    <div className="font-medium">{employee.bank_name}</div>
+                    <div className="font-medium">
+                      {(employee.bank_name === 'To be provided' || employee.bank_name === t('common.toBeProvided')) 
+                        ? t('common.toBeProvided') 
+                        : employee.bank_name || t('common.notProvided')
+                      }
+                    </div>
                     <div className="text-sm text-muted-foreground">
                       {employee.account_type === 'savings' ? t('employeeForm.savings') : t('employeeForm.checking')}
                     </div>
@@ -1844,7 +1849,12 @@ const EmployeeDashboard = () => {
                       ****-****-{employee.account_number.slice(-4)}
                     </div>
                   </div>
-                  <Badge>{t('employee.main')}</Badge>
+                  <Badge>
+                    {(employee.bank_name === 'To be provided' || employee.bank_name === t('common.toBeProvided') || !employee.bank_name || employee.bank_name === t('common.notProvided')) 
+                      ? t('common.notSet') 
+                      : t('employee.main')
+                    }
+                  </Badge>
                 </div>
                 
                 {employee.phone && (
@@ -1953,7 +1963,7 @@ const EmployeeDashboard = () => {
                   <div>
                     <Label className="text-sm font-medium">{language === 'en' ? 'Bank Name' : 'Nombre del Banco'}</Label>
                     <div className="mt-1 p-3 border rounded-lg bg-muted/50">
-                      {employee?.bank_name || (language === 'en' ? 'Not provided' : 'No proporcionado')}
+                      {employee?.bank_name || t('common.notProvided')}
                     </div>
                   </div>
                   <div>
@@ -1961,7 +1971,7 @@ const EmployeeDashboard = () => {
                     <div className="mt-1 p-3 border rounded-lg bg-muted/50">
                       {employee?.account_number ? 
                         `${employee.account_number.slice(0, 4)}****${employee.account_number.slice(-4)}` : 
-                        (language === 'en' ? 'Not provided' : 'No proporcionado')
+                        t('common.notProvided')
                       }
                     </div>
                   </div>
@@ -2095,7 +2105,7 @@ const EmployeeDashboard = () => {
                   <div>
                     <Label className="text-sm font-medium">{language === 'en' ? 'Phone Number' : 'Número de Teléfono'}</Label>
                     <div className="mt-1 p-3 border rounded-lg bg-muted/50">
-                      {employee?.pagomovil_phone || employee?.phone || (language === 'en' ? 'Not provided' : 'No proporcionado')}
+                      {employee?.pagomovil_phone || employee?.phone || t('common.notProvided')}
                     </div>
                   </div>
                   <div>
@@ -2116,7 +2126,7 @@ const EmployeeDashboard = () => {
                   <div>
                     <Label className="text-sm font-medium">{language === 'en' ? 'Bank Name' : 'Nombre del Banco'}</Label>
                     <div className="mt-1 p-3 border rounded-lg bg-muted/50">
-                      {employee?.pagomovil_bank_name || (language === 'en' ? 'Not provided' : 'No proporcionado')}
+                      {employee?.pagomovil_bank_name || t('common.notProvided')}
                     </div>
                   </div>
                 </div>

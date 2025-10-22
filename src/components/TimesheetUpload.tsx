@@ -44,7 +44,7 @@ export const TimesheetUpload = ({ userType }: TimesheetUploadProps) => {
     {
       id: '1',
       employeeName: 'María González',
-      cedula: 'V-12345678',
+      cedula: 'V12345678',
       period: 'Enero 2024',
       workingDays: 15,
       monthlySalary: 800,
@@ -55,7 +55,7 @@ export const TimesheetUpload = ({ userType }: TimesheetUploadProps) => {
     {
       id: '2',
       employeeName: 'Carlos Rodríguez',
-      cedula: 'V-23456789',
+      cedula: 'V23456789',
       period: 'Enero 2024',
       workingDays: 12,
       monthlySalary: 750,
@@ -66,7 +66,7 @@ export const TimesheetUpload = ({ userType }: TimesheetUploadProps) => {
     {
       id: '3',
       employeeName: 'Ana Martínez',
-      cedula: 'V-34567890',
+      cedula: 'V34567890',
       period: 'Enero 2024',
       workingDays: 18,
       monthlySalary: 900,

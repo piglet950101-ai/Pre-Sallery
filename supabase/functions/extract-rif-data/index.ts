@@ -20,7 +20,7 @@ function cors() {
 function extractRIFData(text: string) {
   const data: any = {};
   
-  // Extract RIF number (V-12345678-9 format)
+  // Extract RIF number (V12345678-9 format)
   const rifMatch = text.match(/[VJPG]-?\s*(\d{7,8})-?\s*(\d)/i);
   if (rifMatch) {
     data.rif_number = `${rifMatch[1]}-${rifMatch[2]}`;
@@ -84,7 +84,7 @@ serve(async (req) => {
     // Simulate extracted data (replace with actual OCR)
     const simulatedText = `
       RAZON SOCIAL: EMPRESA EJEMPLO C.A.
-      RIF: V-12345678-9
+      RIF: V12345678-9
       DIRECCION: AV. PRINCIPAL, CARACAS, VENEZUELA
       TELEFONO: +58-212-1234567
       EMAIL: contacto@empresa.com

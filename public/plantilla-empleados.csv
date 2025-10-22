@@ -1,6 +1,6 @@
 correo_electronico,nombre,apellido,telefono,salario_mensual,horas_trabajo,año_ingreso,banco,numero_cuenta,tipo_cuenta,cedula,direccion,ciudad,estado,codigo_postal,dependientes,contacto_emergencia,telefono_emergencia,cargo
-juan.perez@empresa.com,Juan,Pérez,+58-412-1234567,500000,40,2023,Banco de Venezuela,0102-1234-5678-9012,Corriente,V-12345678,Av. Principal 123,Caracas,Distrito Capital,1010,2,Maria Pérez,+58-414-9876543,Gerente
-maria.rodriguez@empresa.com,Maria,Rodríguez,+58-424-2345678,450000,40,2022,Banco Mercantil,0105-2345-6789-0123,Ahorros,E-87654321,Calle Secundaria 456,Valencia,Carabobo,2001,1,Carlos Rodríguez,+58-416-8765432,Supervisor
+juan.perez@empresa.com,Juan,Pérez,+58-412-1234567,500000,40,2023,Banco de Venezuela,0102-1234-5678-9012,Corriente,V12345678,Av. Principal 123,Caracas,Distrito Capital,1010,2,Maria Pérez,+58-414-9876543,Gerente
+maria.rodriguez@empresa.com,Maria,Rodríguez,+58-424-2345678,450000,40,2022,Banco Mercantil,0105-2345-6789-0123,Ahorros,E87654321,Calle Secundaria 456,Valencia,Carabobo,2001,1,Carlos Rodríguez,+58-416-8765432,Supervisor
 
 # INSTRUCCIONES PARA DROPDOWN DE BANCOS EN EXCEL:
 # 1. Abre este archivo en Excel

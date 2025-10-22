@@ -50,8 +50,9 @@ export const EmployeeBulkUpload: React.FC<EmployeeBulkUploadProps> = ({ onUpload
 
   // Cedula validation function
   const validateCedula = (cedula: string): boolean => {
+    // Accept only E/V followed by 6-8 digits, no hyphen
     const cedulaPattern = /^[EV]\d{6,8}$/;
-    return cedulaPattern.test(cedula);
+    return cedulaPattern.test(cedula.toUpperCase());
   };
 
   // Handle CSV file upload
@@ -97,10 +98,16 @@ export const EmployeeBulkUpload: React.FC<EmployeeBulkUploadProps> = ({ onUpload
         });
 
         // Map CSV columns to employee fields
+        // Normalize cedula to required format: E/V followed by digits only (no hyphen)
+        const rawCedula: string = (row.cedula || row.id || row['id number'] || '').toString();
+        const cedulaNormalized = rawCedula
+          .toUpperCase()
+          .replace(/[-\s]/g, ''); // strip hyphens and spaces e.g., V12345678 -> V12345678
+
         const employeeData: EmployeeData = {
           rowNumber: i,
           name: row.name || row.nombre || row['full name'] || '',
-          cedula: row.cedula || row.id || row['id number'] || '',
+          cedula: cedulaNormalized,
           monthly_salary: parseFloat(row.salary || row.monthly_salary || row['monthly salary'] || '0') || 0,
           is_active: (row.active || row.is_active || row['is active'] || 'true').toLowerCase() === 'true',
           email: row.email || '',
@@ -548,7 +555,7 @@ export const EmployeeBulkUpload: React.FC<EmployeeBulkUploadProps> = ({ onUpload
           <h5 className="font-medium mb-2">{t('company.csvUpload.requiredFormat')}:</h5>
           <div className="text-sm text-muted-foreground space-y-1">
             <div>• <strong>name:</strong> {t('company.csvUpload.nameDesc')}</div>
-            <div>• <strong>cedula:</strong> {t('company.csvUpload.cedulaDesc')}</div>
+            <div>• <strong>cedula:</strong> {t('company.csvUpload.cedulaFormatNote')}</div>
             <div>• <strong>monthly_salary:</strong> {t('company.csvUpload.salaryDesc')}</div>
             <div>• <strong>is_active:</strong> {t('company.csvUpload.activeDesc')}</div>
             <div>• <strong>email:</strong> {t('company.csvUpload.emailDesc')}</div>

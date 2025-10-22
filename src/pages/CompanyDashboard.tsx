@@ -363,7 +363,7 @@ const CompanyDashboard = () => {
         'Banco de Venezuela',
         '12345678901234567890',
         'checking',
-        'V-12345678',
+        'V12345678',
         'Av. Principal 123',
         'Caracas',
         'Distrito Capital',
@@ -384,7 +384,7 @@ const CompanyDashboard = () => {
         'Banco Mercantil',
         '98765432109876543210',
         'savings',
-        'E-87654321',
+        'E87654321',
         'Calle Secundaria 456',
         'Valencia',
         'Carabobo',
@@ -1465,7 +1465,7 @@ const CompanyDashboard = () => {
     }
     
     if (errorMessage.includes('employees_cedula_format_check')) {
-      return `Row ${rowNumber}: Invalid cedula format. Must be E or V followed by optional hyphen and 6-8 digits (e.g., V12345678, V-12345678, E8765432, E-8765432)`;
+      return `Row ${rowNumber}: Invalid cedula format. Must be E or V followed by optional hyphen and 6-8 digits (e.g., V12345678, V12345678, E8765432, E8765432)`;
     }
     
     if (errorMessage.includes('employees_phone_format_check')) {
@@ -1983,13 +1983,13 @@ const CompanyDashboard = () => {
           monthly_salary: 0.01, // Minimum positive value to satisfy check constraint
           living_expenses: 0,
           dependents: 0,
-          emergency_contact: 'To be provided',
-          emergency_phone: 'To be provided',
-          address: 'To be provided',
-          city: 'To be provided',
-          state: 'To be provided',
+          emergency_contact: t('common.notProvided'),
+          emergency_phone: t('common.notProvided'),
+          address: t('common.notProvided'),
+          city: t('common.notProvided'),
+          state: t('common.notProvided'),
           postal_code: '',
-          bank_name: 'To be provided',
+          bank_name: '',gt
           account_number: '00000000000000000000',
           account_type: 'checking',
           notes: '',
@@ -2602,7 +2602,7 @@ const CompanyDashboard = () => {
 
           // Validate cedula format
           if (employeeData.cedula && !validateCedula(employeeData.cedula)) {
-            errors.push(`Row ${row.rowNumber}: Invalid cedula format. Must be E or V followed by optional hyphen and 6-8 digits (e.g., V12345678, V-12345678, E8765432, E-8765432)`);
+            errors.push(`Row ${row.rowNumber}: Invalid cedula format. Must be E or V followed by optional hyphen and 6-8 digits (e.g., V12345678, V12345678, E8765432, E8765432)`);
             errorCount++;
             continue;
           }
@@ -6699,11 +6699,11 @@ const CompanyDashboard = () => {
                 <p className="text-sm text-blue-700 mt-2">
                   {language === 'es' ? (
                     <>
-                      <strong>Guía de Formato:</strong> Usa "checking", "savings" o "current" para el tipo de cuenta. Formato de teléfono: +584121234567. Formato de cédula: V-12345678 o E-87654321.
+                      <strong>Guía de Formato:</strong> Usa "checking", "savings" o "current" para el tipo de cuenta. Formato de teléfono: +584121234567. Formato de cédula: V12345678 o E87654321.
                     </>
                   ) : (
                     <>
-                      <strong>Format Guidelines:</strong> Use "checking", "savings", or "current" for account type. Phone format: +584121234567. Cedula format: V-12345678 or E-87654321.
+                      <strong>Format Guidelines:</strong> Use "checking", "savings", or "current" for account type. Phone format: +584121234567. Cedula format: V12345678 or E87654321.
                     </>
                   )}
                 </p>

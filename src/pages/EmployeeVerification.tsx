@@ -75,7 +75,7 @@ const EmployeeVerificationDashboard = () => {
     lastName: "González",
     email: "maria@ejemplo.com",
     phone: "+58 412 123-4567",
-    cedula: "V-12345678",
+    cedula: "V12345678",
     birthDate: new Date("1990-05-15"),
     position: "Desarrolladora",
     department: "Tecnología",

@@ -216,7 +216,7 @@ export const EmployeeOnboarding = () => {
                       id="cedula"
                       value={formData.cedula}
                       onChange={(e) => updateFormData('cedula', e.target.value)}
-                      placeholder="V-12345678"
+                      placeholder="V12345678"
                       className="h-12"
                     />
                   </div>
