@@ -31,26 +31,57 @@ const Login = () => {
   const checkEmailExists = async (email: string) => {
     try {
       // Check in companies_with_auth view for company emails
-      const { data: companyWithAuthData } = await supabase
+      const { data: companyWithAuthData, error: companyError } = await supabase
         .from('companies_with_auth')
         .select('id')
         .eq('auth_email', email.toLowerCase())
         .maybeSingle();
       
-      if (companyWithAuthData) return true;
+      if (companyWithAuthData) {
+        return true;
+      }
       
       // Check in employees table
-      const { data: employeeData } = await supabase
+      const { data: employeeData, error: employeeError } = await supabase
         .from('employees')
         .select('id')
         .eq('email', email.toLowerCase())
         .maybeSingle();
       
-      if (employeeData) return true;
+      if (employeeData) {
+        return true;
+      }
       
-      // Check if user is an operator using metadata only
-      // For now, we'll assume operators exist in auth.users with metadata
-      return false; // Simplified - no database check needed
+      // For operators, we can't easily check if they exist in auth.users without admin privileges
+      // We'll use a different approach: try to sign in with a dummy password to see if the email exists
+      try {
+        // Try to sign in with a dummy password to check if email exists
+        // This will fail but tell us if the email exists or not
+        const { error: dummySignInError } = await supabase.auth.signInWithPassword({
+          email: email,
+          password: 'dummy_password_check_12345' // This will always fail, but tells us if email exists
+        });
+        
+        // If error is "Invalid login credentials", the email exists but password is wrong
+        if (dummySignInError?.message?.includes('Invalid login credentials')) {
+          return true;
+        }
+        
+        // If error indicates user not found, email doesn't exist
+        if (dummySignInError?.message?.includes('User not found') || 
+            dummySignInError?.message?.includes('No user found') ||
+            dummySignInError?.message?.includes('Invalid email')) {
+          return false;
+        }
+        
+        // Other errors - assume email doesn't exist to be safe
+        return false;
+        
+      } catch (authError) {
+        // If we can't check auth.users, assume it doesn't exist
+        return false;
+      }
+      
     } catch (error) {
       return false;
     }
@@ -420,15 +451,20 @@ const Login = () => {
           err?.message?.includes('Invalid password') ||
           err?.status === 400) {
         
-        // Check if email exists to determine if it's wrong email or wrong password
+        // Supabase always returns "Invalid login credentials" for both wrong email and wrong password
+        // We need to check if the email exists in our database to determine the actual issue
         const emailExists = await checkEmailExists(email);
         
         if (emailExists) {
+          // Email exists in our database, so it's a wrong password
           errorTitle = t('login.invalidCredentials') ?? 'Wrong Password';
           errorDescription = t('login.invalidCredentialsDesc') ?? 'The password you entered is incorrect. Please try again.';
         } else {
-          errorTitle = t('login.userNotFound') ?? 'Email Not Found';
-          errorDescription = t('login.userNotFoundDesc') ?? 'No account found with this email address. Please check your email or create a new account.';
+          // Email doesn't exist in our database tables
+          // This could be a wrong email OR an operator (who exists in auth.users but not in our tables)
+          // Since we can't distinguish without admin privileges, we'll show a generic message
+          errorTitle = t('login.invalidCredentials') ?? 'Invalid Login Credentials';
+          errorDescription = t('login.invalidCredentialsDesc') ?? 'The email or password you entered is incorrect. Please check your credentials and try again.';
         }
       } else if (err?.message?.includes('User not found') ||
                  err?.message?.includes('No user found') ||
@@ -482,7 +518,7 @@ const Login = () => {
             <Link to="/">
               <Logo size="xl" variant="dark" />
             </Link>
-          </div>
+            </div>
           <p className="text-gray-600 text-lg">{t('login.subtitle')}</p>
         </div>
 

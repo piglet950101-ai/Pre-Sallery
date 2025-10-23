@@ -1160,15 +1160,7 @@ const CompanyDashboard = () => {
       const savedStep = localStorage.getItem('csvUploadStep');
       const modalWasOpen = localStorage.getItem('csvModalOpen');
       
-      console.log('Checking CSV modal state:', {
-        savedData: !!savedData,
-        savedStep,
-        modalWasOpen,
-        currentModalState: showCsvUploadModal
-      });
-      
       if ((savedData && savedStep && savedStep !== 'upload') || modalWasOpen === 'true') {
-        console.log('Opening CSV modal due to saved state');
         setShowCsvUploadModal(true);
         // Ensure the modal state is saved
         localStorage.setItem('csvModalOpen', 'true');
@@ -1180,14 +1172,12 @@ const CompanyDashboard = () => {
 
     // Check when window regains focus
     const handleFocus = () => {
-      console.log('Window focused, checking CSV modal state');
       checkAndOpenCsvModal();
     };
 
     window.addEventListener('focus', handleFocus);
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') {
-        console.log('Page became visible, checking CSV modal state');
         checkAndOpenCsvModal();
       }
     });
@@ -1204,7 +1194,6 @@ const CompanyDashboard = () => {
     const modalWasOpen = localStorage.getItem('csvModalOpen');
     
     if (!showCsvUploadModal && ((savedData && savedStep && savedStep !== 'upload') || modalWasOpen === 'true')) {
-      console.log('Force opening CSV modal - state was lost');
       setShowCsvUploadModal(true);
       localStorage.setItem('csvModalOpen', 'true');
     }
@@ -1217,7 +1206,6 @@ const CompanyDashboard = () => {
       // User is explicitly closing the modal, clear the persistence
       localStorage.removeItem('csvModalOpen');
       localStorage.removeItem('selectedEmployeeModal');
-      console.log('Modal closed by user - clearing persistence');
     }
   };
 
@@ -1228,7 +1216,6 @@ const CompanyDashboard = () => {
       if (!open && persistenceKey) {
         // User is explicitly closing the modal, clear the persistence
         localStorage.removeItem(persistenceKey);
-        console.log(`Modal closed by user - clearing ${persistenceKey}`);
       }
     };
   };
@@ -2935,8 +2922,6 @@ const CompanyDashboard = () => {
     localStorage.removeItem('csvSelectedRows');
     localStorage.removeItem('csvModalOpen');
     localStorage.removeItem('selectedEmployeeModal');
-    
-    console.log('CSV upload reset - all state cleared');
   };
 
   // Cedula validation function
