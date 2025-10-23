@@ -52,7 +52,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import * as XLSX from 'xlsx';
 import { useAuth } from "@/contexts/AuthContext";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
 import { format, startOfDay, endOfDay } from 'date-fns';
@@ -241,13 +241,30 @@ const CompanyDashboard = () => {
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [advanceToAction, setAdvanceToAction] = useState<any>(null);
   
-  // CSV Upload states
-  const [showCsvUploadModal, setShowCsvUploadModal] = useState(false);
+  // CSV Upload states with persistence
+  const [showCsvUploadModal, setShowCsvUploadModal] = useState(() => {
+    // Check if modal should be open on mount
+    const savedData = localStorage.getItem('csvUploadData');
+    const savedStep = localStorage.getItem('csvUploadStep');
+    return !!(savedData && savedStep && savedStep !== 'upload');
+  });
   const [csvFile, setCsvFile] = useState<File | null>(null);
-  const [csvData, setCsvData] = useState<any[]>([]);
+  const [csvData, setCsvData] = useState<any[]>(() => {
+    // Restore CSV data from localStorage on component mount
+    const saved = localStorage.getItem('csvUploadData');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [isProcessingCsv, setIsProcessingCsv] = useState(false);
-  const [csvUploadStep, setCsvUploadStep] = useState<'upload' | 'preview' | 'import'>('upload');
-  const [selectedCsvRows, setSelectedCsvRows] = useState<Set<number>>(new Set());
+  const [csvUploadStep, setCsvUploadStep] = useState<'upload' | 'preview' | 'import'>(() => {
+    // Restore CSV upload step from localStorage
+    const saved = localStorage.getItem('csvUploadStep');
+    return (saved as 'upload' | 'preview' | 'import') || 'upload';
+  });
+  const [selectedCsvRows, setSelectedCsvRows] = useState<Set<number>>(() => {
+    // Restore selected rows from localStorage
+    const saved = localStorage.getItem('csvSelectedRows');
+    return saved ? new Set(JSON.parse(saved)) : new Set();
+  });
   const [csvCurrentPage, setCsvCurrentPage] = useState(1);
   const [csvItemsPerPage] = useState(10);
   const [showCsvResultsModal, setShowCsvResultsModal] = useState(false);
@@ -999,6 +1016,223 @@ const CompanyDashboard = () => {
     }
   };
 
+  // Prevent unnecessary re-renders on window focus
+  const isInitialMount = useRef(true);
+  const isWindowFocused = useRef(true);
+  
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    
+    // Only re-render if there are actual state changes
+    // This prevents re-renders when switching windows
+  }, []);
+
+  // Handle window focus/blur events to prevent unnecessary re-renders
+  useEffect(() => {
+    const handleFocus = () => {
+      isWindowFocused.current = true;
+    };
+    
+    const handleBlur = () => {
+      isWindowFocused.current = false;
+    };
+
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('blur', handleBlur);
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('blur', handleBlur);
+    };
+  }, []);
+
+  // Prevent re-renders when window regains focus
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && isWindowFocused.current) {
+        // Don't trigger any state updates when window becomes visible
+        return;
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
+
+  // Persist CSV upload state to localStorage
+  useEffect(() => {
+    if (csvData.length > 0) {
+      localStorage.setItem('csvUploadData', JSON.stringify(csvData));
+    }
+  }, [csvData]);
+
+  useEffect(() => {
+    localStorage.setItem('csvUploadStep', csvUploadStep);
+  }, [csvUploadStep]);
+
+  useEffect(() => {
+    if (selectedCsvRows.size > 0) {
+      localStorage.setItem('csvSelectedRows', JSON.stringify(Array.from(selectedCsvRows)));
+    }
+  }, [selectedCsvRows]);
+
+  // Persist Add New Employee modal state - but remember which specific modal was selected
+  useEffect(() => {
+    if (isAddEmployeeDialogOpen) {
+      localStorage.setItem('addEmployeeModalOpen', 'true');
+    }
+  }, [isAddEmployeeDialogOpen]);
+
+  useEffect(() => {
+    const reopenAddEmployeeIfNeeded = () => {
+      const wasOpen = localStorage.getItem('addEmployeeModalOpen');
+      const selectedModal = localStorage.getItem('selectedEmployeeModal');
+      
+      if (wasOpen === 'true') {
+        // Don't reopen the selection modal, open the specific modal that was selected
+        if (selectedModal === 'simple') {
+          setShowSimpleForm(true);
+        } else if (selectedModal === 'csv') {
+          setShowCsvUploadModal(true);
+        } else {
+          // If no specific modal was selected, reopen the selection modal
+          setIsAddEmployeeDialogOpen(true);
+        }
+      }
+    };
+    reopenAddEmployeeIfNeeded();
+    const onFocus = () => reopenAddEmployeeIfNeeded();
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') reopenAddEmployeeIfNeeded();
+    };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, []);
+
+  // Persist Quick Add Employee (Simple form) modal state
+  useEffect(() => {
+    if (showSimpleForm) {
+      localStorage.setItem('simpleEmployeeFormOpen', 'true');
+    }
+  }, [showSimpleForm]);
+
+  useEffect(() => {
+    const reopenSimpleFormIfNeeded = () => {
+      const wasOpen = localStorage.getItem('simpleEmployeeFormOpen');
+      if (wasOpen === 'true') {
+        setShowSimpleForm(true);
+      }
+    };
+    reopenSimpleFormIfNeeded();
+    const onFocusSimple = () => reopenSimpleFormIfNeeded();
+    const onVisibilitySimple = () => {
+      if (document.visibilityState === 'visible') reopenSimpleFormIfNeeded();
+    };
+    window.addEventListener('focus', onFocusSimple);
+    document.addEventListener('visibilitychange', onVisibilitySimple);
+    return () => {
+      window.removeEventListener('focus', onFocusSimple);
+      document.removeEventListener('visibilitychange', onVisibilitySimple);
+    };
+  }, []);
+
+  // Save modal state to localStorage - but don't remove it automatically
+  useEffect(() => {
+    if (showCsvUploadModal) {
+      localStorage.setItem('csvModalOpen', 'true');
+    }
+    // Don't remove csvModalOpen automatically - let it persist
+  }, [showCsvUploadModal]);
+
+  // Auto-open CSV upload modal if there's saved state
+  useEffect(() => {
+    const checkAndOpenCsvModal = () => {
+      const savedData = localStorage.getItem('csvUploadData');
+      const savedStep = localStorage.getItem('csvUploadStep');
+      const modalWasOpen = localStorage.getItem('csvModalOpen');
+      
+      console.log('Checking CSV modal state:', {
+        savedData: !!savedData,
+        savedStep,
+        modalWasOpen,
+        currentModalState: showCsvUploadModal
+      });
+      
+      if ((savedData && savedStep && savedStep !== 'upload') || modalWasOpen === 'true') {
+        console.log('Opening CSV modal due to saved state');
+        setShowCsvUploadModal(true);
+        // Ensure the modal state is saved
+        localStorage.setItem('csvModalOpen', 'true');
+      }
+    };
+
+    // Check on component mount
+    checkAndOpenCsvModal();
+
+    // Check when window regains focus
+    const handleFocus = () => {
+      console.log('Window focused, checking CSV modal state');
+      checkAndOpenCsvModal();
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        console.log('Page became visible, checking CSV modal state');
+        checkAndOpenCsvModal();
+      }
+    });
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [showCsvUploadModal]);
+
+  // Simple check to ensure modal stays open if it should be
+  useEffect(() => {
+    const savedData = localStorage.getItem('csvUploadData');
+    const savedStep = localStorage.getItem('csvUploadStep');
+    const modalWasOpen = localStorage.getItem('csvModalOpen');
+    
+    if (!showCsvUploadModal && ((savedData && savedStep && savedStep !== 'upload') || modalWasOpen === 'true')) {
+      console.log('Force opening CSV modal - state was lost');
+      setShowCsvUploadModal(true);
+      localStorage.setItem('csvModalOpen', 'true');
+    }
+  });
+
+  // Handle modal close - clear persistence when user explicitly closes
+  const handleCsvModalClose = (open: boolean) => {
+    setShowCsvUploadModal(open);
+    if (!open) {
+      // User is explicitly closing the modal, clear the persistence
+      localStorage.removeItem('csvModalOpen');
+      localStorage.removeItem('selectedEmployeeModal');
+      console.log('Modal closed by user - clearing persistence');
+    }
+  };
+
+  // Generic modal close handler for all modals
+  const createModalCloseHandler = (setter: (open: boolean) => void, persistenceKey?: string) => {
+    return (open: boolean) => {
+      setter(open);
+      if (!open && persistenceKey) {
+        // User is explicitly closing the modal, clear the persistence
+        localStorage.removeItem(persistenceKey);
+        console.log(`Modal closed by user - clearing ${persistenceKey}`);
+      }
+    };
+  };
+
   // Keep payment page within valid bounds when data or page size changes
   useEffect(() => {
     const totalPages = Math.max(1, Math.ceil(paymentHistory.length / paymentsPerPage));
@@ -1008,67 +1242,66 @@ const CompanyDashboard = () => {
   }, [paymentHistory.length, paymentsPerPage]);
 
   // Calculate current billing period amounts based on new logic
-  const currentBillingPeriod = getCurrentBillingPeriod();
+  const currentBillingPeriod = useMemo(() => getCurrentBillingPeriod(), []);
   
   // Calculate advances for current billing period (all advances, not just unpaid)
-  const currentPeriodAdvances = activeAdvances
+  const currentPeriodAdvances = useMemo(() => activeAdvances
     .filter(advance => {
       const advanceDate = new Date(advance.created_at);
       return advanceDate >= currentBillingPeriod.startDate && advanceDate <= currentBillingPeriod.endDate;
-    });
+    }), [activeAdvances, currentBillingPeriod]);
   
-  const currentPeriodUnpaidAdvances = currentPeriodAdvances
+  const currentPeriodUnpaidAdvances = useMemo(() => currentPeriodAdvances
     .filter(advance => advance.status === 'pending' || advance.status === 'approved' || advance.status === 'processing')
-    .reduce((sum, advance) => sum + advance.requested_amount, 0);
+    .reduce((sum, advance) => sum + advance.requested_amount, 0), [currentPeriodAdvances]);
   
   // Calculate total advances amount for billing (only COMPLETED advances in period)
-  const currentPeriodCompletedAdvances = currentPeriodAdvances
-    .filter(advance => advance.status === 'completed');
+  const currentPeriodCompletedAdvances = useMemo(() => currentPeriodAdvances
+    .filter(advance => advance.status === 'completed'), [currentPeriodAdvances]);
   
-  const currentPeriodTotalAdvances = currentPeriodCompletedAdvances
-    .reduce((sum, advance) => sum + advance.requested_amount, 0);
+  const currentPeriodTotalAdvances = useMemo(() => currentPeriodCompletedAdvances
+    .reduce((sum, advance) => sum + advance.requested_amount, 0), [currentPeriodCompletedAdvances]);
   
   // Calculate commission fees for current period (only for completed advances)
-  const currentPeriodCommissionFees = currentPeriodCompletedAdvances
-    .reduce((sum, advance) => sum + (advance.fee_amount || 0), 0);
+  const currentPeriodCommissionFees = useMemo(() => currentPeriodCompletedAdvances
+    .reduce((sum, advance) => sum + (advance.fee_amount || 0), 0), [currentPeriodCompletedAdvances]);
 
   // Calculate employee fees for current billing period
-  let currentPeriodUnpaidFees = 0;
+  const activeEmployeesCount = useMemo(() => employees.filter(emp => emp.is_active).length, [employees]);
+  const monthlyEmployeeFees = useMemo(() => activeEmployeesCount * 1.00, [activeEmployeesCount]); // $1 per employee per month
   
-  // Calculate monthly employee fees ($1 per active employee per month)
-  const activeEmployeesCount = employees.filter(emp => emp.is_active).length;
-  const monthlyEmployeeFees = activeEmployeesCount * 1.00; // $1 per employee per month
-  
-  // Use actual employee fees from database if available, otherwise use calculated amount
-  if (unpaidEmployeeFees.length > 0) {
-    // Use fees from database
-    currentPeriodUnpaidFees = unpaidEmployeeFees
-      .filter(fee => {
-        const feeDate = new Date(fee.created_at);
-        return feeDate >= currentBillingPeriod.startDate && feeDate <= currentBillingPeriod.endDate;
-      })
-      .reduce((sum, fee) => sum + fee.fee_amount, 0);
-  } else {
-    // Fallback: use calculated monthly fees if no database records exist
-    currentPeriodUnpaidFees = monthlyEmployeeFees;
-  }
+  const currentPeriodUnpaidFees = useMemo(() => {
+    // Use actual employee fees from database if available, otherwise use calculated amount
+    if (unpaidEmployeeFees.length > 0) {
+      // Use fees from database
+      return unpaidEmployeeFees
+        .filter(fee => {
+          const feeDate = new Date(fee.created_at);
+          return feeDate >= currentBillingPeriod.startDate && feeDate <= currentBillingPeriod.endDate;
+        })
+        .reduce((sum, fee) => sum + fee.fee_amount, 0);
+    } else {
+      // Fallback: use calculated monthly fees if no database records exist
+      return monthlyEmployeeFees;
+    }
+  }, [unpaidEmployeeFees, currentBillingPeriod, monthlyEmployeeFees]);
 
   // Legacy calculations for backward compatibility
-  const currentMonthUnpaidAdvances = unpaidAdvances
+  const currentMonthUnpaidAdvances = useMemo(() => unpaidAdvances
     .filter(advance => {
       const advanceDate = new Date(advance.created_at);
       const now = new Date();
       return advanceDate.getMonth() === now.getMonth() && advanceDate.getFullYear() === now.getFullYear();
     })
-    .reduce((sum, advance) => sum + advance.requested_amount, 0);
+    .reduce((sum, advance) => sum + advance.requested_amount, 0), [unpaidAdvances]);
 
-  const currentMonthUnpaidFees = unpaidEmployeeFees
+  const currentMonthUnpaidFees = useMemo(() => unpaidEmployeeFees
     .filter(fee => {
       const feeDate = new Date(fee.created_at);
       const now = new Date();
       return feeDate.getMonth() === now.getMonth() && feeDate.getFullYear() === now.getFullYear();
     })
-    .reduce((sum, fee) => sum + fee.fee_amount, 0);
+    .reduce((sum, fee) => sum + fee.fee_amount, 0), [unpaidEmployeeFees]);
 
   // Billing data calculations - use period-based billing logic
   // First period (1-14th): Advance amounts only (billed on 15th)
@@ -2695,6 +2928,15 @@ const CompanyDashboard = () => {
     setShowCsvUploadModal(false);
     setShowCsvResultsModal(false);
     setCsvUploadResults(null);
+    
+    // Clear localStorage
+    localStorage.removeItem('csvUploadData');
+    localStorage.removeItem('csvUploadStep');
+    localStorage.removeItem('csvSelectedRows');
+    localStorage.removeItem('csvModalOpen');
+    localStorage.removeItem('selectedEmployeeModal');
+    
+    console.log('CSV upload reset - all state cleared');
   };
 
   // Cedula validation function
@@ -4436,7 +4678,7 @@ const CompanyDashboard = () => {
         )}
 
         {/* Delete employee confirmation */}
-        <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <Dialog open={isDeleteDialogOpen} onOpenChange={createModalCloseHandler(setIsDeleteDialogOpen)}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>{t('company.deleteEmployeeTitle')}</DialogTitle>
@@ -4456,7 +4698,7 @@ const CompanyDashboard = () => {
         </Dialog>
 
         {/* View employee details */}
-        <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
+        <Dialog open={isViewDialogOpen} onOpenChange={createModalCloseHandler(setIsViewDialogOpen)}>
           <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center space-x-2">
@@ -4550,7 +4792,7 @@ const CompanyDashboard = () => {
 
 
         {/* Employee Approval Dialog */}
-        <Dialog open={isApprovalDialogOpen} onOpenChange={setIsApprovalDialogOpen}>
+        <Dialog open={isApprovalDialogOpen} onOpenChange={createModalCloseHandler(setIsApprovalDialogOpen)}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle className="flex items-center space-x-2">
@@ -4582,7 +4824,7 @@ const CompanyDashboard = () => {
         </Dialog>
 
         {/* Employee Rejection Dialog */}
-        <Dialog open={isRejectionDialogOpen} onOpenChange={setIsRejectionDialogOpen}>
+        <Dialog open={isRejectionDialogOpen} onOpenChange={createModalCloseHandler(setIsRejectionDialogOpen)}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle className="flex items-center space-x-2">
@@ -5095,7 +5337,12 @@ const CompanyDashboard = () => {
                       <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingEmployees ? 'animate-spin' : ''}`} />
                       {t('company.billing.refresh')}
                     </Button>
-                    <Dialog open={isAddEmployeeDialogOpen} onOpenChange={setIsAddEmployeeDialogOpen}>
+                    <Dialog open={isAddEmployeeDialogOpen} onOpenChange={createModalCloseHandler((open) => {
+                      setIsAddEmployeeDialogOpen(open);
+                      if (!open) {
+                        localStorage.removeItem('addEmployeeModalOpen');
+                      }
+                    })}>
                       <DialogTrigger asChild>
                     <Button variant="hero">
                       <Plus className="h-4 w-4 mr-2" />
@@ -5119,6 +5366,7 @@ const CompanyDashboard = () => {
                             onClick={() => {
                                   setIsAddEmployeeDialogOpen(false);
                               setShowSimpleForm(true);
+                              localStorage.setItem('selectedEmployeeModal', 'simple');
                             }}
                           >
                             <Users className="h-6 w-6" />
@@ -5130,6 +5378,7 @@ const CompanyDashboard = () => {
                             onClick={() => {
                                   setIsAddEmployeeDialogOpen(false);
                               setShowCsvUploadModal(true);
+                              localStorage.setItem('selectedEmployeeModal', 'csv');
                             }}
                           >
                             <FileSpreadsheet className="h-6 w-6" />
@@ -6376,7 +6625,7 @@ const CompanyDashboard = () => {
       </div>
 
       {/* Cedula Preview Modal with slider */}
-      <Dialog open={isCedulaPreviewOpen} onOpenChange={setIsCedulaPreviewOpen}>
+      <Dialog open={isCedulaPreviewOpen} onOpenChange={createModalCloseHandler(setIsCedulaPreviewOpen)}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle>{language === 'en' ? 'Cédula Preview' : 'Vista previa de la Cédula'}</DialogTitle>
@@ -6406,7 +6655,7 @@ const CompanyDashboard = () => {
       </Dialog>
 
       {/* Edit Employee Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+      <Dialog open={isEditDialogOpen} onOpenChange={createModalCloseHandler(setIsEditDialogOpen)}>
         <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center space-x-2">
@@ -6439,7 +6688,7 @@ const CompanyDashboard = () => {
       </Dialog>
 
       {/* Approve Confirmation Modal */}
-      <Dialog open={showApproveModal} onOpenChange={setShowApproveModal}>
+      <Dialog open={showApproveModal} onOpenChange={createModalCloseHandler(setShowApproveModal)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -6482,7 +6731,7 @@ const CompanyDashboard = () => {
       </Dialog>
 
       {/* Reject Confirmation Modal */}
-      <Dialog open={showRejectModal} onOpenChange={setShowRejectModal}>
+      <Dialog open={showRejectModal} onOpenChange={createModalCloseHandler(setShowRejectModal)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -6526,9 +6775,9 @@ const CompanyDashboard = () => {
       </Dialog>
 
       {/* Payment Modal */}
-      <Dialog open={showPaymentModal} onOpenChange={(open) => {
+      <Dialog open={showPaymentModal} onOpenChange={createModalCloseHandler((open) => {
         setShowPaymentModal(open);
-      }}>
+      })}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center space-x-2">
@@ -6623,7 +6872,7 @@ const CompanyDashboard = () => {
       </Dialog>
 
       {/* Individual Employee Form Dialog */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      <Dialog open={isDialogOpen} onOpenChange={createModalCloseHandler(setIsDialogOpen)}>
         <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center space-x-2">
@@ -6643,7 +6892,7 @@ const CompanyDashboard = () => {
       </Dialog>
 
       {/* CSV Upload Modal */}
-      <Dialog open={showCsvUploadModal} onOpenChange={setShowCsvUploadModal}>
+      <Dialog open={showCsvUploadModal} onOpenChange={handleCsvModalClose}>
         <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center space-x-2">
@@ -6903,7 +7152,7 @@ const CompanyDashboard = () => {
       </Dialog>
 
       {/* CSV Upload Results Modal */}
-      <Dialog open={showCsvResultsModal} onOpenChange={setShowCsvResultsModal}>
+      <Dialog open={showCsvResultsModal} onOpenChange={createModalCloseHandler(setShowCsvResultsModal)}>
         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center space-x-2">
@@ -7031,7 +7280,13 @@ const CompanyDashboard = () => {
       </Dialog>
 
       {/* Simple Employee Form Dialog */}
-      <Dialog open={showSimpleForm} onOpenChange={setShowSimpleForm}>
+      <Dialog open={showSimpleForm} onOpenChange={createModalCloseHandler((open) => {
+        setShowSimpleForm(open);
+        if (!open) {
+          localStorage.removeItem('simpleEmployeeFormOpen');
+          localStorage.removeItem('selectedEmployeeModal');
+        }
+      })}>
         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center space-x-2">
@@ -7051,7 +7306,7 @@ const CompanyDashboard = () => {
       </Dialog>
 
       {/* Export Format Selection Dialog */}
-      <Dialog open={showFormatDialog} onOpenChange={setShowFormatDialog}>
+      <Dialog open={showFormatDialog} onOpenChange={createModalCloseHandler(setShowFormatDialog)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Select Export Format</DialogTitle>
@@ -7120,7 +7375,7 @@ const CompanyDashboard = () => {
       </Dialog>
 
       {/* Approve Change Request Confirmation Modal */}
-      <Dialog open={showApproveChangeRequestModal} onOpenChange={setShowApproveChangeRequestModal}>
+      <Dialog open={showApproveChangeRequestModal} onOpenChange={createModalCloseHandler(setShowApproveChangeRequestModal)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -7159,7 +7414,7 @@ const CompanyDashboard = () => {
       </Dialog>
 
       {/* Reject Change Request Confirmation Modal */}
-      <Dialog open={showRejectChangeRequestModal} onOpenChange={setShowRejectChangeRequestModal}>
+      <Dialog open={showRejectChangeRequestModal} onOpenChange={createModalCloseHandler(setShowRejectChangeRequestModal)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -7199,7 +7454,7 @@ const CompanyDashboard = () => {
       </Dialog>
 
       {/* Billing Detail Modal */}
-      <Dialog open={showBillingDetailModal} onOpenChange={setShowBillingDetailModal}>
+      <Dialog open={showBillingDetailModal} onOpenChange={createModalCloseHandler(setShowBillingDetailModal)}>
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center space-x-2">

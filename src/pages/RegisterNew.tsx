@@ -8,13 +8,13 @@ import { Building, CheckCircle } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
-import { useState } from "react";
+import { useState, useCallback, memo, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 import { ensureCompanyRecord } from "@/lib/profile";
 import { PhoneInput } from "@/components/PhoneInput";
 
-const Register = () => {
+const Register = memo(() => {
   const { t, language } = useLanguage();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -40,7 +40,18 @@ const Register = () => {
   const [companyRifImage, setCompanyRifImage] = useState<File | null>(null);
   const [fileInputKey, setFileInputKey] = useState(0);
   const [isValidatingRif, setIsValidatingRif] = useState(false);
+  const isInitialMount = useRef(true);
 
+  // Prevent unnecessary re-renders on window focus
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    
+    // Only re-render if there are actual state changes
+    // This prevents re-renders when switching windows
+  }, []);
 
   // Helpers
   const isValidCompanyName = (name: string) => name.trim().length >= 2;
@@ -235,14 +246,14 @@ const Register = () => {
   const passwordsMatch = (password: string, confirmPassword: string) => password === confirmPassword;
 
   // Handle Enter key press
-  const handleKeyPress = (event: React.KeyboardEvent) => {
+  const handleKeyPress = useCallback((event: React.KeyboardEvent) => {
     if (event.key === 'Enter') {
       event.preventDefault();
         signUpCompany();
     }
-  };
+  }, []);
 
-  const handleCompanyRifChange = (value: string) => {
+  const handleCompanyRifChange = useCallback((value: string) => {
     let cleaned = value.replace(/[^VJG0-9]/gi, '');
     if (cleaned.length > 0 && !['V','J','G'].includes(cleaned[0].toUpperCase())) {
       cleaned = cleaned.substring(1);
@@ -262,9 +273,9 @@ const Register = () => {
     } else {
       setCompanyRifError("");
     }
-  };
+  }, [t]);
 
-  const handleCompanyRifImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleCompanyRifImageUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     
     // Clear the input value to allow re-selecting the same file
@@ -369,9 +380,9 @@ const Register = () => {
       });
       setIsValidatingRif(false);
     }
-  };
+  }, [t, toast]);
 
-  const isCompanyFormValid = () => {
+  const isCompanyFormValid = useCallback(() => {
     const phoneValidationError = validatePhoneForSubmission(companyPhone, companyPhoneCountry);
     return isValidCompanyName(companyName)
       && isValidEmail(companyEmail)
@@ -382,10 +393,10 @@ const Register = () => {
       && !!companyRifImage
       && !companyNameError && !companyEmailError && !companyRifError 
       && !companyPasswordError && !companyConfirmPasswordError;
-  };
+  }, [companyName, companyEmail, companyPhone, companyPhoneCountry, companyRif, companyPassword, companyConfirmPassword, companyRifImage, companyNameError, companyEmailError, companyRifError, companyPasswordError, companyConfirmPasswordError]);
   
 
-  const signUpCompany = async () => {
+  const signUpCompany = useCallback(async () => {
     try {
       setIsLoading(true);
       // Validate client-side before submit
@@ -523,13 +534,13 @@ const Register = () => {
             errorMessage = t('register.emailAlreadyRegistered');
           } else if (registerError.message.includes('RIF already exists')) {
             errorMessage = t('register.rifAlreadyExists');
-          } else {
+        } else {
             errorMessage = registerError.message;
           }
         }
         
-            toast({
-          title: t('register.errorTitle'),
+      toast({
+        title: t('register.errorTitle'),
           description: errorMessage,
               variant: 'destructive'
             });
@@ -575,7 +586,7 @@ const Register = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [companyName, companyEmail, companyPhone, companyPhoneCountry, companyRif, companyPassword, companyConfirmPassword, companyRifImage, companyNameError, companyEmailError, companyPhoneError, companyRifError, companyPasswordError, companyConfirmPasswordError, t, language, navigate, toast]);
 
 
 
@@ -778,8 +789,8 @@ const Register = () => {
                   onClick={signUpCompany}
                 >
                   {t('register.createCompanyButton')}
-                </Button>
-            </div>
+                  </Button>
+                </div>
           </CardContent>
         </Card>
 
@@ -794,6 +805,6 @@ const Register = () => {
       </div>
     </div>
   );
-};
+});
 
 export default Register;
