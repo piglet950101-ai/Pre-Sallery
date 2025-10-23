@@ -1085,30 +1085,57 @@ const CompanyDashboard = () => {
   useEffect(() => {
     if (isAddEmployeeDialogOpen) {
       localStorage.setItem('addEmployeeModalOpen', 'true');
+      // Reset the flag when user manually opens the main dialog
+      localStorage.removeItem('employeeSuccessfullySaved');
     }
   }, [isAddEmployeeDialogOpen]);
 
   useEffect(() => {
-    const reopenAddEmployeeIfNeeded = () => {
-      const wasOpen = localStorage.getItem('addEmployeeModalOpen');
+    const reopenModalsIfNeeded = () => {
+      // Don't reopen modals if we're currently loading (saving employee)
+      if (isLoading) {
+        return;
+      }
+      
+      // Check if employee was successfully saved - if so, don't reopen any modals
+      const employeeSuccessfullySaved = localStorage.getItem('employeeSuccessfullySaved');
+      if (employeeSuccessfullySaved === 'true') {
+        return;
+      }
+      
+      // Check if CSV upload was completed - if so, don't reopen CSV modal
+      const csvUploadCompleted = localStorage.getItem('csvUploadCompleted');
+      if (csvUploadCompleted === 'true') {
+        return;
+      }
+      
+      // Check if CSV modal was explicitly closed - if so, don't reopen it
+      const csvModalOpen = localStorage.getItem('csvModalOpen');
+      if (csvModalOpen === null || csvModalOpen === 'false') {
+        // CSV modal was explicitly closed, don't reopen it
+        return;
+      }
+      
+      const addEmployeeOpen = localStorage.getItem('addEmployeeModalOpen');
+      const simpleFormOpen = localStorage.getItem('simpleEmployeeFormOpen');
       const selectedModal = localStorage.getItem('selectedEmployeeModal');
       
-      if (wasOpen === 'true') {
-        // Don't reopen the selection modal, open the specific modal that was selected
-        if (selectedModal === 'simple') {
-          setShowSimpleForm(true);
-        } else if (selectedModal === 'csv') {
-          setShowCsvUploadModal(true);
-        } else {
-          // If no specific modal was selected, reopen the selection modal
-          setIsAddEmployeeDialogOpen(true);
-        }
+      // Priority order: CSV modal > Simple form > Add employee selection
+      if (csvModalOpen === 'true' || (addEmployeeOpen === 'true' && selectedModal === 'csv')) {
+        setShowCsvUploadModal(true);
+      } else if (simpleFormOpen === 'true' || (addEmployeeOpen === 'true' && selectedModal === 'simple')) {
+        setShowSimpleForm(true);
+      } else if (addEmployeeOpen === 'true') {
+        setIsAddEmployeeDialogOpen(true);
       }
     };
-    reopenAddEmployeeIfNeeded();
-    const onFocus = () => reopenAddEmployeeIfNeeded();
+    
+    // Only run on initial mount, not on every re-render
+    reopenModalsIfNeeded();
+    
+    const onFocus = () => reopenModalsIfNeeded();
     const onVisibility = () => {
-      if (document.visibilityState === 'visible') reopenAddEmployeeIfNeeded();
+      if (document.visibilityState === 'visible') reopenModalsIfNeeded();
     };
     window.addEventListener('focus', onFocus);
     document.addEventListener('visibilitychange', onVisibility);
@@ -1116,96 +1143,52 @@ const CompanyDashboard = () => {
       window.removeEventListener('focus', onFocus);
       document.removeEventListener('visibilitychange', onVisibility);
     };
-  }, []);
+  }, []); // Remove isLoading dependency to prevent multiple runs
 
   // Persist Quick Add Employee (Simple form) modal state
   useEffect(() => {
     if (showSimpleForm) {
       localStorage.setItem('simpleEmployeeFormOpen', 'true');
+      // Reset the flag when user manually opens the modal
+      localStorage.removeItem('employeeSuccessfullySaved');
     }
   }, [showSimpleForm]);
 
+  // Clear success flag when component unmounts to prevent it from persisting indefinitely
   useEffect(() => {
-    const reopenSimpleFormIfNeeded = () => {
-      const wasOpen = localStorage.getItem('simpleEmployeeFormOpen');
-      if (wasOpen === 'true') {
-        setShowSimpleForm(true);
-      }
-    };
-    reopenSimpleFormIfNeeded();
-    const onFocusSimple = () => reopenSimpleFormIfNeeded();
-    const onVisibilitySimple = () => {
-      if (document.visibilityState === 'visible') reopenSimpleFormIfNeeded();
-    };
-    window.addEventListener('focus', onFocusSimple);
-    document.addEventListener('visibilitychange', onVisibilitySimple);
     return () => {
-      window.removeEventListener('focus', onFocusSimple);
-      document.removeEventListener('visibilitychange', onVisibilitySimple);
+      // Only clear if we're not currently in a modal (to avoid clearing during normal operation)
+      if (!showSimpleForm && !showCsvUploadModal && !isAddEmployeeDialogOpen) {
+        localStorage.removeItem('employeeSuccessfullySaved');
+      }
     };
   }, []);
 
-  // Save modal state to localStorage - but don't remove it automatically
+  // Save CSV modal state to localStorage - but don't remove it automatically
   useEffect(() => {
     if (showCsvUploadModal) {
       localStorage.setItem('csvModalOpen', 'true');
+      // Clear the completion flag when user manually opens CSV modal
+      localStorage.removeItem('csvUploadCompleted');
     }
     // Don't remove csvModalOpen automatically - let it persist
   }, [showCsvUploadModal]);
 
-  // Auto-open CSV upload modal if there's saved state
-  useEffect(() => {
-    const checkAndOpenCsvModal = () => {
-      const savedData = localStorage.getItem('csvUploadData');
-      const savedStep = localStorage.getItem('csvUploadStep');
-      const modalWasOpen = localStorage.getItem('csvModalOpen');
-      
-      if ((savedData && savedStep && savedStep !== 'upload') || modalWasOpen === 'true') {
-        setShowCsvUploadModal(true);
-        // Ensure the modal state is saved
-        localStorage.setItem('csvModalOpen', 'true');
-      }
-    };
-
-    // Check on component mount
-    checkAndOpenCsvModal();
-
-    // Check when window regains focus
-    const handleFocus = () => {
-      checkAndOpenCsvModal();
-    };
-
-    window.addEventListener('focus', handleFocus);
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') {
-        checkAndOpenCsvModal();
-      }
-    });
-
-    return () => {
-      window.removeEventListener('focus', handleFocus);
-    };
-  }, [showCsvUploadModal]);
-
-  // Simple check to ensure modal stays open if it should be
-  useEffect(() => {
-    const savedData = localStorage.getItem('csvUploadData');
-    const savedStep = localStorage.getItem('csvUploadStep');
-    const modalWasOpen = localStorage.getItem('csvModalOpen');
-    
-    if (!showCsvUploadModal && ((savedData && savedStep && savedStep !== 'upload') || modalWasOpen === 'true')) {
-      setShowCsvUploadModal(true);
-      localStorage.setItem('csvModalOpen', 'true');
-    }
-  });
 
   // Handle modal close - clear persistence when user explicitly closes
   const handleCsvModalClose = (open: boolean) => {
     setShowCsvUploadModal(open);
     if (!open) {
-      // User is explicitly closing the modal, clear the persistence
+      // User is explicitly closing the modal, clear ALL modal-related flags
       localStorage.removeItem('csvModalOpen');
       localStorage.removeItem('selectedEmployeeModal');
+      localStorage.removeItem('addEmployeeModalOpen');
+      localStorage.removeItem('simpleEmployeeFormOpen');
+      localStorage.removeItem('csvUploadData');
+      localStorage.removeItem('csvUploadStep');
+      localStorage.removeItem('csvSelectedRows');
+      localStorage.removeItem('employeeSuccessfullySaved');
+      localStorage.removeItem('csvUploadCompleted');
     }
   };
 
@@ -2151,6 +2134,10 @@ const CompanyDashboard = () => {
   const handleSimpleEmployeeSave = async (employeeData: any) => {
     try {
       setIsLoading(true);
+      // Clear localStorage flags immediately to prevent modal reopening during save
+      localStorage.removeItem('simpleEmployeeFormOpen');
+      localStorage.removeItem('selectedEmployeeModal');
+      localStorage.removeItem('addEmployeeModalOpen');
       
       // Generate activation code
       const activationCode = generateActivationCode();
@@ -2297,7 +2284,7 @@ const CompanyDashboard = () => {
       await fetchEmployeeFees();
       
       // Create monthly employee fees for the new employee
-      setTimeout(() => createMonthlyEmployeeFees(), 500);
+      await createMonthlyEmployeeFees();
       
       toast({
         title: t('company.billing.employeeAdded'),
@@ -2316,6 +2303,8 @@ const CompanyDashboard = () => {
       }
       
       setShowSimpleForm(false);
+      // Set flag to prevent modal from reopening
+      localStorage.setItem('employeeSuccessfullySaved', 'true');
       setIsLoading(false);
     } catch (error: any) {
       toast({
@@ -2894,6 +2883,18 @@ const CompanyDashboard = () => {
       setShowCsvUploadModal(false);
       setShowCsvResultsModal(true);
       
+      // Clear ALL modal flags when upload is completed successfully
+      localStorage.removeItem('csvModalOpen');
+      localStorage.removeItem('selectedEmployeeModal');
+      localStorage.removeItem('addEmployeeModalOpen');
+      localStorage.removeItem('simpleEmployeeFormOpen');
+      localStorage.removeItem('csvUploadData');
+      localStorage.removeItem('csvUploadStep');
+      localStorage.removeItem('csvSelectedRows');
+      localStorage.removeItem('employeeSuccessfullySaved');
+      // Set flag to prevent any modals from reopening
+      localStorage.setItem('csvUploadCompleted', 'true');
+      
     } catch (error: any) {
       toast({
         title: t('company.csvUpload.importError'),
@@ -2916,12 +2917,16 @@ const CompanyDashboard = () => {
     setShowCsvResultsModal(false);
     setCsvUploadResults(null);
     
-    // Clear localStorage
+    // Clear ALL modal-related localStorage
     localStorage.removeItem('csvUploadData');
     localStorage.removeItem('csvUploadStep');
     localStorage.removeItem('csvSelectedRows');
     localStorage.removeItem('csvModalOpen');
     localStorage.removeItem('selectedEmployeeModal');
+    localStorage.removeItem('addEmployeeModalOpen');
+    localStorage.removeItem('simpleEmployeeFormOpen');
+    localStorage.removeItem('employeeSuccessfullySaved');
+    localStorage.removeItem('csvUploadCompleted');
   };
 
   // Cedula validation function
@@ -5322,12 +5327,7 @@ const CompanyDashboard = () => {
                       <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingEmployees ? 'animate-spin' : ''}`} />
                       {t('company.billing.refresh')}
                     </Button>
-                    <Dialog open={isAddEmployeeDialogOpen} onOpenChange={createModalCloseHandler((open) => {
-                      setIsAddEmployeeDialogOpen(open);
-                      if (!open) {
-                        localStorage.removeItem('addEmployeeModalOpen');
-                      }
-                    })}>
+                    <Dialog open={isAddEmployeeDialogOpen} onOpenChange={createModalCloseHandler(setIsAddEmployeeDialogOpen, 'addEmployeeModalOpen')}>
                       <DialogTrigger asChild>
                     <Button variant="hero">
                       <Plus className="h-4 w-4 mr-2" />
@@ -5371,7 +5371,7 @@ const CompanyDashboard = () => {
                           </Button>
                         </div>
                         <DialogFooter>
-                              <Button variant="outline" onClick={() => setIsAddEmployeeDialogOpen(false)}>
+                              <Button variant="outline" onClick={() => createModalCloseHandler(setIsAddEmployeeDialogOpen, 'addEmployeeModalOpen')(false)}>
                             {t('common.cancel')}
                           </Button>
                         </DialogFooter>
@@ -7137,7 +7137,21 @@ const CompanyDashboard = () => {
       </Dialog>
 
       {/* CSV Upload Results Modal */}
-      <Dialog open={showCsvResultsModal} onOpenChange={createModalCloseHandler(setShowCsvResultsModal)}>
+      <Dialog open={showCsvResultsModal} onOpenChange={(open) => {
+        setShowCsvResultsModal(open);
+        if (!open) {
+          // Clear ALL modal-related localStorage flags when results modal is closed
+          localStorage.removeItem('csvModalOpen');
+          localStorage.removeItem('selectedEmployeeModal');
+          localStorage.removeItem('addEmployeeModalOpen');
+          localStorage.removeItem('simpleEmployeeFormOpen');
+          localStorage.removeItem('csvUploadData');
+          localStorage.removeItem('csvUploadStep');
+          localStorage.removeItem('csvSelectedRows');
+          localStorage.removeItem('employeeSuccessfullySaved');
+          localStorage.removeItem('csvUploadCompleted');
+        }
+      }}>
         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center space-x-2">
@@ -7265,13 +7279,14 @@ const CompanyDashboard = () => {
       </Dialog>
 
       {/* Simple Employee Form Dialog */}
-      <Dialog open={showSimpleForm} onOpenChange={createModalCloseHandler((open) => {
+      <Dialog open={showSimpleForm} onOpenChange={(open) => {
         setShowSimpleForm(open);
         if (!open) {
           localStorage.removeItem('simpleEmployeeFormOpen');
           localStorage.removeItem('selectedEmployeeModal');
+          localStorage.removeItem('addEmployeeModalOpen');
         }
-      })}>
+      }}>
         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center space-x-2">
@@ -7284,7 +7299,12 @@ const CompanyDashboard = () => {
           </DialogHeader>
           <SimpleEmployeeForm
             onSave={handleSimpleEmployeeSave}
-            onCancel={() => setShowSimpleForm(false)}
+            onCancel={() => {
+              setShowSimpleForm(false);
+              localStorage.removeItem('simpleEmployeeFormOpen');
+              localStorage.removeItem('selectedEmployeeModal');
+              localStorage.removeItem('addEmployeeModalOpen');
+            }}
             isLoading={isLoading}
           />
         </DialogContent>
