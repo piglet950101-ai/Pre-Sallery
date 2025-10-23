@@ -1109,11 +1109,11 @@ const CompanyDashboard = () => {
         return;
       }
       
-      // Check if CSV modal was explicitly closed - if so, don't reopen it
+      // Check if CSV modal was explicitly closed - if so, don't reopen CSV modal specifically
       const csvModalOpen = localStorage.getItem('csvModalOpen');
       if (csvModalOpen === null || csvModalOpen === 'false') {
-        // CSV modal was explicitly closed, don't reopen it
-        return;
+        // CSV modal was explicitly closed, skip CSV modal but allow other modals
+        // Don't return here, continue to check other modals
       }
       
       const addEmployeeOpen = localStorage.getItem('addEmployeeModalOpen');
@@ -1121,7 +1121,8 @@ const CompanyDashboard = () => {
       const selectedModal = localStorage.getItem('selectedEmployeeModal');
       
       // Priority order: CSV modal > Simple form > Add employee selection
-      if (csvModalOpen === 'true' || (addEmployeeOpen === 'true' && selectedModal === 'csv')) {
+      // Only reopen CSV modal if it wasn't explicitly closed
+      if ((csvModalOpen === 'true' || (addEmployeeOpen === 'true' && selectedModal === 'csv')) && csvModalOpen !== null && csvModalOpen !== 'false') {
         setShowCsvUploadModal(true);
       } else if (simpleFormOpen === 'true' || (addEmployeeOpen === 'true' && selectedModal === 'simple')) {
         setShowSimpleForm(true);
